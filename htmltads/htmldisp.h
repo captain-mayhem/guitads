@@ -237,6 +237,16 @@ public:
     static void operator delete(void *ptr);
 
     /*
+     *   Matching placement delete.  The compiler calls this (never client
+     *   code) if a constructor throws after the placement 'new' above; it
+     *   must mirror that 'new' signature or MSVC warns C4291 at every
+     *   'new (formatter) CHtmlDispXxx(...)' call site.  We just route to the
+     *   ordinary delete, which reads the stored heap-id prefix to decide
+     *   between the formatter heap and the system heap.
+     */
+    static void operator delete(void *ptr, class CHtmlFormatter *formatter);
+
+    /*
      *   Image display scaling factor.  The formatter multiplies every image's
      *   on-screen width and height - the intrinsic size, an explicit WIDTH=/
      *   HEIGHT= in pixels, and image-map pixel coordinates alike - by this
