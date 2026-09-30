@@ -254,11 +254,14 @@ void CHtmlDispDisplaySite::dispsite_cancel_timer(CHtmlSysImageAnimated *)
 
 /* ------------------------------------------------------------------------ */
 /*
- *   Basic display object implementation 
+ *   Basic display object implementation
  */
 
+/* image display scaling factor - see CHtmlDisp::set_image_scale() */
+double CHtmlDisp::image_scale_ = 1.0;
+
 /*
- *   Memory allocation - use the formatter for memory management 
+ *   Memory allocation - use the formatter for memory management
  */
 void *CHtmlDisp::operator new(size_t siz, CHtmlFormatter *formatter)
 {

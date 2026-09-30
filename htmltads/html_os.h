@@ -53,7 +53,7 @@ Modified
 /* 
  *   Include definitions for 32-bit Windows
  */
-#ifdef T_WIN32
+#if defined(T_WIN32) && !defined(IMGUI)
 #include "hos_w32.h"
 #endif
 
@@ -71,5 +71,16 @@ Modified
  */
 #ifdef QTADS
 #include "hos_qt.h"
+#endif
+
+/* ------------------------------------------------------------------------ */
+/*
+ *   Include definitions for Imgui (guit3, every platform) and for
+ *   Emscripten (both guit3-for-web and the classic htmlt3 web port) - both
+ *   need the same GUI-toolkit-agnostic hos_gui.h; see that file's header
+ *   comment for why one file covers both rather than two near-duplicates.
+ */
+#if defined(IMGUI) || defined(__EMSCRIPTEN__)
+#include "hos_gui.h"
 #endif
 
