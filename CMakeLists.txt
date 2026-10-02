@@ -10,9 +10,11 @@
 # though guit3 itself uses guios_w32.cpp, not hos_w32.h, for its own code.
 #
 # Like the old htmltads repo, this is not built standalone - it's a sibling
-# checkout to tads-runner, which auto-detects ../guitads (preferred) or
-# ../htmltads and pulls it in via add_subdirectory(). See tads-runner's
-# CMakeLists.txt and CLAUDE.md.
+# checkout to tads-runner, which auto-detects ../guitads and/or ../htmltads
+# and pulls them in via add_subdirectory(). When both are present, this repo
+# is added first and owns guit3 and the 3rdparty libraries; htmltads then
+# skips those and only adds its legacy htmlt3/htmltdb3/tadsweb targets. See
+# tads-runner's CMakeLists.txt and CLAUDE.md.
 
 add_subdirectory(zlib)
 add_subdirectory(libpng)
