@@ -1,12 +1,14 @@
-/*
- *   Copyright (c) 2026 by the TADS 3 authors.  All Rights Reserved.
- *
+/* $Header: d:/cvsroot/tads/html/win32/w32main.h,v 1.4 1999/07/11 00:46:51 MJRoberts Exp $ */
+
+/* 
+ *   Copyright (c) 1998 by Michael J. Roberts.  All Rights Reserved.
+ *   
  *   Please see the accompanying license file, LICENSE.TXT, for information
- *   on using and copying this software.
+ *   on using and copying this software.  
  */
 /*
 Name
-  guimain.h - tads imgui main entrypoint
+  w32main.h - tads html win32 main entrypoint
 Function
   
 Notes

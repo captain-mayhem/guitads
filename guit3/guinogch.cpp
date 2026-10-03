@@ -1,12 +1,17 @@
-/*
- *   Copyright (c) 2026 by the TADS 3 authors.  All Rights Reserved.
- *
+#ifdef RCSID
+static char RCSid[] =
+"$Header$";
+#endif
+
+/* 
+ *   Copyright (c) 2001 by Michael J. Roberts.  All Rights Reserved.
+ *   
  *   Please see the accompanying license file, LICENSE.TXT, for information
- *   on using and copying this software.
+ *   on using and copying this software.  
  */
 /*
 Name
-  guinogch.cpp - No Game Chest option
+  w32nogch.cpp - No Game Chest option
 Function
   Provides dummy definitions for the required Game Chest entrypoints,
   allowing a version without the game chest to be linked.

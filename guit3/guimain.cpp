@@ -1,12 +1,17 @@
-/*
- *   Copyright (c) 2026 by the TADS 3 authors.  All Rights Reserved.
- *
+#ifdef RCSID
+static char RCSid[] =
+"$Header: d:/cvsroot/tads/html/win32/w32main.cpp,v 1.4 1999/07/11 00:46:51 MJRoberts Exp $";
+#endif
+
+/* 
+ *   Copyright (c) 1998 by Michael J. Roberts.  All Rights Reserved.
+ *   
  *   Please see the accompanying license file, LICENSE.TXT, for information
- *   on using and copying this software.
+ *   on using and copying this software.  
  */
 /*
 Name
-  guimain.cpp - tads imgui - main entrypoint
+  w32main.cpp - tads html win32 - main entrypoint
 Function
   
 Notes
