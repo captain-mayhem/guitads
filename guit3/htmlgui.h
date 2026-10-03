@@ -1,14 +1,12 @@
-/* $Header: d:/cvsroot/tads/html/win32/htmlw32.h,v 1.4 1999/07/11 00:46:47 MJRoberts Exp $ */
-
-/* 
- *   Copyright (c) 1997 by Michael J. Roberts.  All Rights Reserved.
- *   
+/*
+ *   Copyright (c) 2026 by the TADS 3 authors.  All Rights Reserved.
+ *
  *   Please see the accompanying license file, LICENSE.TXT, for information
- *   on using and copying this software.  
+ *   on using and copying this software.
  */
 /*
 Name
-  htmlsys_w32.h - HTML system class implementation for Win32
+  htmlgui.h - HTML system class implementation for imgui
 Function
   
 Notes

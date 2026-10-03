@@ -1,7 +1,13 @@
-/* Copyright (c) 2006 by Michael J. Roberts.  All Rights Reserved. */
+/*
+ *   Copyright (c) 2026 by the TADS 3 authors.  All Rights Reserved.
+ *
+ *   Please see the accompanying license file, LICENSE.TXT, for information
+ *   on using and copying this software.
+ */
+
 /*
 Name
-  w32ver.h - defines the Windows Port Build Number for HTML TADS
+  guiver.h - defines the imgui Port Build Number for HTML TADS
 Function
   
 Notes

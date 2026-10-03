@@ -1,17 +1,12 @@
-#ifdef RCSID
-static char RCSid[] =
-"$Header: d:/cvsroot/tads/html/win32/htmlw32.cpp,v 1.4 1999/07/11 00:46:46 MJRoberts Exp $";
-#endif
-
-/* 
- *   Copyright (c) 1997 by Michael J. Roberts.  All Rights Reserved.
- *   
+/*
+ *   Copyright (c) 2026 by the TADS 3 authors.  All Rights Reserved.
+ *
  *   Please see the accompanying license file, LICENSE.TXT, for information
- *   on using and copying this software.  
+ *   on using and copying this software.
  */
 /*
 Name
-  htmlsys_w32.cpp - HTML system class implementation for Win32
+  htmlgui.cpp - HTML system class implementation for imgui
 Function
   
 Notes

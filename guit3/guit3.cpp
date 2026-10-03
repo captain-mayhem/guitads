@@ -1,17 +1,12 @@
-#ifdef RCSID
-static char RCSid[] =
-"$Header$";
-#endif
-
-/* 
- *   Copyright (c) 2000, 2002 by Michael J. Roberts.  All Rights Reserved.
- *   
+/*
+ *   Copyright (c) 2026 by the TADS 3 authors.  All Rights Reserved.
+ *
  *   Please see the accompanying license file, LICENSE.TXT, for information
- *   on using and copying this software.  
+ *   on using and copying this software.
  */
 /*
 Name
-  w32t3.cpp - TADS 3 version-specific implementation
+  guit3.cpp - TADS 3 version-specific implementation
 Function
   
 Notes

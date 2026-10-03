@@ -1,7 +1,13 @@
-/* Copyright (c) 2006 by Michael J. Roberts.  All Rights Reserved. */
+/*
+ *   Copyright (c) 2026 by the TADS 3 authors.  All Rights Reserved.
+ *
+ *   Please see the accompanying license file, LICENSE.TXT, for information
+ *   on using and copying this software.
+ */
+
 /*
 Name
-  w32webui.h - local browser frame for TADS Web UI
+  guiwebui.h - local browser frame for TADS Web UI
 Function
   The TADS Web UI allows a game to use a Web browser as its user interface.
   There are two ways to run such a game: as a true client/server app across

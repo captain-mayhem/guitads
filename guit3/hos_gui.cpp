@@ -1,17 +1,12 @@
-#ifdef RCSID
-static char RCSid[] =
-"$Header: d:/cvsroot/tads/html/win32/hos_w32.cpp,v 1.3 1999/05/29 15:51:04 MJRoberts Exp $";
-#endif
-
-/* 
- *   Copyright (c) 1998 by Michael J. Roberts.  All Rights Reserved.
- *   
+/*
+ *   Copyright (c) 2026 by the TADS 3 authors.  All Rights Reserved.
+ *
  *   Please see the accompanying license file, LICENSE.TXT, for information
- *   on using and copying this software.  
+ *   on using and copying this software.
  */
 /*
 Name
-  hos_w32.cpp - HTML OS functions for Win32
+  hos_gui.cpp - HTML OS functions for imgui
 Function
   
 Notes

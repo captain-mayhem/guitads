@@ -1,17 +1,12 @@
-#ifdef RCSID
-static char RCSid[] =
-"$Header: d:/cvsroot/tads/html/win32/w32tr.cpp,v 1.4 1999/07/11 00:46:52 MJRoberts Exp $";
-#endif
-
-/* 
- *   Copyright (c) 1998 by Michael J. Roberts.  All Rights Reserved.
- *   
+/*
+ *   Copyright (c) 2026 by the TADS 3 authors.  All Rights Reserved.
+ *
  *   Please see the accompanying license file, LICENSE.TXT, for information
- *   on using and copying this software.  
+ *   on using and copying this software.
  */
 /*
 Name
-  w32tr.cpp - win32 configuration file for HTML TADS Runtime
+  guitr.cpp - imgui configuration file for HTML TADS Runtime
 Function
   
 Notes
