@@ -149,9 +149,17 @@ unsigned long os_get_sys_color(os_sys_color_t which);
  *   Load UI string number 'id' (an IDS_* / RESID_* resource id) into 'buf',
  *   NUL-terminated and truncated to 'buflen'.  Returns the number of
  *   characters copied (0 if the id is unknown), same contract as Win32
- *   LoadString().  Windows: LoadString() against the app instance.
+ *   LoadString().  Windows: LoadString() against the app instance, falling
+ *   back to os_load_builtin_string() when the resource isn't there.
  */
 int os_load_string(int id, char *buf, size_t buflen);
+
+/*
+ *   The built-in copy of the htmlcmn.rc string table that os_load_string()
+ *   uses where there are no compiled resources.  Same contract.
+ *   (guios_common.cpp)
+ */
+int os_load_builtin_string(int id, char *buf, size_t buflen);
 
 /*
  *   Load the toolbar icon strip (IDB_TERP_TOOLBAR) as a newly allocated
@@ -160,7 +168,8 @@ int os_load_string(int id, char *buf, size_t buflen);
  *   no color-key equivalent, so the conversion has to happen here.  On
  *   success returns the buffer (free it with th_free()) and fills
  *   *width/*height; on failure returns null.  Windows:
- *   LoadImage(LR_CREATEDIBSECTION) + GetDIBits() to a 32bpp DIB.
+ *   LoadImage(LR_CREATEDIBSECTION) + GetDIBits() to a 32bpp DIB, falling
+ *   back to os_load_builtin_toolbar_rgba() when the resource isn't there.
  */
 unsigned char *os_load_toolbar_rgba(int *width, int *height);
 
@@ -168,9 +177,18 @@ unsigned char *os_load_toolbar_rgba(int *width, int *height);
  *   Return the license text (IDX_LICENSE_TEXT) as a newly allocated buffer
  *   of *len bytes, or null if unavailable.  The buffer is the raw resource
  *   bytes and is *not* guaranteed NUL-terminated; free it with th_free().
- *   Windows: FindResource()/LoadResource() of the "TEXTFILE" resource.
+ *   Windows: FindResource()/LoadResource() of the "TEXTFILE" resource,
+ *   falling back to os_load_builtin_license_text() when it isn't there.
  */
 char *os_load_license_text(size_t *len);
+
+/*
+ *   The embedded copies of runtbar.bmp and license.txt (guires_data.h)
+ *   that the two hooks above use where there are no compiled resources.
+ *   Same contracts.  (guios_common.cpp)
+ */
+unsigned char *os_load_builtin_toolbar_rgba(int *width, int *height);
+char *os_load_builtin_license_text(size_t *len);
 
 
 /* ------------------------------------------------------------------------ */

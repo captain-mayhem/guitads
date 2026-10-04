@@ -98,8 +98,13 @@ unsigned long os_get_sys_color(os_sys_color_t which)
 
 int os_load_string(int id, char *buf, size_t buflen)
 {
-    return LoadString(CTadsApp::get_app()->get_instance(),
-                      id, buf, (int)buflen);
+    int len = LoadString(CTadsApp::get_app()->get_instance(),
+                         id, buf, (int)buflen);
+    if (len > 0)
+        return len;
+
+    /* no .rc compiled in (see guios.h) - use the built-in table */
+    return os_load_builtin_string(id, buf, buflen);
 }
 
 unsigned char *os_load_toolbar_rgba(int *width, int *height)
@@ -116,7 +121,10 @@ unsigned char *os_load_toolbar_rgba(int *width, int *height)
         CTadsApp::get_app()->get_instance(), MAKEINTRESOURCE(IDB_TERP_TOOLBAR),
         IMAGE_BITMAP, 0, 0, LR_CREATEDIBSECTION);
     if (hbmp == 0)
-        return 0;
+    {
+        /* no .rc compiled in (see guios.h) - use the embedded copy */
+        return os_load_builtin_toolbar_rgba(width, height);
+    }
 
     BITMAP bm;
     GetObject(hbmp, sizeof(bm), &bm);
@@ -166,7 +174,10 @@ char *os_load_license_text(size_t *len)
     HRSRC hres = FindResource(
         inst, MAKEINTRESOURCE(IDX_LICENSE_TEXT), "TEXTFILE");
     if (hres == 0)
-        return 0;
+    {
+        /* no .rc compiled in (see guios.h) - use the embedded copy */
+        return os_load_builtin_license_text(len);
+    }
 
     HGLOBAL hgl = LoadResource(inst, hres);
     if (hgl == 0)

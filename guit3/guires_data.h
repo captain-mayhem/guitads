@@ -1,6 +1,7 @@
 /*
- *   guires_data.h - embedded byte-array resources for the non-Windows guit3
- *   build (guios_portable.cpp's item B backend)
+ *   guires_data.h - embedded byte-array resources for guit3 (decoded by
+ *   guios_common.cpp: the only source off Windows, and the fallback on
+ *   Windows when the .exe carries no compiled resources)
  *
  *   Windows pulls the toolbar icon strip and the license text out of the
  *   compiled-in .exe resources (IDB_TERP_TOOLBAR / IDX_LICENSE_TEXT -

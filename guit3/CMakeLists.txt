@@ -93,6 +93,11 @@ add_executable(guit3
 	# migration.md 5.4/D-F and 5.5.
 	guios.h
 	guios_common.cpp
+	# embedded runtbar.bmp / license.txt byte arrays, generated with
+	# `xxd -i` - the only source off Windows, and the fallback on Windows
+	# when the .exe has no resources.  See migration.md 5.4/B.
+	guires_data.h
+	guires_data.cpp
 
 	# Persistent settings store (app options, per-theme "profile" trees,
 	# per-game theme associations) - neutral interface + one backend per
@@ -243,13 +248,7 @@ endif()
 if (WIN32)
 	target_sources(guit3 PRIVATE guios_w32.cpp)
 else()
-	target_sources(guit3 PRIVATE
-		guios_portable.cpp
-		# item B's embedded runtbar.bmp / license.txt byte arrays, generated
-		# with `xxd -i` - see migration.md 5.4/B.
-		guires_data.h
-		guires_data.cpp
-	)
+	target_sources(guit3 PRIVATE guios_portable.cpp)
 endif()
 
 # tadssettings.h per-platform backend: the registry code lifted verbatim, or
