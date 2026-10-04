@@ -1,3 +1,126 @@
+## Licensing: an honest assessment
+
+> This is an engineering assessment, not legal advice. It is based on a line-by-line comparison of
+> every guit3 file against the original HTML TADS import (htmltads commit
+> `b1a60cf`).
+
+**guit3 is not GPL software today.**
+
+- Only about **10% of guit3** (≈7,200 of ≈75,000 lines) is newly written code.
+  The rest is Michael J. Roberts' Win32 client code, adapted to varying
+  degrees. That code is covered by the **HTML TADS Freeware Source Code
+  License**.
+- **Freeware path.** The HTML TADS license explicitly permits *ports to new
+  platforms*, and guit3 is one. Distribute guit3 under that license: free of
+  charge, with the license text and your contact details included.
+
+## Which license covers which file
+
+**GPLv3 (via QTads)**: these `htmltads/` files are unchanged from QTads apart
+from guitads' own edits:
+
+`html_os.h`, `htmlattr.h`, `htmldisp.*`, `htmlfmt.*`, `htmlhash.*`,
+`htmlinp.*`, `htmlprs.*`, `htmlrc.*`, `htmlreg.h`, `htmlrf.*`, `htmlsnd.*`,
+`htmlsys.*`, `htmltags.*`, `htmltxar.*`, `htmlurl.h`, `htmlver.h`, `oshtml.cpp`,
+`tadshtml.*`, `tadsrtyp.cpp`
+
+**New code in `guit3/`** (the author's own; GPLv3 or any license of the
+author's choice). These files share at most incidental lines with the
+originals:
+
+`tadsplat.h`, `guios.h`, `guios_common.cpp`, `guios_portable.cpp`,
+`tadsfiledlg.*`, `tadsfinddlg.*`, `tadsfolderdlg.*`, `tadslicensedlg.*`,
+`tadssettings.h`, `tadssettings_portable.cpp`, `tadsaudiodev.*`, `fcfont.cpp`,
+`ctfont.cpp`, `emfont.cpp`, `emscripten/*`, `CMakeLists.txt`, `*.md`
+
+**Still under the HTML TADS freeware license**
+
+- `htmltads/`: `hos_gui.h` (derived from `hos_w32.h`), `htmldbg.h`,
+  `htmljpeg.*`, `htmlmng.*`, `htmlplst.*`, `htmlpng.*`, `pngext.*`,
+  `tadshtml3.cpp`, `win32/hos_w32.h`. These came from the htmltads repo, not
+  from QTads.
+- `mpegamp/`: amp (© Tomislav Uzelac, amp license) with Roberts' changes.
+- `guit3/`, essentially unmodified (≈85–100% original code):
+  `foldsel.h`, `foldsel2.cpp`, `foldselr.h`, `htmlres.h`, `res2.h`,
+  `resource.h`, `oem_w32.c`, `t3main.*`, `tadsapp.*`, `tadscar.*`,
+  `tadschest.cpp`, `tadscom.*`, `tadsdlg.*`, `tadsdlg2.cpp`, `tadsistr.h`,
+  `tadsjpeg.*`, `tadsmidi.*`, `tadsmng.*`, `tadsole.*`, `tadspng.h`,
+  `tadstab.*`, `tadsvorb.h`, `tadswebctl.*`, `guiimg.*`, `guimain.h`,
+  `guinogch.cpp`, `guisnd.*`, `guifont.h`, `guiwebui.h`, `htmlgui.h`,
+  `mpegamp_w32.cpp`, `getbits.cpp`
+- `guit3/`, substantially modified but still clearly derived:
+  `htmlgui.cpp`, `hos_gui.cpp`, `tadswin.*`, `guimain.cpp`, `htmlpref.*`,
+  `guit3.cpp`, `guitr.cpp`, `guitrt3.cpp`, `guiver.h`, `mpegamp_w32.h`,
+  `tadskb.*`, `tadssnd.*`, `tadsstat.*`, `tadswav.*`, `tadsvorb.cpp`,
+  `tadsimg.*`, `tadsfont.*`, `tadspng.cpp`, `tadscsnd.*`, `guifont.cpp`,
+  `guifont_w32.cpp`, `tadssettings_w32.cpp`
+- `guit3/`, assets: `about3.jpg`, and `guires_data.*` (embeds
+  `runtbar.bmp` and the license text)
+- `guit3/`, grey zone: `guios_w32.cpp`. It has only ~9% verbatim overlap, but
+  by its own description it is Win32 call-site code moved unchanged. It is
+  small enough to rewrite.
+
+**Third-party libraries**: zlib, libpng, IJG jpeg, libmng, GLFW, FreeType,
+Dear ImGui, libogg/libvorbis and miniaudio. All are GPLv3-compatible.
+
+-----------------------------------------------------------------------------
+
+Here are the license texts:
+
+HTML TADS FREEWARE SOURCE CODE LICENSE
+
+The HTML TADS source code is Copyright 1997, 2013 by Michael J. Roberts.
+
+The author hereby grants you permission to use, copy, and
+distribute this software, if you agree to the following conditions:
+
+    1. You must include this license and the copyright notice with
+       all copies.
+    2. You may not require or collect a fee for copies of this
+       software, or any part of this software, that you give to
+       other people.
+    3. You may not include this software with any other software
+       for which a fee is collected.
+    4. You may not modify this software except as permitted below
+       (see "derivative works"), and each copy you make and
+       distribute must be a full and complete copy of the software
+       you originally received.
+    5. Anyone to whom you give a copy of this software receives
+       all of the same permissions that you did under this license
+       and is subject to all of the same restrictions.
+    6. You are not allowed to create derivative works, which are
+       works that contain or are based on all or part of this work,
+       except under the conditions described below.
+    7. Any derivative works are subject to this same license.
+
+
+Derivative Works
+----------------
+
+This source code is distributed for the specific purpose of
+facilitating the creation of versions of TADS on various computers and
+operating systems.  All other derivative works are prohibited without
+the written permission of the author.  Please contact the author if
+you have any questions about this or if you'd like permission to
+create a derived work.
+
+If you port TADS to a new platform, the author does grant permission
+for you to distribute your ported version - I encourage it, in fact.
+We ask that you provide your contact information in any distribution
+package you create, so that users of your version will know how to
+contact you if they have any questions relating specifically to your
+version.
+
+guit3 port
+-----------
+The guit3 port is Copyright 2026 by Marco Staginski only concerning
+modifications of the original source code in accordance with the porting 
+permission of this license. The original copyrights remain on all
+parts that are nor specific to this port.
+
+
+---------------------------------------------------------------
+
                     GNU GENERAL PUBLIC LICENSE
                        Version 3, 29 June 2007
 
