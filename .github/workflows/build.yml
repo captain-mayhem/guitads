@@ -1,0 +1,50 @@
+name: build
+
+on: [push, pull_request]
+
+jobs:
+  build:
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - os: ubuntu-latest
+            preset: default
+          - os: windows-latest
+            preset: windows-only
+    runs-on: ${{ matrix.os }}
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          path: guitads
+      - uses: actions/checkout@v7
+        with:
+          repository: captain-mayhem/tads-runner
+          path: tads-runner
+      - if: runner.os == 'Linux'
+        name: Install Linux build dependencies
+        # guit3 (htmltads/imgui) builds on Linux as of migration.md's M4
+        # milestone: ninja-build for the preset's generator, libcurl for
+        # VM_WITH_NETWORK, and the rest for GLFW's X11 + Wayland backends
+        # and fontconfig-backed font lookup (5.4/D-G). wayland-protocols
+        # is not needed - GLFW vendors its own copy under glfw/deps/wayland.
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y \
+            ninja-build \
+            libcurl4-openssl-dev \
+            libfontconfig-dev \
+            libgl1-mesa-dev \
+            libx11-dev \
+            libxrandr-dev \
+            libxinerama-dev \
+            libxcursor-dev \
+            libxi-dev \
+            libxkbcommon-dev \
+            libwayland-dev \
+            extra-cmake-modules \
+            pkg-config
+      - run: cmake --preset ${{ matrix.preset }}
+        working-directory: tads-runner
+      - run: cmake --build build/default
+        working-directory: tads-runner

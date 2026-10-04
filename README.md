@@ -1,5 +1,7 @@
 # guitads
 
+[![build](https://github.com/captain-mayhem/guitads/actions/workflows/build.yml/badge.svg)](https://github.com/captain-mayhem/guitads/actions/workflows/build.yml)
+
 guitads holds `guit3`, a cross-platform (Dear ImGui / GLFW) HTML TADS 3
 interpreter ported from the Win32 `htmlt3` client of HTML TADS. It also holds
 the HTML TADS core (sourced from GPL3 licensed QTads) and the third-party libraries guit3 needs.
@@ -18,7 +20,7 @@ See LICENSE for licensing details
 
 ### Directory setup
 - git clone https://github.com/captain-mayhem/tads-runner.git
-- git clone https://github.com/captain-mayhem/htmltads.git
+- git clone https://github.com/captain-mayhem/guitads.git
 - create an empty folder parallel to the two git repositories as build directory, e.g. build_tads
 
 ### Build instructions
