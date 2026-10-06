@@ -13,8 +13,8 @@
 
 #include "tadshtml.h"
 #include "tadsapp.h"
-#include "htmlres.h"      /* IDB_TERP_TOOLBAR, IDX_LICENSE_TEXT */
 #include "guios.h"
+#include "htmlres.h"      /* IDR_ACCEL_WIN, IDR_ACCEL_EMACS, ID_EDIT_xxx, ID_FILE_xxx, ... */
 
 /* this is missing from the Windows Platform SDK in MSVC .Net 2003 */
 #ifndef MAPVK_VK_TO_CHAR
@@ -96,102 +96,27 @@ unsigned long os_get_sys_color(os_sys_color_t which)
  *   B. Bundled resources
  */
 
+/*
+ *   This Windows backend has no .rc compiled in - guitads' guit3/CMakeLists.txt
+ *   deliberately doesn't carry over the old htmltads repo's win32/htmlt3.rc
+ *   resource chain (see its WIN32 NOTE) - so IDB_TERP_TOOLBAR/IDX_LICENSE_TEXT
+ *   never exist as real Win32 resources to look up here.  These three just go
+ *   straight to the shared embedded-byte-array fallback (guios_common.cpp /
+ *   guires_data.h), the same as guios_portable.cpp does off Windows.
+ */
 int os_load_string(int id, char *buf, size_t buflen)
 {
-    int len = LoadString(CTadsApp::get_app()->get_instance(),
-                         id, buf, (int)buflen);
-    if (len > 0)
-        return len;
-
-    /* no .rc compiled in (see guios.h) - use the built-in table */
     return os_load_builtin_string(id, buf, buflen);
 }
 
 unsigned char *os_load_toolbar_rgba(int *width, int *height)
 {
-    /*
-     *   This is the resource+GDI half of CHtmlSys_mainwin::load_toolbar_texture()
-     *   lifted verbatim: LoadImage() the 4bpp indexed IDB_TERP_TOOLBAR
-     *   (win32/runtbar.bmp - 304x15, nineteen 16x15 frames), expand it to a
-     *   32bpp top-down DIB with GetDIBits(), then turn the color key (the
-     *   top-left pixel) into a real alpha channel while swapping BGRA->RGBA.
-     *   The caller keeps the GL upload.
-     */
-    HBITMAP hbmp = (HBITMAP)LoadImage(
-        CTadsApp::get_app()->get_instance(), MAKEINTRESOURCE(IDB_TERP_TOOLBAR),
-        IMAGE_BITMAP, 0, 0, LR_CREATEDIBSECTION);
-    if (hbmp == 0)
-    {
-        /* no .rc compiled in (see guios.h) - use the embedded copy */
-        return os_load_builtin_toolbar_rgba(width, height);
-    }
-
-    BITMAP bm;
-    GetObject(hbmp, sizeof(bm), &bm);
-
-    BITMAPINFO bi;
-    memset(&bi, 0, sizeof(bi));
-    bi.bmiHeader.biSize = sizeof(BITMAPINFOHEADER);
-    bi.bmiHeader.biWidth = bm.bmWidth;
-    bi.bmiHeader.biHeight = -bm.bmHeight;      /* top-down */
-    bi.bmiHeader.biPlanes = 1;
-    bi.bmiHeader.biBitCount = 32;
-    bi.bmiHeader.biCompression = BI_RGB;
-
-    HDC hdc = GetDC(0);
-    unsigned char *pixels =
-        (unsigned char *)th_malloc(bm.bmWidth * bm.bmHeight * 4);
-    GetDIBits(hdc, hbmp, 0, bm.bmHeight, pixels, &bi, DIB_RGB_COLORS);
-    ReleaseDC(0, hdc);
-    DeleteObject(hbmp);
-
-    /* the top-left pixel (BGRA order, alpha byte unused) is the mask color */
-    unsigned char mask_b = pixels[0], mask_g = pixels[1], mask_r = pixels[2];
-
-    /* convert BGRA -> RGBA in place, turning the color key into real alpha */
-    int npix = bm.bmWidth * bm.bmHeight;
-    for (int i = 0 ; i < npix ; ++i)
-    {
-        unsigned char *p = pixels + i*4;
-        unsigned char b = p[0], g = p[1], r = p[2];
-        bool is_mask = (b == mask_b && g == mask_g && r == mask_r);
-        p[0] = r;
-        p[1] = g;
-        p[2] = b;
-        p[3] = is_mask ? 0 : 255;
-    }
-
-    *width = bm.bmWidth;
-    *height = bm.bmHeight;
-    return pixels;
+    return os_load_builtin_toolbar_rgba(width, height);
 }
 
 char *os_load_license_text(size_t *len)
 {
-    *len = 0;
-
-    HINSTANCE inst = CTadsApp::get_app()->get_instance();
-    HRSRC hres = FindResource(
-        inst, MAKEINTRESOURCE(IDX_LICENSE_TEXT), "TEXTFILE");
-    if (hres == 0)
-    {
-        /* no .rc compiled in (see guios.h) - use the embedded copy */
-        return os_load_builtin_license_text(len);
-    }
-
-    HGLOBAL hgl = LoadResource(inst, hres);
-    if (hgl == 0)
-        return 0;
-
-    const void *mem = LockResource(hgl);
-    DWORD sz = SizeofResource(inst, hres);
-    if (mem == 0 || sz == 0)
-        return 0;
-
-    char *result = (char *)th_malloc(sz);
-    memcpy(result, mem, sz);
-    *len = sz;
-    return result;
+    return os_load_builtin_license_text(len);
 }
 
 
@@ -393,13 +318,78 @@ os_key_t os_char_to_key(int ch, int *shift_out)
     return vk_to_glfw_key(s & 0xFF);
 }
 
+/*
+ *   Portable stand-in for the IDR_ACCEL_WIN/IDR_ACCEL_EMACS ACCELERATORS
+ *   resources (win32/htmlcmn.rc) - hand-transcribed, so keep both in sync
+ *   with the .rc if the bindings ever change there.  Same tables
+ *   guios_portable.cpp uses off Windows; os_load_accel_table() below falls
+ *   back to these since there's no .rc compiled in here either (see the
+ *   note above os_load_string) - LoadAccelerators() always misses.
+ */
+static const os_accel_entry_t accel_win[] =
+{
+    { GLFW_KEY_A, OS_KEY_CTRL, ID_EDIT_SELECTALL },
+    { GLFW_KEY_C, OS_KEY_CTRL, ID_EDIT_COPY },
+    { GLFW_KEY_INSERT, OS_KEY_CTRL, ID_EDIT_COPY },
+    { GLFW_KEY_F, OS_KEY_CTRL, ID_EDIT_FIND },
+    { GLFW_KEY_X, OS_KEY_CTRL, ID_EDIT_CUT },
+    { GLFW_KEY_DELETE, OS_KEY_SHIFT, ID_EDIT_CUT },
+    { GLFW_KEY_V, OS_KEY_CTRL, ID_EDIT_PASTE },
+    { GLFW_KEY_INSERT, OS_KEY_SHIFT, ID_EDIT_PASTE },
+    { GLFW_KEY_Z, OS_KEY_CTRL, ID_EDIT_UNDO },
+    { GLFW_KEY_Q, OS_KEY_CTRL, ID_FILE_QUIT },
+    { GLFW_KEY_S, OS_KEY_CTRL, ID_FILE_SAVEGAME },
+    { GLFW_KEY_R, OS_KEY_CTRL, ID_FILE_RESTOREGAME },
+    { GLFW_KEY_O, OS_KEY_CTRL, ID_FILE_LOADGAME },
+    { GLFW_KEY_PERIOD, OS_KEY_ALT, ID_GO_NEXT },
+    { GLFW_KEY_COMMA, OS_KEY_ALT, ID_GO_PREVIOUS },
+    { GLFW_KEY_F1, 0, ID_HELP_COMMAND },
+    { GLFW_KEY_F3, 0, ID_EDIT_FINDNEXT },
+};
+
+static const os_accel_entry_t accel_emacs[] =
+{
+    { GLFW_KEY_A, OS_KEY_CTRL, ID_EDIT_SELECTALL },
+    { GLFW_KEY_C, OS_KEY_CTRL, ID_EDIT_COPY },
+    { GLFW_KEY_INSERT, OS_KEY_CTRL, ID_EDIT_COPY },
+    { GLFW_KEY_F, OS_KEY_CTRL, ID_EDIT_FIND },
+    { GLFW_KEY_X, OS_KEY_CTRL, ID_EDIT_CUT },
+    { GLFW_KEY_DELETE, OS_KEY_SHIFT, ID_EDIT_CUT },
+    { GLFW_KEY_Y, OS_KEY_CTRL, ID_EDIT_PASTE },
+    { GLFW_KEY_INSERT, OS_KEY_SHIFT, ID_EDIT_PASTE },
+    { GLFW_KEY_Z, OS_KEY_CTRL, ID_EDIT_UNDO },
+    { GLFW_KEY_Q, OS_KEY_CTRL, ID_FILE_QUIT },
+    { GLFW_KEY_S, OS_KEY_CTRL, ID_FILE_SAVEGAME },
+    { GLFW_KEY_R, OS_KEY_CTRL, ID_FILE_RESTOREGAME },
+    { GLFW_KEY_O, OS_KEY_CTRL, ID_FILE_LOADGAME },
+    { GLFW_KEY_PERIOD, OS_KEY_ALT, ID_GO_NEXT },
+    { GLFW_KEY_COMMA, OS_KEY_ALT, ID_GO_PREVIOUS },
+    { GLFW_KEY_F1, 0, ID_HELP_COMMAND },
+    { GLFW_KEY_F3, 0, ID_EDIT_FINDNEXT },
+};
+
 int os_load_accel_table(int accel_id, os_accel_entry_t *entries,
                         int max_entries)
 {
     HACCEL h = LoadAccelerators(CTadsApp::get_app()->get_instance(),
                                 MAKEINTRESOURCE(accel_id));
     if (h == 0)
-        return 0;
+    {
+        /* no .rc compiled in - use the built-in table */
+        const os_accel_entry_t *src;
+        int src_cnt;
+
+        if (accel_id == IDR_ACCEL_WIN)
+            src = accel_win, src_cnt = sizeof(accel_win)/sizeof(accel_win[0]);
+        else if (accel_id == IDR_ACCEL_EMACS)
+            src = accel_emacs, src_cnt = sizeof(accel_emacs)/sizeof(accel_emacs[0]);
+        else
+            return 0;
+
+        int n = src_cnt < max_entries ? src_cnt : max_entries;
+        memcpy(entries, src, n * sizeof(entries[0]));
+        return n;
+    }
 
     int n = CopyAcceleratorTable(h, 0, 0);
     if (n <= 0)
