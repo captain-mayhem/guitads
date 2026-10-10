@@ -76,8 +76,8 @@ struct tads_wav_hdr_info
     int have_fmt_;
 
     /* flags: we've found the header and data chunks in the file */
-    int found_header_ : 1;
-    int found_data_ : 1;
+    unsigned int found_header_ : 1;
+    unsigned int found_data_ : 1;
 };
 
 /*

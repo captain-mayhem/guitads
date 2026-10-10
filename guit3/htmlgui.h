@@ -456,24 +456,24 @@ public:
      */
 
     /* determine whether the window is in MORE mode */
-    int in_more_mode() const { return more_mode_; }
+    int in_more_mode() const override { return more_mode_; }
 
     /* get the default character set ID */
-    unsigned int get_default_charset();
+    unsigned int get_default_charset() override;
 
     /* on a visual preferences change, reformat for the new settings */
     void notify_visual_pref_change()
-        { schedule_reformat(TRUE, TRUE, FALSE); }
+ override { schedule_reformat(TRUE, TRUE, FALSE); }
 
     /* receive notification of a change to link enabling preferences */
-    virtual void notify_link_pref_change() { }
+    virtual void notify_link_pref_change() override { }
 
     /* receive notification of a change to sound preferences */
-    void notify_sound_pref_change();
+    void notify_sound_pref_change() override;
 
     /* receive notification of a Game Chest update that requires reloading */
     void notify_game_chest_update()
-        { schedule_reload_game_chest(); }
+ override { schedule_reload_game_chest(); }
 
 
     /*
@@ -481,7 +481,7 @@ public:
      */
     
     /* get my window group */
-    CHtmlSysWinGroup *get_win_group();
+    CHtmlSysWinGroup *get_win_group() override;
 
     /* 
      *   Receive notification that the contents of the window are being
@@ -490,7 +490,7 @@ public:
      *   reformatting.  
      */
     void notify_clear_contents()
-    {
+ override {
         /*
          *   we haven't seen any of the text on the new page yet, so we'll
          *   need a "more" prompt if it goes off the bottom of the screen
@@ -506,16 +506,16 @@ public:
     }
 
     /* close the window */
-    int close_window(int force);
+    int close_window(int force) override;
 
     /* get the current width of the HTML display area of the window */
-    long get_disp_width();
+    long get_disp_width() override;
 
     /* get the current height of the HTML display area of the window */
-    long get_disp_height();
+    long get_disp_height() override;
 
     /* get number of pixels per inch */
-    long get_pix_per_inch();
+    long get_pix_per_inch() override;
 
     /*
      *   Get the bounds of a string rendered in the given font.  Returns
@@ -524,63 +524,63 @@ public:
      */
     CHtmlPoint measure_text(CHtmlSysFont *font,
                             const textchar_t *str, size_t len,
-                            int *ascent);
+                            int *ascent) override;
 
     /*
      *   Get the size of the debugger source window icon.  Does nothing in
      *   default windows.  
      */
-    CHtmlPoint measure_dbgsrc_icon() { return CHtmlPoint(0, 0); }
+    CHtmlPoint measure_dbgsrc_icon() override { return CHtmlPoint(0, 0); }
 
     /* get the maximum number of characters that fit in a given width */
     size_t get_max_chars_in_width(class CHtmlSysFont *font,
                                   const textchar_t *str,
-                                  size_t len, long wid);
+                                  size_t len, long wid) override;
 
     /* draw text */
     void draw_text(int hilite, long x, long y, CHtmlSysFont *font,
-                   const textchar_t *str, size_t len);
+                   const textchar_t *str, size_t len) override;
 
     /* draw typographical space */
     void draw_text_space(int hilite, long x, long y,
-                         class CHtmlSysFont *font, long wid);
+                         class CHtmlSysFont *font, long wid) override;
 
     /* draw a bullet */
     void draw_bullet(int hilite, long x, long y, CHtmlSysFont *font,
-                     HTML_SysWin_Bullet_t style);
+                     HTML_SysWin_Bullet_t style) override;
 
     /* draw horizontal rule */
-    void draw_hrule(const CHtmlRect *pos, int shade);
+    void draw_hrule(const CHtmlRect *pos, int shade) override;
 
     /* draw a table/cell border */
-    void draw_table_border(const CHtmlRect *pos, int width, int cell);
+    void draw_table_border(const CHtmlRect *pos, int width, int cell) override;
 
     /* draw a table/cell background */
-    void draw_table_bkg(const CHtmlRect *pos, HTML_color_t bgcolor);
+    void draw_table_bkg(const CHtmlRect *pos, HTML_color_t bgcolor) override;
 
     /* draw a debugger source line icon - do nothing in default window */
-    void draw_dbgsrc_icon(const CHtmlRect *pos, unsigned int stat) { }
+    void draw_dbgsrc_icon(const CHtmlRect *pos, unsigned int stat) override { }
 
     /* adjust the horizontal scrollbar */
-    void fmt_adjust_hscroll() { adjust_scrollbar_ranges(); }
+    void fmt_adjust_hscroll() override { adjust_scrollbar_ranges(); }
 
     /* adjust the vertical scrollbar */
-    void fmt_adjust_vscroll();
+    void fmt_adjust_vscroll() override;
 
     /* scroll a part of the document into view */
-    void scroll_to_doc_coords(const class CHtmlRect *pos);
+    void scroll_to_doc_coords(const class CHtmlRect *pos) override;
 
     /* get the current scrolling position */
-    void get_scroll_doc_coords(class CHtmlRect *pos);
+    void get_scroll_doc_coords(class CHtmlRect *pos) override;
 
     /* invalidate an area given in document coordinates */
-    void inval_doc_coords(const class CHtmlRect *area);
+    void inval_doc_coords(const class CHtmlRect *area) override;
 
     /* receive notification that the display list is being deleted */
-    void advise_clearing_disp_list();
+    void advise_clearing_disp_list() override;
 
     /* do formatting */
-    int do_formatting(int show_status, int update_win, int freeze_display);
+    int do_formatting(int show_status, int update_win, int freeze_display) override;
 
     /* clear the selection range */
     void clear_sel_range();
@@ -592,14 +592,14 @@ public:
     void set_hover_link(class CHtmlDispLink *disp);
 
     /* recalculate the system palette */
-    void recalc_palette();
+    void recalc_palette() override;
 
     /* 
      *   Determine if we're using an index-based palette.  Windows always
      *   uses a palette when operating in 8-bit (or less) color resolution
      *   modes. 
      */
-    int get_use_palette() { return (get_bits_per_pixel() <= 8); }
+    int get_use_palette() override { return (get_bits_per_pixel() <= 8); }
 
     /*
      *   Font management.  The window always owns all of the font
@@ -616,40 +616,40 @@ public:
      */
 
     /* get the default font */
-    CHtmlSysFont *get_default_font();
+    CHtmlSysFont *get_default_font() override;
 
     /* get a font matching the given characteristics */
-    CHtmlSysFont *get_font(const class CHtmlFontDesc *font_desc);
+    CHtmlSysFont *get_font(const class CHtmlFontDesc *font_desc) override;
 
     /* get the font for drawing bullets, given the current font */
-    CHtmlSysFont *get_bullet_font(class CHtmlSysFont *font);
+    CHtmlSysFont *get_bullet_font(class CHtmlSysFont *font) override;
 
     /* -------------------------------------------------------------------- */
     /*
      *   Timers 
      */
-    void register_timer_func(void (*timer_func)(void *), void *func_ctx);
-    void unregister_timer_func(void (*timer_func)(void *), void *func_ctx);
+    void register_timer_func(void (*timer_func)(void *), void *func_ctx) override;
+    void unregister_timer_func(void (*timer_func)(void *), void *func_ctx) override;
 
     /* create a timer */
     virtual class CHtmlSysTimer *create_timer(void (*timer_func)(void *),
-                                              void *func_ctx);
+                                              void *func_ctx) override;
 
     /* set a timer */
     virtual void set_timer(class CHtmlSysTimer *timer, long interval_ms,
-                           int repeat);
+                           int repeat) override;
 
     /* cancel a timer */
-    virtual void cancel_timer(class CHtmlSysTimer *timer);
+    virtual void cancel_timer(class CHtmlSysTimer *timer) override;
     
     /* delete a timer */
-    virtual void delete_timer(class CHtmlSysTimer *timer);
+    virtual void delete_timer(class CHtmlSysTimer *timer) override;
 
     /* get the primary DirectSound interface */
     struct IDirectSound *get_directsound();
 
     /* set the window's title */
-    void set_window_title(const textchar_t *title);
+    void set_window_title(const textchar_t *title) override;
 
     /* set the selected text color */
     void set_selected_text_color(int use_default_fg, HTML_color_t fg,
@@ -666,9 +666,9 @@ public:
     }
 
     /* set the background, text, and link colors */
-    virtual void set_html_bg_color(HTML_color_t color, int use_default);
-    virtual void set_html_text_color(HTML_color_t color, int use_default);
-    virtual void set_html_input_color(HTML_color_t color, int use_default);
+    virtual void set_html_bg_color(HTML_color_t color, int use_default) override;
+    virtual void set_html_text_color(HTML_color_t color, int use_default) override;
+    virtual void set_html_input_color(HTML_color_t color, int use_default) override;
     virtual void set_html_link_colors(HTML_color_t link_color,
                                       int link_use_default,
                                       HTML_color_t vlink_color,
@@ -676,49 +676,49 @@ public:
                                       HTML_color_t alink_color,
                                       int alink_use_default,
                                       HTML_color_t hlink_color,
-                                      int hlink_use_default);
+                                      int hlink_use_default) override;
 
     /* set the background image */
-    void set_html_bg_image(class CHtmlResCacheObject *image);
+    void set_html_bg_image(class CHtmlResCacheObject *image) override;
 
     /* invalidate a portion of the background image */
     void inval_html_bg_image(unsigned int x, unsigned int y,
-                             unsigned int wid, unsigned int ht);
+                             unsigned int wid, unsigned int ht) override;
 
     /* map a parameterized color */
-    HTML_color_t map_system_color(HTML_color_t color);
+    HTML_color_t map_system_color(HTML_color_t color) override;
 
     /* get the link colors */
     HTML_color_t get_html_link_color() const
-        { return COLORREF_to_HTML_color(link_color_); }
+ override { return COLORREF_to_HTML_color(link_color_); }
     HTML_color_t get_html_alink_color() const
-        { return COLORREF_to_HTML_color(alink_color_); }
+ override { return COLORREF_to_HTML_color(alink_color_); }
     HTML_color_t get_html_vlink_color() const
-        { return COLORREF_to_HTML_color(vlink_color_); }
-    HTML_color_t get_html_hlink_color() const;
+ override { return COLORREF_to_HTML_color(vlink_color_); }
+    HTML_color_t get_html_hlink_color() const override;
 
     /* determine if textual links should be drawn underlined */
-    int get_html_link_underline() const;
+    int get_html_link_underline() const override;
 
     /* determine if we're to show links at all */
-    virtual int get_html_show_links() const;
+    virtual int get_html_show_links() const override;
 
     /* invalidate all visible links */
     void inval_links_on_screen();
 
     /* determine if we're to show graphics */
-    int get_html_show_graphics() const;
+    int get_html_show_graphics() const override;
 
     /* set the size of the window, if it's a banner */
     void set_banner_size(
         long width, HTML_BannerWin_Units_t width_units, int use_width,
-        long height, HTML_BannerWin_Units_t height_units, int use_height);
+        long height, HTML_BannerWin_Units_t height_units, int use_height) override;
 
     /* change the banner alignment and style settings, if it's a banner */
-    void set_banner_info(HTML_BannerWin_Pos_t pos, unsigned long style);
+    void set_banner_info(HTML_BannerWin_Pos_t pos, unsigned long style) override;
 
     /* get banner information */
-    void get_banner_info(HTML_BannerWin_Pos_t *pos, unsigned long *style);
+    void get_banner_info(HTML_BannerWin_Pos_t *pos, unsigned long *style) override;
 
     /*
      *   Windows-specific implementation 
@@ -759,14 +759,14 @@ public:
     virtual void run_pending_deferred();
 
     /* apply the given profile to the current game */
-    void set_game_specific_profile(const char *profile);
+    void set_game_specific_profile(const char *profile) override;
 
     /* save the game chest database to the given file */
-    void save_game_chest_db_as(const char *fname);
+    void save_game_chest_db_as(const char *fname) override;
 
     /* process palette changes */
-    int do_querynewpalette();
-    void do_palettechanged(HWND initiating_window);
+    int do_querynewpalette() override;
+    void do_palettechanged(HWND initiating_window) override;
 
     /* select a font */
     HGDIOBJ select_font(HDC dc, class CHtmlSysFont *font);
@@ -783,13 +783,13 @@ public:
     void set_status_line(class CTadsStatusline *statusline);
 
     /* process a user message */
-    int do_user_message(int msg, WPARAM wpar, LPARAM lpar);
+    int do_user_message(int msg, WPARAM wpar, LPARAM lpar) override;
 
     /* process a command */
-    int do_command(int notify_code, int command_id, HWND ctl);
+    int do_command(int notify_code, int command_id, HWND ctl) override;
 
     /* check the status of a command */
-    TadsCmdStat_t check_command(const check_cmd_info *info);
+    TadsCmdStat_t check_command(const check_cmd_info *info) override;
 
     /* is the given OS_CMD_xxx command enabled for process_command() use? */
     virtual int is_cmd_evt_enabled(int os_cmd_id) const;
@@ -866,15 +866,15 @@ public:
      */
 
     /* reference control - defer to our OLE IUnknown implementation */
-    virtual void audioctl_add_ref() { AddRef(); }
-    virtual void audioctl_release() { Release(); }
+    virtual void audioctl_add_ref() override { AddRef(); }
+    virtual void audioctl_release() override { Release(); }
 
     /* get the current muting status */
-    virtual int get_mute_sound();
+    virtual int get_mute_sound() override;
 
     /* register/unregister an active sound */
-    virtual void register_active_sound(class CTadsAudioPlayer *s);
-    virtual void unregister_active_sound(class CTadsAudioPlayer *s);
+    virtual void register_active_sound(class CTadsAudioPlayer *s) override;
+    virtual void unregister_active_sound(class CTadsAudioPlayer *s) override;
     
     /* execute a search */
     int execute_find(
@@ -923,21 +923,21 @@ protected:
      */
 
     /* get window creation style flags */
-    DWORD get_winstyle() { return WS_CHILD | WS_CLIPCHILDREN; }
-    DWORD get_winstyle_ex() { return 0; }
+    DWORD get_winstyle() override { return WS_CHILD | WS_CLIPCHILDREN; }
+    DWORD get_winstyle_ex() override { return 0; }
 
     /* process creation event */
-    void do_create();
+    void do_create() override;
 
     /* receive system window destruction notification */
-    void do_destroy();
+    void do_destroy() override;
 
     /* mouse event handlers */
-    int do_leftbtn_down(int keys, int x, int y, int clicks);
-    int do_mousemove(int keys, int x, int y);
-    int do_leftbtn_up(int keys, int x, int y);
-    int do_rightbtn_down(int keys, int x, int y, int clicks);
-    int do_rightbtn_up(int keys, int x, int y);
+    int do_leftbtn_down(int keys, int x, int y, int clicks) override;
+    int do_mousemove(int keys, int x, int y) override;
+    int do_leftbtn_up(int keys, int x, int y) override;
+    int do_rightbtn_down(int keys, int x, int y, int clicks) override;
+    int do_rightbtn_up(int keys, int x, int y) override;
 
     /*
      *   True if the absolute screen coordinate (x, y) - the space
@@ -959,33 +959,33 @@ protected:
     }
 
     /* handle focus */
-    void do_setfocus(HWND prev_focus);
-    void do_killfocus(HWND next_focus);
+    void do_setfocus(HWND prev_focus) override;
+    void do_killfocus(HWND next_focus) override;
 
     /* handle control notifications */
-    int do_notify(int control_id, int notify_code, LPNMHDR nmhdr);
+    int do_notify(int control_id, int notify_code, LPNMHDR nmhdr) override;
 
     /* capture change event handler */
-    int do_capture_changed(HWND new_capture_win);
+    int do_capture_changed(HWND new_capture_win) override;
 
     /* paint the window contents */
-    void do_paint_content(HDC hdc, const RECT *area_to_draw);
+    void do_paint_content(HDC hdc, const RECT *area_to_draw) override;
 
     /* render the window contents */
-    void do_render_content_begin();
-    void do_render_content_end();
+    void do_render_content_begin() override;
+    void do_render_content_end() override;
 
     /* get my palette for painting */
-    virtual HPALETTE get_paint_palette() { return hpal_; }
+    virtual HPALETTE get_paint_palette() override { return hpal_; }
 
     /* erase the background */
-    int do_erase_bkg(HDC hdc);
+    int do_erase_bkg(HDC hdc) override;
 
     /* resize */
-    void do_resize(int mode, int x, int y);
+    void do_resize(int mode, int x, int y) override;
 
     /* handle timer messages */
-    int do_timer(int timer_id);
+    int do_timer(int timer_id) override;
 
     /* 
      *   perform miscellaneous background processing tasks - this is
@@ -994,17 +994,17 @@ protected:
     void do_idle();
 
     /* enter/exit size/move operation */
-    void do_entersizemove();
-    void do_exitsizemove();
+    void do_entersizemove() override;
+    void do_exitsizemove() override;
 
     /* handle a keystroke */
-    int do_char(TCHAR c, long keydata);
-    int do_keydown(int virtual_key, long keydata);
-    int do_keyup(int virtual_key, long keydata);
-    int do_syschar(TCHAR c, unsigned long keydata);
+    int do_char(TCHAR c, long keydata) override;
+    int do_keydown(int virtual_key, long keydata) override;
+    int do_keyup(int virtual_key, long keydata) override;
+    int do_syschar(TCHAR c, unsigned long keydata) override;
 
     /* handle setcursor event */
-    int do_setcursor(HWND hwnd, int hittest, int mousemsg);
+    int do_setcursor(HWND hwnd, int hittest, int mousemsg) override;
     int do_setcursor(int x, int y) override;
 
     /* set the mouse cursor based on the given display item */
@@ -1027,22 +1027,22 @@ protected:
      *   IsWindowVisible().
      */
     int vscroll_is_visible() const
-    {
+ override {
         return get_vscroll_handle() != 0 && vscroll_vis_;
     }
     int hscroll_is_visible() const
-    {
+ override {
         return get_hscroll_handle() != 0 && hscroll_vis_;
     }
 
     /* receive notification that scrolling has occurred */
-    virtual void notify_scroll(HWND hwnd, long oldpos, long newpos);
+    virtual void notify_scroll(HWND hwnd, long oldpos, long newpos) override;
 
     /* get the scrollbar settings */
-    int get_scroll_info(int vert, SCROLLINFO *info);
+    int get_scroll_info(int vert, SCROLLINFO *info) override;
 
     /* adjust scrollbars */
-    void adjust_scrollbar_ranges();
+    void adjust_scrollbar_ranges() override;
 
     /* set the current accelerator table based on the preference settings */
     virtual void set_current_accel()
@@ -1066,7 +1066,7 @@ protected:
     /*
      *   CTadsStatusSource implementation 
      */
-    textchar_t *get_status_message(int *caller_deletes);
+    textchar_t *get_status_message(int *caller_deletes) override;
 
 protected:
     /* set the keyboard focus to this window */
@@ -1173,12 +1173,12 @@ protected:
      *   containing the selection range, and we allow only copying the
      *   selection.  
      */
-    IDataObject *get_drag_dataobj();
-    ULONG get_drag_effects() { return DROPEFFECT_COPY; }
+    IDataObject *get_drag_dataobj() override;
+    ULONG get_drag_effects() override { return DROPEFFECT_COPY; }
 
     /* before/after drag notifications */
-    void drag_pre();
-    void drag_post();
+    void drag_pre() override;
+    void drag_post() override;
 
     /* turn "MORE" mode on or off */
     void set_more_mode(int flag);
@@ -1319,7 +1319,7 @@ protected:
     /*
      *   Flag indicating whether MORE mode is enabled.
      */
-    int more_mode_enabled_ : 1;
+    unsigned int more_mode_enabled_ : 1;
 
     /*
      *   Flag indicating that we're in "MORE" mode.  We're in "MORE" mode
@@ -1328,10 +1328,10 @@ protected:
      *   showing more information, so that the user has a chance to see
      *   and acknowledge the information we've displayed so far. 
      */
-    int more_mode_ : 1;
+    unsigned int more_mode_ : 1;
 
     /* flag: processing an explicit game morePrompt request */
-    int game_more_request_ : 1;
+    unsigned int game_more_request_ : 1;
 
     /*
      *   Another more mode flag, this one for modal event loops.  This
@@ -1345,13 +1345,13 @@ protected:
      *   EOF flag for MORE mode - when this is set, we will not wait for
      *   an event when entering MORE mode but simply continue 
      */
-    int eof_more_mode_ : 1;
+    unsigned int eof_more_mode_ : 1;
 
     /*
      *   Flag indicating whether we need to reformat the window after
      *   resizing it 
      */
-    int need_format_on_resize_ : 1;
+    unsigned int need_format_on_resize_ : 1;
 
     /* 
      *   Flag indicating that we're in the process of reformatting after
@@ -1359,7 +1359,7 @@ protected:
      *   additional recursive reformattings that result from further size
      *   changes, since we need to force the process to converge.  
      */
-    int doing_resize_reformat_ : 1;
+    unsigned int doing_resize_reformat_ : 1;
     
     /*
      *   y position at which the formatter clipped the last drawing.  We
@@ -1379,7 +1379,7 @@ protected:
      *   start reading a command when we've finished showing all the text
      *   up to the command. 
      */
-    int started_reading_cmd_ : 1;
+    unsigned int started_reading_cmd_ : 1;
 
     /* 
      *   "Nonstop" mode flag.  When this is set, it overrides and disables
@@ -1388,7 +1388,7 @@ protected:
      *   so pauses for MORE prompts are not desired until the script
      *   completes.  
      */
-    int nonstop_mode_ : 1;
+    unsigned int nonstop_mode_ : 1;
 
     /* caret position */
     CHtmlPoint caret_pos_;
@@ -1413,16 +1413,16 @@ protected:
     int caret_modal_hide_;
 
     /* caret visibility */
-    int caret_vis_ : 1;
+    unsigned int caret_vis_ : 1;
 
     /* 
      *   Caret enabled.  We'll set this to false by default; subclasses
      *   should set to true if they want the caret to be shown. 
      */
-    int caret_enabled_ : 1;
+    unsigned int caret_enabled_ : 1;
 
     /* flag: true -> we're tracking a mouse button click */
-    int tracking_mouse_ : 1;
+    unsigned int tracking_mouse_ : 1;
 
     /* starting position of the current mouse drag (doc coords) */
     CHtmlPoint track_start_;
@@ -1440,7 +1440,7 @@ protected:
      *   clear the selection (such as initiate a drag/drop operation or a
      *   context menu) 
      */
-    int clear_sel_pending_ : 1;
+    unsigned int clear_sel_pending_ : 1;
 
     /* 
      *   link item that we're tracking, if the mouse was clicked over a
@@ -1470,7 +1470,7 @@ protected:
      *   point of the previous range as the starting point for the
      *   continuation of the selection.  
      */
-    int caret_at_right_ : 1;
+    unsigned int caret_at_right_ : 1;
 
     /* menu containing the context menus */
     HMENU popup_container_;
@@ -1502,7 +1502,7 @@ protected:
     COLORREF hlink_color_;
 
     /* note availability of WingDing font */
-    int wingdings_avail_ : 1;
+    unsigned int wingdings_avail_ : 1;
 
     /* characters to use for bullets: square, circle, disc */
     textchar_t bullet_square_;
@@ -1515,13 +1515,13 @@ protected:
      *   operations, such as reformatting everything after resizing the
      *   window. 
      */
-    int formatting_msg_ : 1;
+    unsigned int formatting_msg_ : 1;
 
     /*
      *   Flag indicating that we're in the process of pruning the parse
      *   tree, so that the status line can display an appropriate message.
      */
-    int pruning_msg_ : 1;
+    unsigned int pruning_msg_ : 1;
 
     /* status line */
     class CTadsStatusline *statusline_;
@@ -1530,7 +1530,7 @@ protected:
     class CHtmlPreferences *prefs_;
 
     /* flag indicating that we're waiting for a keystroke to exit */
-    int exit_pause_ : 1;
+    unsigned int exit_pause_ : 1;
 
     /* 
      *   Flag indicating an interactive size/move operation is in progress
@@ -1540,7 +1540,7 @@ protected:
      *   operation is finished, since we can't do a complete reformat
      *   quickly enough to keep up with an interactive operation. 
      */
-    int in_size_move_ : 1;
+    unsigned int in_size_move_ : 1;
 
     /* current display width (for get_disp_width) */
     long disp_width_;
@@ -1567,10 +1567,10 @@ protected:
      *   flag indicating whether we scroll vertically to keep the current
      *   output position in view when adding text to the window 
      */
-    int auto_vscroll_ : 1;
+    unsigned int auto_vscroll_ : 1;
 
     /* flag indicating whether this window is a banner */
-    int is_banner_win_ : 1;
+    unsigned int is_banner_win_ : 1;
 
     /* 
      *   Banner parent.  During layout, our space is carved out of the area
@@ -1621,7 +1621,7 @@ protected:
      *   for pausing -- if this is set, we'll display a status line
      *   message to tell the user we're waiting for input 
      */
-    int waiting_for_key_pause_ : 1;
+    unsigned int waiting_for_key_pause_ : 1;
 
     /* timer ID for starting temp_show_links_ mode */
     int temp_link_timer_id_;
@@ -1630,8 +1630,8 @@ protected:
      *   link toggle mode: this specifies the result if we toggle the
      *   linking mode 
      */
-    int toggle_link_on_ : 1;
-    int toggle_link_ctrl_ : 1;
+    unsigned int toggle_link_on_ : 1;
+    unsigned int toggle_link_ctrl_ : 1;
 
     /* 
      *   our tooltip control - we use this for purposes such as displaying
@@ -1640,7 +1640,7 @@ protected:
     HWND tooltip_;
 
     /* flag indicating that the tooltip just vanished */
-    int tooltip_vanished_ : 1;
+    unsigned int tooltip_vanished_ : 1;
 };
 
 
@@ -2027,13 +2027,13 @@ protected:
     int last_keystroke_cmd_;
 
     /* flag indicating that we're waiting for a single keystroke */
-    int waiting_for_key_ : 1;
+    unsigned int waiting_for_key_ : 1;
 
     /* 
      *   flag indicating that we're waiting for a general input event
      *   (keystroke, link click) 
      */
-    int waiting_for_evt_ : 1;
+    unsigned int waiting_for_evt_ : 1;
 
     /*
      *   Flag: end of file reached.  When this flag is set, any get_input,
@@ -2109,31 +2109,31 @@ protected:
     size_t in_prog_caret_;
 
     /* flag: input is in progress (with get_input_timeout()) */
-    int input_in_progress_ : 1;
+    unsigned int input_in_progress_ : 1;
 
     /* 
      *   flag indicating that we timed out waiting for a keystroke or
      *   other event 
      */
-    int waiting_for_evt_timeout_ : 1;
+    unsigned int waiting_for_evt_timeout_ : 1;
 
     /* ID of the system timer for input timeouts */
     int input_timer_id_;
 
     /* drag/drop flag: data source is valid */
-    int drag_source_valid_ : 1;
+    unsigned int drag_source_valid_ : 1;
 
     /* drag/drop flag: valid game chest desktop file icon drag/drop */
-    int drag_gch_file_valid_ : 1;
+    unsigned int drag_gch_file_valid_ : 1;
 
     /* drag/drop flag: valid game chest URL drag/drop */
-    int drag_gch_url_valid_ : 1;
+    unsigned int drag_gch_url_valid_ : 1;
 
     /* drag/drop caret object */
     class CTadsCaret *drop_caret_;
 
     /* drag/drop caret is currently visible */
-    int drop_caret_vis_ : 1;
+    unsigned int drop_caret_vis_ : 1;
 };
 
 /* ------------------------------------------------------------------------ */
@@ -2216,7 +2216,7 @@ private:
     CTadsMsgFilter *old_filter_;
 
     /* flag: we clicked on a hyperlink */
-    int clicked_link_ : 1;
+    unsigned int clicked_link_ : 1;
 };
 
 /* ------------------------------------------------------------------------ */
@@ -2641,13 +2641,13 @@ public:
      *   enter a command into the game.  
      */
     void set_game_paused(int f) { game_paused_ = f; }
-    virtual int get_game_paused() const { return game_paused_; }
+    virtual int get_game_paused() const override { return game_paused_; }
 
     /* store a position in my preference settings */
-    virtual void set_winpos_prefs(const class CHtmlRect *pos);
+    virtual void set_winpos_prefs(const class CHtmlRect *pos) override;
 
     /* get my parser */
-    CHtmlParser *get_parser() { return parser_; }
+    CHtmlParser *get_parser() override { return parser_; }
 
     /* get my formatter */
     CHtmlFormatter *get_formatter()
@@ -2658,7 +2658,7 @@ public:
 
     /* skip creating the system window */
     virtual void skip_create_system_window()
-    {
+ override {
         /* call this on our subwindows */
         main_panel_->skip_create_system_window();
         hist_panel_->skip_create_system_window();
@@ -2668,10 +2668,10 @@ public:
     }
 
     /* resize */
-    void do_resize(int mode, int x, int y);
+    void do_resize(int mode, int x, int y) override;
 
     /* exit a size/move operation */
-    void do_exitsizemove();
+    void do_exitsizemove() override;
 
     /* recalculate the banner layout */
     void recalc_banner_layout();
@@ -2793,7 +2793,7 @@ public:
      *   never see it (event_loop() routes button-up to whichever window has
      *   capture, not to us).
      */
-    int do_rightbtn_down(int keys, int x, int y, int clicks);
+    int do_rightbtn_down(int keys, int x, int y, int clicks) override;
 
     /*
      *   Handle a right-click release.  If it landed on the status bar, open
@@ -2803,56 +2803,56 @@ public:
      *   above already made sure of that - so event_loop() dispatches
      *   button-up straight to us.
      */
-    int do_rightbtn_up(int keys, int x, int y);
+    int do_rightbtn_up(int keys, int x, int y) override;
 
     /* process creation event */
-    void do_create();
+    void do_create() override;
 
     /* process close-window event */
-    int do_close();
+    int do_close() override;
 
     /* destroy the window */
-    void do_destroy();
+    void do_destroy() override;
 
     /* handle activation */
-    int do_activate(int flag, int minimized, HWND other_win);
+    int do_activate(int flag, int minimized, HWND other_win) override;
 
     /* handle application activation */
-    int do_activate_app(int flag, DWORD thread_id);
+    int do_activate_app(int flag, DWORD thread_id) override;
 
     /* non-client-area activation notification */
-    int do_ncactivate(int flag);
+    int do_ncactivate(int flag) override;
 
     /* handle control notifications */
-    int do_notify(int control_id, int notify_code, LPNMHDR nmhdr);
+    int do_notify(int control_id, int notify_code, LPNMHDR nmhdr) override;
 
     /* erase the background */
-    int do_erase_bkg(HDC);
+    int do_erase_bkg(HDC) override;
 
     /* paint the window contents */
-    void do_paint_content(HDC hdc, const RECT *area_to_draw);
+    void do_paint_content(HDC hdc, const RECT *area_to_draw) override;
 
     /* gain focus */
-    void do_setfocus(HWND previous_focus);
+    void do_setfocus(HWND previous_focus) override;
 
     /* get our subwindow that contains input focus, if any */
     CHtmlSysWin_win32 *get_focus_subwin();
 
     /* process palette changes */
-    int do_querynewpalette();
-    void do_palettechanged(HWND initiating_window);
+    int do_querynewpalette() override;
+    void do_palettechanged(HWND initiating_window) override;
 
     /* process a user message */
-    int do_user_message(int msg, WPARAM wpar, LPARAM lpar);
+    int do_user_message(int msg, WPARAM wpar, LPARAM lpar) override;
 
     /* process a command */
-    int do_command(int notify_code, int command_id, HWND ctl);
+    int do_command(int notify_code, int command_id, HWND ctl) override;
 
     /* process timer events */
-    int do_timer(int timer_id);
+    int do_timer(int timer_id) override;
 
     /* check the status of a command */
-    TadsCmdStat_t check_command(const check_cmd_info *info);
+    TadsCmdStat_t check_command(const check_cmd_info *info) override;
 
     /* start a new page, and delete all previous pages */
     void clear_all_pages();
@@ -2947,7 +2947,7 @@ public:
 
     /* initialize a popup menu that's about to be opened */
     virtual void init_menu_popup(HMENU menuhdl, unsigned int pos,
-                                 int sysmenu);
+                                 int sysmenu) override;
 
     int do_render() override;
 
@@ -2964,11 +2964,11 @@ public:
                               HTML_BannerWin_Type_t typ,
                               class CHtmlFormatter *formatter,
                               int where, class CHtmlSysWin *other,
-                              HTML_BannerWin_Pos_t pos, unsigned long style);
+                              HTML_BannerWin_Pos_t pos, unsigned long style) override;
 
     /* create an about box subwindow for the game's "About" box */
     virtual class CHtmlSysWin
-        *create_aboutbox_window(class CHtmlFormatter *formatter);
+        *create_aboutbox_window(class CHtmlFormatter *formatter) override;
 
     /*
      *   Create the "About This Game" dialog window itself (aboutbox_) -
@@ -2989,33 +2989,33 @@ public:
     void create_aboutbox_win();
 
     /* remove a banner subwindow */
-    virtual void remove_banner_window(class CHtmlSysWin *subwin);
+    virtual void remove_banner_window(class CHtmlSysWin *subwin) override;
 
     /* orphan a banner window */
-    virtual void orphan_banner_window(CHtmlFormatterBannerExt *fmt);
+    virtual void orphan_banner_window(CHtmlFormatterBannerExt *fmt) override;
 
     /* look up an embedded resource in the executable */
     virtual int get_exe_resource(const textchar_t *resname, size_t resnamelen,
                                  textchar_t *fname_buf, size_t fname_buf_len,
                                  unsigned long *seek_pos,
-                                 unsigned long *siz);
+                                 unsigned long *siz) override;
 
     /*
      *   Read a keyboard command.  Returns false if the application is
      *   quitting.
      */
     int get_input_timeout(textchar_t *buf, size_t bufsiz,
-                          unsigned long timeout, int use_timeout);
+                          unsigned long timeout, int use_timeout) override;
 
     /*
      *   Cancel input that was started with get_input_timeout() and
      *   subsequently interrupted by a timeout. 
      */
-    void get_input_cancel(int reset);
+    void get_input_cancel(int reset) override;
 
     /* get input from the keyboard */
     int get_input(textchar_t *buf, size_t bufsiz)
-    {
+ override {
         /* cancel any previously interrupted command input */
         get_input_cancel(TRUE);
         
@@ -3031,22 +3031,22 @@ public:
      *   Read an event 
      */
     int get_input_event(unsigned long timeout_in_milliseconds,
-                        int use_timeout, os_event_info_t *info);
+                        int use_timeout, os_event_info_t *info) override;
 
     /* set non-stop mode */
-    void set_nonstop_mode(int flag);
+    void set_nonstop_mode(int flag) override;
 
     /* check for a break key sequence */
-    int check_break_key();
+    int check_break_key() override;
 
     /* flush buffered text to the parser, and optionally to the display */
-    void flush_txtbuf(int fmt, int immediate_redraw);
+    void flush_txtbuf(int fmt, int immediate_redraw) override;
 
     /* clear the screen and start a new page */
-    void start_new_page();
+    void start_new_page() override;
 
     /* display output */
-    void display_output(const textchar_t *buf, size_t len);
+    void display_output(const textchar_t *buf, size_t len) override;
     void display_outputz(const textchar_t *buf)
         { display_output(buf, get_strlen(buf)); }
 
@@ -3064,16 +3064,16 @@ public:
      *   waiting for a user-controlled pause; we'll display a status
      *   message in this case to let the user know we're waiting.  
      */
-    textchar_t wait_for_keystroke(int pause_only);
+    textchar_t wait_for_keystroke(int pause_only) override;
 
     /* pause before exiting */
-    void pause_for_exit();
+    void pause_for_exit() override;
 
     /* show the MORE prompt */
-    void pause_for_more();
+    void pause_for_more() override;
 
     /* display a message on the debug console */
-    void dbg_print(const char *msg) { dbg_print(msg, TRUE); }
+    void dbg_print(const char *msg) override { dbg_print(msg, TRUE); }
 
     /* ----------------------------------------------------------------- */
     /*
@@ -3082,13 +3082,13 @@ public:
 
     /* get the default character set */
     oshtml_charset_id_t get_default_win_charset() const
-        { return default_charset_; }
+ override { return default_charset_; }
 
     /* translate an HTML 4 code point value */
     virtual size_t xlat_html4_entity(textchar_t *result, size_t result_size,
                                      unsigned int charval,
                                      oshtml_charset_id_t *charset,
-                                     int *changed_charset);
+                                     int *changed_charset) override;
 
     /* ----------------------------------------------------------------- */
     /*
@@ -3096,13 +3096,13 @@ public:
      */
 
     /* get my window group object (that would be me) */
-    CHtmlSysWinGroup *get_owner_win_group() { return this; }
+    CHtmlSysWinGroup *get_owner_win_group() override { return this; }
 
     /* close the owner window */
-    int close_owner_window(int force);
+    int close_owner_window(int force) override;
 
     /* bring the window to the front */
-    void bring_owner_to_front();
+    void bring_owner_to_front() override;
 
     /* 
      *   show the window in its normal visible state - if it's hidden, show
@@ -3111,14 +3111,14 @@ public:
     void show_normal();
 
     /* get the frame handle */
-    virtual HWND get_owner_frame_handle() const { return handle_; }
+    virtual HWND get_owner_frame_handle() const override { return handle_; }
 
     /* set the height of a banner window */
-    void on_set_banner_size(CHtmlSysWin_win32 *subwin);
+    void on_set_banner_size(CHtmlSysWin_win32 *subwin) override;
 
     /* reformat all HTML windows */
     virtual void reformat_all_html(int show_status, int freeze_display,
-                                   int reset_sounds);
+                                   int reset_sounds) override;
 
     /*
      *   Drain deferred reformat/resize/game-chest-reload work for every HTML
@@ -3129,30 +3129,30 @@ public:
     void run_pending_deferred_all();
 
     /* set the accelerator key for Paste */
-    virtual void set_paste_accel(textchar_t paste_key);
+    virtual void set_paste_accel(textchar_t paste_key) override;
 
     /* invalidate on-screen link displays */
-    virtual void owner_inval_links_on_screen();
+    virtual void owner_inval_links_on_screen() override;
 
     /* process a command */
     virtual void process_command(const textchar_t *cmd, size_t cmdlen,
-                                 int append, int enter, int os_cmd_id);
+                                 int append, int enter, int os_cmd_id) override;
 
     /* switch pages */
-    virtual void go_next_page();
-    virtual void go_previous_page();
-    virtual int exists_next_page();
-    virtual int exists_previous_page();
+    virtual void go_next_page() override;
+    virtual void go_previous_page() override;
+    virtual int exists_next_page() override;
+    virtual int exists_previous_page() override;
 
     /* go to the active page */
-    virtual void go_to_active_page();
+    virtual void go_to_active_page() override;
 
     /* get the active page window */
-    virtual CHtmlSysWin_win32 *get_active_page_win() { return main_panel_; }
+    virtual CHtmlSysWin_win32 *get_active_page_win() override { return main_panel_; }
 
     /* determine if this is the active page */
     virtual int is_active_page() const
-    {
+ override {
         /* 
          *   only the last page is active -- once we've started a new
          *   page, the previous page becomes permanently inactive 
@@ -3161,23 +3161,23 @@ public:
     }
 
     /* clear the selection in all subwindows except one */
-    virtual void clear_other_sel(class CHtmlSysWin_win32 *exclude_win);
+    virtual void clear_other_sel(class CHtmlSysWin_win32 *exclude_win) override;
 
     /* move focus to the main panel */
-    virtual void focus_to_main();
+    virtual void focus_to_main() override;
 
     /* clear hover tracking info in all subwindows except one */
-    virtual void clear_other_hover_info(class CHtmlSysWin_win32 *exclude);
+    virtual void clear_other_hover_info(class CHtmlSysWin_win32 *exclude) override;
 
     /* get the IDirectSound interface object */
-    virtual struct IDirectSound *get_directsound();
+    virtual struct IDirectSound *get_directsound() override;
 
     /* 
      *   show an appropriate warning explaining why directsound
      *   initialization failed previously 
      */
     virtual void owner_show_directx_warning()
-        { show_directx_warning(FALSE, directsound_init_err_); }
+ override { show_directx_warning(FALSE, directsound_init_err_); }
 
     /*
      *   Set a new game to be loaded after the current game exits.  The
@@ -3219,57 +3219,57 @@ public:
     void get_find_text(
         int command_id,
         std::function<void(const char *findstr, int exact_case,
-                           int start_at_top, int wrap, int dir)> callback);
+                           int start_at_top, int wrap, int dir)> callback) override;
 
     /* reload the game chest data if necessary */
-    void owner_maybe_reload_game_chest();
+    void owner_maybe_reload_game_chest() override;
 
     /* save the game chest database to the given file */
-    virtual void owner_write_game_chest_db(const textchar_t *fname);
+    virtual void owner_write_game_chest_db(const textchar_t *fname) override;
 
     /* show the game chest window */
     void owner_show_game_chest(int refresh_only,
                                int reload_file, int mark_dirty)
-        { show_game_chest(refresh_only, reload_file, mark_dirty); }
+ override { show_game_chest(refresh_only, reload_file, mark_dirty); }
 
     /* process a game chest command */
     void owner_process_game_chest_cmd(const textchar_t *cmd, size_t cmdlen)
-        { process_game_chest_cmd(cmd, cmdlen); }
+ override { process_game_chest_cmd(cmd, cmdlen); }
 
     /* add a directory's contents to the game chest favorites */
     virtual int owner_game_chest_add_fav_dir(const textchar_t *dir)
-        { return game_chest_add_fav_dir(dir); }
+ override { return game_chest_add_fav_dir(dir); }
 
     /* add a file to the game chest favorites list */
     virtual int owner_game_chest_add_fav(const textchar_t *fname,
                                          int group_id, int interactive)
-        { return game_chest_add_fav(fname, group_id, interactive); }
+ override { return game_chest_add_fav(fname, group_id, interactive); }
 
     /* add a download dialog to the list of active downloads */
     virtual void owner_add_download(class CHtmlGameChestDownloadDlg *dlg)
-        { add_download(dlg); }
+ override { add_download(dlg); }
 
     /* remove a download dialog from the active list */
     virtual void owner_remove_download(class CHtmlGameChestDownloadDlg *dlg)
-        { remove_download(dlg); }
+ override { remove_download(dlg); }
 
     /* get the currently loaded game's internal character set name */
     const textchar_t *owner_get_game_internal_charset() const
-        { return game_internal_charset_.get(); }
+ override { return game_internal_charset_.get(); }
 
     /* get the default character set */
     oshtml_charset_id_t owner_get_default_charset() const
-        { return default_charset_; }
+ override { return default_charset_; }
 
     /* set/set the temporary-show-links status */
-    virtual int get_temp_show_links() const { return temp_show_links_; }
-    virtual void set_temp_show_links(int f) { temp_show_links_ = f; }
+    virtual int get_temp_show_links() const override { return temp_show_links_; }
+    virtual void set_temp_show_links(int f) override { temp_show_links_ = f; }
 
     /* [MORE] prompt window handling */
-    virtual void add_more_prompt_win(class CHtmlSysWin_win32 *win);
-    virtual void remove_more_prompt_win(class CHtmlSysWin_win32 *win);
-    int owner_process_moremode_key(int vkey, TCHAR ch);
-    virtual void release_all_moremode();
+    virtual void add_more_prompt_win(class CHtmlSysWin_win32 *win) override;
+    virtual void remove_more_prompt_win(class CHtmlSysWin_win32 *win) override;
+    int owner_process_moremode_key(int vkey, TCHAR ch) override;
+    virtual void release_all_moremode() override;
 
     int event_loop(int* flag);
 
@@ -3690,13 +3690,13 @@ private:
      *   special key sequence, we use this flag to indicate that the special
      *   key sequence is currently active.  
      */
-    int temp_show_links_ : 1;
+    unsigned int temp_show_links_ : 1;
 
     /*
      *   Flag: we're running a Web UI game.  We set this after loading a T3
      *   game if we detect that the tads-net function set is loaded.
      */
-    int webui_game_ : 1;
+    unsigned int webui_game_ : 1;
 
     /*
      *   Flag: a game is currently running, and the player has asked to
@@ -4120,19 +4120,19 @@ public:
     ~CHtmlSys_dbglogwin();
 
     /* initialize the HTML panel */
-    virtual void init_html_panel(class CHtmlFormatter *formatter);
+    virtual void init_html_panel(class CHtmlFormatter *formatter) override;
 
     /* process a user message */
-    int do_user_message(int msg, WPARAM wpar, LPARAM lpar);
+    int do_user_message(int msg, WPARAM wpar, LPARAM lpar) override;
 
     /* store a position in my preference settings */
-    void set_winpos_prefs(const class CHtmlRect *pos);
+    void set_winpos_prefs(const class CHtmlRect *pos) override;
 
     /* process close-window event */
-    int do_close();
+    int do_close() override;
 
     /* process destruction */
-    void do_destroy();
+    void do_destroy() override;
 
     /* display some text */
     void disp_text(const textchar_t *msg);
@@ -4141,19 +4141,19 @@ public:
     void disp_text(const class CHtmlFontDesc *font, const textchar_t *msg);
 
     /* process a command */
-    int do_command(int notify_code, int command_id, HWND ctl);
+    int do_command(int notify_code, int command_id, HWND ctl) override;
 
     /* check the status of a command */
-    TadsCmdStat_t check_command(const check_cmd_info *);
+    TadsCmdStat_t check_command(const check_cmd_info *) override;
 
     /* process a notification */
-    int do_notify(int control_id, int notify_code, LPNMHDR nm);
+    int do_notify(int control_id, int notify_code, LPNMHDR nm) override;
 
     /* non-client-area activation notification */
-    int do_ncactivate(int flag);
+    int do_ncactivate(int flag) override;
 
     /* load my menu */
-    virtual void load_menu();
+    virtual void load_menu() override;
 
     /*
      *   Render this window's content, adding ImGuiWindowFlags_MenuBar so
@@ -4164,13 +4164,13 @@ public:
     void do_render_content_begin() override;
 
     /* initialize the parser */
-    virtual void init_parser();
+    virtual void init_parser() override;
 
     /* get the text for a 'find' command */
     void get_find_text(
         int command_id,
         std::function<void(const char *findstr, int exact_case,
-                           int start_at_top, int wrap, int dir)> callback);
+                           int start_at_top, int wrap, int dir)> callback) override;
 
     /* -------------------------------------------------------------------- */
     /*
@@ -4178,14 +4178,14 @@ public:
      */
 
     /* check the status of a command routed from the main window */
-    virtual TadsCmdStat_t active_check_command(const check_cmd_info *);
+    virtual TadsCmdStat_t active_check_command(const check_cmd_info *) override;
 
     /* execute a command routed from the main window */
     virtual int active_do_command(int notify_code, int command_id,
-                                  HWND ctl);
+                                  HWND ctl) override;
 
     /* get my window handle */
-    virtual HWND active_get_handle() { return handle_; }
+    virtual HWND active_get_handle() override { return handle_; }
 
     /* 
      *   get my style: if we're running in a stand-alone interpreter, we're
@@ -4193,7 +4193,7 @@ public:
      *   otherwise, we're a child window inside MDI or the docking mechanism 
      */
     DWORD get_winstyle()
-    {
+ override {
         /* our style varies according to how we're running */
         if (debugger_ifc_ != 0)
         {
@@ -4227,7 +4227,7 @@ private:
     void append_and_parse(const textchar_t *msg);
 
     /* receive notification of activation from parent */
-    void do_parent_activate(int flag);
+    void do_parent_activate(int flag) override;
 
     /*
      *   Last content-region size passed to do_resize() from
@@ -4420,13 +4420,13 @@ public:
     }
 
     /* process window creation */
-    void do_create();
+    void do_create() override;
 
     /* process window deletion */
-    void do_destroy();
+    void do_destroy() override;
 
     /* paint the contents of the window */
-    void do_paint_content(HDC hdc, const RECT *paintrc);
+    void do_paint_content(HDC hdc, const RECT *paintrc) override;
 
     /* create the subwindow */
     void create_html_subwin(class CHtmlFormatter *formatter);
@@ -4450,16 +4450,16 @@ public:
     void run_aboutbox(class CHtmlSys_mainwin *owner);
 
     /* close the window */
-    int do_close();
+    int do_close() override;
 
     /* resize */
-    void do_resize(int mode, int x, int y);
+    void do_resize(int mode, int x, int y) override;
 
     /* handle keystrokes */
-    int do_char(TCHAR ch, long keydata);
+    int do_char(TCHAR ch, long keydata) override;
 
     /* handle commands */
-    int do_command(int notify_code, int cmd, HWND ctl);
+    int do_command(int notify_code, int cmd, HWND ctl) override;
 
     /*
      *   Draw the "OK" button below the HTML panel.  This used to be a real
@@ -4474,13 +4474,13 @@ public:
 protected:
     /* leave off the min and max boxes and the size box */
     DWORD get_winstyle()
-    {
+ override {
         return (WS_OVERLAPPED | WS_CAPTION | WS_SYSMENU | WS_THICKFRAME
                 | WS_BORDER | WS_CLIPSIBLINGS | WS_CLIPCHILDREN);
     }
 
     /* make it a dialog frame */
-    DWORD get_winstyle_ex() { return WS_EX_DLGMODALFRAME; }
+    DWORD get_winstyle_ex() override { return WS_EX_DLGMODALFRAME; }
 
     /* my HTML subwindow */
     class CHtmlSysWin_win32 *html_subwin_;
@@ -4594,11 +4594,11 @@ public:
     void run_dlg(CTadsWin *parent);
 
     /* handle keystrokes */
-    int do_char(TCHAR ch, long keydata);
+    int do_char(TCHAR ch, long keydata) override;
 
     /* process a command */
     virtual void process_command(const textchar_t *cmd, size_t cmdlen,
-                                 int append, int enter, int os_cmd_id);
+                                 int append, int enter, int os_cmd_id) override;
 
 protected:
     /* get our display width and height */
@@ -4615,7 +4615,7 @@ protected:
     virtual const char *get_bkg_name() const { return "about.jpg"; }
 
     /* fill in a text buffer with the contents of the dialog */
-    virtual void build_contents(class CHtmlTextBuffer *txtbuf);
+    virtual void build_contents(class CHtmlTextBuffer *txtbuf) override;
 
     /* show the "Credits" dialog */
     virtual void show_credits_dlg();
@@ -4624,18 +4624,18 @@ protected:
     virtual void show_license_dlg();
 
     /* does the HTML subpanel have a vertical/horizontal scrollbar? */
-    virtual int panel_has_vscroll() const { return FALSE; }
-    virtual int panel_has_hscroll() const { return FALSE; }
+    virtual int panel_has_vscroll() const override { return FALSE; }
+    virtual int panel_has_hscroll() const override { return FALSE; }
 
     /* leave off the min and max boxes and the size box */
     DWORD get_winstyle()
-    {
+ override {
         return (WS_OVERLAPPED | WS_CAPTION | WS_SYSMENU
                 | WS_BORDER | WS_CLIPSIBLINGS | WS_CLIPCHILDREN);
     }
 
     /* make it a dialog frame */
-    DWORD get_winstyle_ex() { return WS_EX_DLGMODALFRAME; }
+    DWORD get_winstyle_ex() override { return WS_EX_DLGMODALFRAME; }
 
     /*
      *   We're a real floating ImGui::Begin() window now (run_dlg() passes a
@@ -4728,7 +4728,7 @@ public:
     
     /* make this a plain popup window with no title bar */
     DWORD get_winstyle()
-    {
+ override {
         return (WS_POPUP | WS_CLIPSIBLINGS | WS_CLIPCHILDREN);
     }
 
@@ -4745,14 +4745,14 @@ public:
 
     /* make it a top-most window */
     DWORD get_winstyle_ex()
-    {
+ override {
         return (WS_EX_TOPMOST | WS_EX_TOOLWINDOW);
     }
 
     /* handle mouse activation */
     int do_mouseactivate(HWND hwnd, int hit, unsigned int msg,
                          LRESULT *result)
-    {
+ override {
         /* 
          *   don't allow the window to be activated, but keep processing the
          *   click 
@@ -4762,15 +4762,15 @@ public:
     }
 
     /* paint the contents of the window */
-    void do_paint_content(HDC hdc, const RECT *paintrc);
+    void do_paint_content(HDC hdc, const RECT *paintrc) override;
 
 protected:
     /* create the HTML panel subwindow */
-    virtual void create_html_subwin();
+    virtual void create_html_subwin() override;
 
     /* adjust our client rectangle to the subwindow area */
     virtual void adjust_subwin_rect(RECT *rc)
-    {
+ override {
         /* 
          *   we want to leave a one-pixel border in the main window, so
          *   adjust our subwindow accordingly 
@@ -4782,7 +4782,7 @@ protected:
     }
 
     /* fill in a text buffer with the contents of the dialog */
-    virtual void build_contents(class CHtmlTextBuffer *txtbuf);
+    virtual void build_contents(class CHtmlTextBuffer *txtbuf) override;
 
     /* HTML contents text */
     const char *txt_;

@@ -499,7 +499,7 @@ private:
     struct imh_listele *menu_handlers_;
 
     /* flag indicating that OLE was initialized successfully */
-    int ole_inited_ : 1;
+    unsigned int ole_inited_ : 1;
 
     /*
      *   Current accelerator and accelerator target window.  At any given

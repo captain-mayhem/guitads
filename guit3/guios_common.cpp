@@ -164,7 +164,7 @@ int os_load_builtin_string(int id, char *buf, size_t buflen)
  *   strip like this has ever needed.  Fields are read a byte at a time
  *   rather than through a packed struct, since BMP's on-disk layout doesn't
  *   match any C++ struct's natural alignment.  Returns a newly allocated
- *   top-down 32bpp RGBA buffer (th_malloc()'d) with *width/*height filled
+ *   top-down 32bpp RGBA buffer (th_malloc()'d) with *width / *height filled
  *   in, or null if the data isn't a BMP in one of these formats.
  */
 namespace {

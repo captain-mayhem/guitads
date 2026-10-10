@@ -292,9 +292,9 @@ void CMpegAmp::sackbits(int n)
 int CMpegAmp::huffman_decode(int tbl,int *x,int *y)
 {
 unsigned int chunk;
-register const unsigned int *h_tab;
-register unsigned int lag;
-register unsigned int half_lag;
+const unsigned int *h_tab;
+unsigned int lag;
+unsigned int half_lag;
 int len;
 
         h_tab=tables[tbl];

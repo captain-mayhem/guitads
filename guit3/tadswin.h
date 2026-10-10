@@ -1585,7 +1585,7 @@ protected:
     BtnClick_t rbtn_click;
 
     /* tracking popup */
-    int tracking_popup_menu_ : 1;
+    unsigned int tracking_popup_menu_ : 1;
 
     /* timer being used for drag-scroll tracking */
     int drag_scroll_timer_id_;
@@ -1623,10 +1623,10 @@ protected:
      *   with the button down 
      */
     POINT drag_start_pos_;
-    int drag_ready_ : 1;
+    unsigned int drag_ready_ : 1;
 
     /* flag indicating that we captured the mouse for a drag operation */
-    int drag_capture_ : 1;
+    unsigned int drag_capture_ : 1;
 
     /* original keyboard state at start of drag operation */
     ULONG drag_start_key_;
@@ -1635,7 +1635,7 @@ protected:
     ULONG ole_refcnt_;
 
     /* flag indicating that we're registered with OLE as a drop target */
-    int drop_target_regd_ : 1;
+    unsigned int drop_target_regd_ : 1;
 
     /* 
      *   Flag: the window is maximized.  This flag provides a mechanism
@@ -1645,10 +1645,10 @@ protected:
      *   example, if we're an MDI child window, we need to find our
      *   maximized status through other means.
      */
-    int maximized_ : 1;
+    unsigned int maximized_ : 1;
 
     /* flag: if set, we'll use off-screen rendering by default */
-    int off_screen_render_ : 1;
+    unsigned int off_screen_render_ : 1;
 
     /* drop target helper, if available */
     IDropTargetHelper *drop_target_helper_;
@@ -1741,7 +1741,7 @@ public:
     long get_hscroll_pos() const { return hscroll_ofs_; }
 
     /* handle a mouse-wheel scroll event */
-    virtual int do_mousewheel(int keys, int dist, int x, int y);
+    virtual int do_mousewheel(int keys, int dist, int x, int y) override;
 
     /*
      *   Scroll-capable windows clip to their actual size instead of
@@ -1819,7 +1819,7 @@ public:
      *   data than we can from the windows message.  
      */
     virtual void do_scroll(int vert, HWND sb_handle,
-                           int scroll_code, long pos, int use_pos);
+                           int scroll_code, long pos, int use_pos) override;
 
     /* get the default scrollbar handles */
     HWND get_vscroll_handle() const { return vscroll_; }
@@ -1845,7 +1845,7 @@ public:
 
     /* process MDI child activation */
     virtual int do_childactivate()
-    {
+ override {
         /* fix up scrollbars, in case we resized */
         adjust_scrollbar_positions();
 
@@ -1855,16 +1855,16 @@ public:
 
 protected:
     /* process window creation message */
-    void do_create();
+    void do_create() override;
 
     /* resize the window */
-    void do_resize(int mode, int x, int y);
+    void do_resize(int mode, int x, int y) override;
 
     /* set control colors */
-    HBRUSH do_ctlcolor(UINT msg, HDC hdc, HWND hwnd);
+    HBRUSH do_ctlcolor(UINT msg, HDC hdc, HWND hwnd) override;
 
     /* handle timer messages */
-    int do_timer(int timer_id);
+    int do_timer(int timer_id) override;
 
     /* remember my position in the preferences */
     void set_pos_prefs();
@@ -2064,29 +2064,29 @@ protected:
      *   window), but still scroll content contained within our client
      *   area 
      */
-    int ext_vscroll_ : 1;
-    int ext_hscroll_ : 1;
+    unsigned int ext_vscroll_ : 1;
+    unsigned int ext_hscroll_ : 1;
 
     /* vertical and horizontal scrolling offsets */
     long vscroll_ofs_;
     long hscroll_ofs_;
 
     /* scrollbar visibility flags */
-    int vscroll_vis_ : 1;
-    int hscroll_vis_ : 1;
+    unsigned int vscroll_vis_ : 1;
+    unsigned int hscroll_vis_ : 1;
 
     /* flags indicating whether scrollbars are desired */
-    int has_vscroll_ : 1;
-    int has_hscroll_ : 1;
+    unsigned int has_vscroll_ : 1;
+    unsigned int has_hscroll_ : 1;
 
     /* 
      *   flag indicating whether a sizebox is desired in the corner
      *   between the vertical and horizontal scrollbars 
      */
-    int has_sizebox_ : 1;
+    unsigned int has_sizebox_ : 1;
 
     /* flag indicating that we're doing drag scrolling */
-    int in_drag_scroll_ : 1;
+    unsigned int in_drag_scroll_ : 1;
 
     /* last drag scroll time */
     DWORD drag_scroll_time_;

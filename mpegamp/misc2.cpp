@@ -261,7 +261,7 @@ static const short t_reorder[2][3][576]={{
 float CMpegAmp::fras_l(int sfb,int global_gain,int scalefac_scale,
                        int scalefac,int preflag)
 {
-register int a,scale;
+int a,scale;
         /*
         if (scalefac_scale) scale=2;
         else scale=1;
@@ -441,14 +441,14 @@ int sfb,window,window_len,ms_flag,tmp,i;
         
         /* mixed block magic now...
          */
-                if (sfb==2 && info->mixed_block_flag[gr][0]) 
+                if (sfb==2 && info->mixed_block_flag[gr][0]) {
                         if (isbound[0]<0 && isbound[1]<0 && isbound[2]<0) {
                                 tmp=35;
                                 while (is[1][tmp] == 0) tmp--;
                                 sfb=0; while (t_l[sfb] < tmp  && sfb < 21) sfb++;
                                 isbound[0]=isbound[1]=isbound[2]=t_l[sfb]+1;
                         } else for (window=0;window<3;window++) 
-                                if (isbound[window]<0) isbound[window]=36;
+                                if (isbound[window]<0) isbound[window]=36; }
                 if (header->ID==1) isbound[0]=isbound[1]=isbound[2]=MAX(isbound[0],MAX(isbound[1],isbound[2]));
 
         /* just how many imdcts?
@@ -604,10 +604,11 @@ scalefac_scale=info->scalefac_scale[gr];
                                 if (l<isbound[0]) is_pos=IS_ILLEGAL;
                                 else {
                                         is_pos=scalefac[1];
-                                        if (id==1) /* MPEG1 */
+                                        if (id==1) { /* MPEG1 */
                                                 if (is_pos==7) is_pos=IS_ILLEGAL;
-                                        else /* MPEG2 */
+                                        } else { /* MPEG2 */
                                                 if (is_pos==is_max[sfb]) is_pos=IS_ILLEGAL;
+                                        }
                                 }
 
                                 stereo_l(l,a,ms_flag,is_pos,header);
@@ -641,10 +642,11 @@ scalefac_scale=info->scalefac_scale[gr];
                                                 a[1]=fras_s(global_gain[1],subblock_gain[1],scalefac_scale[1],scalefac[1]);
                                         } else {
                                                 is_pos=scalefac[1];
-                                                if (id==1) /* MPEG1 */
+                                                if (id==1) { /* MPEG1 */
                                                         if (is_pos==7) is_pos=IS_ILLEGAL;
-                                                else /* MPEG2 */
+                                                } else { /* MPEG2 */
                                                         if (is_pos==is_max[sfb+6]) is_pos=IS_ILLEGAL;
+                                                }
  
                                                 a[0]=fras_s(global_gain[0],subblock_gain[0],scalefac_scale[0],scalefac[0]);
                                         }
@@ -685,10 +687,11 @@ scalefac_scale=info->scalefac_scale[gr];
                                                 a[1]=fras_s(global_gain[1],subblock_gain[1],scalefac_scale[1],scalefac[1]);
                                         } else {
                                                 is_pos=scalefac[1];
-                                                if (id==1) /* MPEG1 */
+                                                if (id==1) { /* MPEG1 */
                                                         if (is_pos==7) is_pos=IS_ILLEGAL;
-                                                else /* MPEG2 */
+                                                } else { /* MPEG2 */
                                                         if (is_pos==is_max[sfb+6]) is_pos=IS_ILLEGAL;
+                                                }
 
                                                 a[0]=fras_s(global_gain[0],subblock_gain[0],scalefac_scale[0],scalefac[0]);
                                         }
@@ -737,9 +740,9 @@ unsigned int cnt4, cnt3, cnt2, cnt1;
 #endif
 
                         {
-                                register float Mi = fras2(is[0][l],a[0]);
-                                register float Si = fras2(is[1][l],a[1]);
-                                register float tmp = i_sq2;
+                                float Mi = fras2(is[0][l],a[0]);
+                                float Si = fras2(is[1][l],a[1]);
+                                float tmp = i_sq2;
                                 xr[0][0][l]=(Mi+Si)*tmp;
                                 xr[1][0][l]=(Mi-Si)*tmp;
                         }
@@ -798,10 +801,11 @@ unsigned int cnt4, cnt2, cnt1;
                 while (l<(MAX(non_zero[0],non_zero[1]))) {
                         int is_pos=scalefac[1];
         
-                        if (id==1) /* MPEG1 */
+                        if (id==1) { /* MPEG1 */
                                 if (is_pos==7) is_pos=IS_ILLEGAL;
-                        else /* MPEG2 */
+                        } else { /* MPEG2 */
                                 if (is_pos==is_max[sfb]) is_pos=IS_ILLEGAL;
+                        }
 
                         stereo_l(l,a,ms_flag,is_pos,header);
 
@@ -867,16 +871,16 @@ float a[2];
                                                 a[0]=fras_s(global_gain[0],subblock_gain[0],scalefac_scale[0],scalefac[0]);
                                                 if (ms_flag) {
                                                         for (i=0;i<window_len;i++) {
-                                                                register float Mi=fras2(is[0][l],a[0]);
-                                                                register float tmp = i_sq2;
+                                                                float Mi=fras2(is[0][l],a[0]);
+                                                                float tmp = i_sq2;
                                                                 xr[0][0][t_reorder[id][sfreq][l]]=Mi*i_sq2;
                                                                 l++;
                                                         }
                                                 } else {
                                                         a[1]=fras_s(global_gain[1],subblock_gain[1],scalefac_scale[1],scalefac[1]);
                                                         for (i=0;i<window_len;i++) {
-                                                                register float tmp1=fras2(is[0][l],a[0]);
-                                                                register float tmp2=fras2(is[1][l],a[1]);
+                                                                float tmp1=fras2(is[0][l],a[0]);
+                                                                float tmp2=fras2(is[1][l],a[1]);
                                                                 xr[0][0][t_reorder[id][sfreq][l]]=(tmp1+tmp2)*0.5f;
                                                                 l++;
                                                         }
@@ -884,7 +888,7 @@ float a[2];
                                         } else {
                                                 a[0]=fras_s(global_gain[0],subblock_gain[0],scalefac_scale[0],scalefac[0]);
                                                 for (i=0;i<window_len;i++) {
-                                                        register float ftmp = fras2(is[0][l], a[0]);
+                                                        float ftmp = fras2(is[0][l], a[0]);
                                                         if (id==0 && is_pos<is_max[sfb])
                                                                 ftmp*=t_downmix[intensity_scale][(is_pos+1)>>1];
                                                         xr[0][0][t_reorder[id][sfreq][l]] = ftmp;
@@ -925,8 +929,8 @@ float a[2];
                  */
                 if (ms_flag)
                         while (l < isbound) {
-                                register float Mi = fras2(is[0][l],a[0]);
-                                register float tmp = i_sq2;
+                                float Mi = fras2(is[0][l],a[0]);
+                                float tmp = i_sq2;
                                 xr[0][0][l]=Mi*tmp;
 
                                 if (l==t_l[sfb]) {
@@ -939,8 +943,8 @@ float a[2];
                         }
                 else 
                         while (l < isbound) {
-                                register float tmp1=fras2(is[0][l],a[0]);
-                                register float tmp2=fras2(is[1][l],a[1]);
+                                float tmp1=fras2(is[0][l],a[0]);
+                                float tmp2=fras2(is[1][l],a[1]);
                                 xr[0][0][l]=(tmp1+tmp2)*0.5f;
                                 if (l==t_l[sfb]) {
                                         sfb++;
@@ -955,7 +959,7 @@ float a[2];
                 */
                 while (l<(MAX(non_zero[0],non_zero[1]))) {
                         int is_pos=scalefac[1];
-                        register float ftmp=fras2(is[0][l], a[0]);
+                        float ftmp=fras2(is[0][l], a[0]);
 
                         if (id==0  && is_pos<is_max[sfb]) {
                                 ftmp*=t_downmix[intensity_scale][(is_pos+1)>>1];
@@ -990,7 +994,7 @@ unsigned int sb;
 
         for (sb=1;sb<32;sb++) {
                 float *x = xr[ch][sb];
-                register float a, b;
+                float a, b;
 
                 a = x[0];
                 b = x[-1];

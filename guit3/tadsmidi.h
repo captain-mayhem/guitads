@@ -70,7 +70,7 @@ private:
     unsigned char *buf_;
 
     /* flag indicating whether the header has been prepared */
-    int prepared_ : 1;
+    unsigned int prepared_ : 1;
 };
 
 /*
@@ -404,7 +404,7 @@ private:
     class CTadsMidiFileReader *reader_;
 
     /* flag indicating that we've exhausted the input file */
-    int end_of_stream_ : 1;
+    unsigned int end_of_stream_ : 1;
 
     /* 
      *   Stream buffers.  We allocate two buffers, so that we can always
@@ -432,19 +432,19 @@ private:
     unsigned long start_tick_pos_;
 
     /* flag indicating that we have encountered an error */
-    int err_ : 1;
+    unsigned int err_ : 1;
 
     /* flag indicating that we're waiting for playback to stop */
-    int stopping_ : 1;
+    unsigned int stopping_ : 1;
 
     /* flag: our output is muted */
-    int muted_ : 1;
+    unsigned int muted_ : 1;
 
     /* flag: we're doing a background fade on this player */
-    int bg_fading_ : 1;
+    unsigned int bg_fading_ : 1;
 
     /* flag: we've finished playback */
-    int is_done_ : 1;
+    unsigned int is_done_ : 1;
 
     /* our system audio controller */
     class CTadsAudioControl *audio_control_;
@@ -665,13 +665,13 @@ private:
     midi_event_t event_;
 
     /* flag indicating whether we have an event buffered in event_ */
-    int have_event_ : 1;
+    unsigned int have_event_ : 1;
 
     /* flag indicating that we've reached the end of the MIDI data */
-    int end_of_stream_ : 1;
+    unsigned int end_of_stream_ : 1;
 
     /* flag indicating that we've encountered an error reading the file */
-    int err_ : 1;
+    unsigned int err_ : 1;
 };
 
 /* track reader input buffer size */
@@ -812,7 +812,7 @@ private:
     midi_time_t next_event_time_;
 
     /* error flag - when set, the track has an error */
-    int err_ : 1;
+    unsigned int err_ : 1;
 
     /* last message status - used for running status */
     unsigned char last_status_;

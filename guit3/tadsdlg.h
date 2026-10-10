@@ -36,6 +36,8 @@ Modified
 class CTadsDialogCtl
 {
 public:
+    virtual ~CTadsDialogCtl() { }
+
     CTadsDialogCtl(HWND hdl)
     {
         /* remember my window handle */

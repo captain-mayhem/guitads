@@ -545,7 +545,7 @@ int i;
 float CMpegAmp::requantize_sample(unsigned short s4,unsigned short nlevels,
                                   float c,float d,float factor)
 {
-register float s,s2,s3;
+float s,s2,s3;
 s3=-1.0+s4*2.0/(nlevels+1);
 s2=c*(s3+d);
 s=factor*s2;

@@ -33,6 +33,39 @@ Modified
 #include "tadsaudiodev.h"
 #include "tadssnd.h"
 
+#ifdef __EMSCRIPTEN__
+#include <emscripten/proxying.h>
+#include <emscripten/threading.h>
+#endif
+
+
+/* ------------------------------------------------------------------------ */
+/*
+ *   Run a miniaudio device/context call on the thread that's allowed to
+ *   make it.  Natively that's any thread.  Under Emscripten, miniaudio's
+ *   Web Audio backend creates and drives an AudioContext through EM_ASM,
+ *   and only the browser's main thread has one ('window' is undefined in a
+ *   pthread's worker), so a device opened from a decoder thread fails to
+ *   initialize and the sound plays silently.  Proxy those calls there,
+ *   synchronously.  The data callback itself already runs on the main
+ *   thread (from the ScriptProcessorNode), and the ring buffer it reads is
+ *   lock-free, so the streaming path is unaffected.
+ */
+template <class F> static void run_on_audio_thread(F f)
+{
+#ifdef __EMSCRIPTEN__
+    if (!emscripten_is_main_runtime_thread())
+    {
+        emscripten_proxy_sync(
+            emscripten_proxy_get_system_queue(),
+            emscripten_main_runtime_thread_id(),
+            [](void *arg) { (*static_cast<F *>(arg))(); }, &f);
+        return;
+    }
+#endif
+    f();
+}
+
 
 /* ------------------------------------------------------------------------ */
 /*
@@ -95,7 +128,9 @@ public:
         cfg.dataCallback = &data_callback_thunk;
         cfg.pUserData = this;
 
-        if (ma_device_init(NULL, &cfg, &device_) != MA_SUCCESS)
+        ma_result res;
+        run_on_audio_thread([&] { res = ma_device_init(NULL, &cfg, &device_); });
+        if (res != MA_SUCCESS)
         {
             ma_pcm_rb_uninit(&rb_);
             rb_inited_ = false;
@@ -151,7 +186,7 @@ public:
         std::lock_guard<std::mutex> lk(dev_mutex_);
         if (device_inited_ && started_)
         {
-            ma_device_stop(&device_);
+            run_on_audio_thread([&] { ma_device_stop(&device_); });
             started_ = false;
         }
         /*
@@ -193,7 +228,7 @@ public:
         std::lock_guard<std::mutex> lk(dev_mutex_);
         if (device_inited_ && started_)
         {
-            ma_device_stop(&device_);
+            run_on_audio_thread([&] { ma_device_stop(&device_); });
             started_ = false;
         }
     }
@@ -204,7 +239,7 @@ public:
 
         if (device_inited_)
         {
-            ma_device_uninit(&device_);
+            run_on_audio_thread([&] { ma_device_uninit(&device_); });
             device_inited_ = false;
         }
         started_ = false;
@@ -252,7 +287,9 @@ private:
             && ma_pcm_rb_available_write(&rb_) > 0)
             return;
 
-        if (ma_device_start(&device_) == MA_SUCCESS)
+        ma_result res;
+        run_on_audio_thread([&] { res = ma_device_start(&device_); });
+        if (res == MA_SUCCESS)
             started_ = true;
     }
 
@@ -327,12 +364,22 @@ CTadsAudioDevice *CTadsAudioDevice::create()
 
 bool CTadsAudioDevice::is_available()
 {
-    ma_context ctx;
-    if (ma_context_init(NULL, 0, NULL, &ctx) != MA_SUCCESS)
-        return false;
-
-    ma_context_uninit(&ctx);
-    return true;
+    bool ok = false;
+    run_on_audio_thread([&] {
+        ma_context ctx;
+        if (ma_context_init(NULL, 0, NULL, &ctx) == MA_SUCCESS)
+        {
+            /*
+             *   miniaudio falls back to its Null backend (which discards
+             *   everything) when no real one loads - e.g. on Linux without
+             *   libpulse or libasound installed.  That's no audio at all, so
+             *   report it as such rather than playing silently.
+             */
+            ok = (ctx.backend != ma_backend_null);
+            ma_context_uninit(&ctx);
+        }
+    });
+    return ok;
 }
 
 

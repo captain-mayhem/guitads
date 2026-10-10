@@ -110,23 +110,23 @@ struct CTadsLOGFONT
     UINT codepage;
 
     /* flag: face name is set explicitly in LOGFONT */
-    int face_set_explicitly : 1;
+    unsigned int face_set_explicitly : 1;
 
     /* flag: color is set explicitly in LOGFONT */
-    int color_set_explicitly : 1;
+    unsigned int color_set_explicitly : 1;
 
     /* flag: color is the dynamic command-input color */
-    int color_is_input : 1;
+    unsigned int color_is_input : 1;
 
     /* 
      *   flag: we have a background color (if not, we draw transparently on
      *   the existing background) 
      */
-    int bgcolor_set : 1;
+    unsigned int bgcolor_set : 1;
 
     /* extended attributes */
-    int superscript : 1;
-    int subscript : 1;
+    unsigned int superscript : 1;
+    unsigned int subscript : 1;
     COLORREF color;
     COLORREF bgcolor;
 };

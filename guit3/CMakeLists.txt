@@ -410,7 +410,7 @@ if (EMSCRIPTEN)
 	# to be confounded (several stacked headless Chrome instances competing
 	# for CPU - see webui-emscripten-plan.md); re-measured cleanly in step 4,
 	# 8 starts fine. Keep the bridge's MAX_CONNS and this number in step.
-	set_target_properties(guit3 PROPERTIES LINK_FLAGS "-s ASSERTIONS=1 -s WASM=1 -s USE_GLFW=3 -s FULL_ES3=1 -s USE_WEBGL2=1 -s ASYNCIFY -s ASYNCIFY_IMPORTS=_emscripten_receive_on_main_thread_js -s FORCE_FILESYSTEM -s ALLOW_MEMORY_GROWTH=1 -s INITIAL_MEMORY=256MB -s SAFE_HEAP=1 -s EXPORTED_RUNTIME_METHODS=['ccall','cwrap','HEAPU8','UTF8ToString'] -s EXPORTED_FUNCTIONS=['_main','_malloc','_free'] -s PTHREAD_POOL_SIZE=8 -lwebsocket.js -pthread -Wl,--wrap=fgets,--wrap=fflush,--wrap=getchar")
+	set_target_properties(guit3 PROPERTIES LINK_FLAGS "-s ASSERTIONS=1 -s WASM=1 -s USE_GLFW=3 -s FULL_ES3=1 -s USE_WEBGL2=1 -s ASYNCIFY -s ASYNCIFY_IMPORTS=_emscripten_receive_on_main_thread_js -s FORCE_FILESYSTEM -s ALLOW_MEMORY_GROWTH=1 -s INITIAL_MEMORY=256MB -s SAFE_HEAP=1 -s EXPORTED_RUNTIME_METHODS=['ccall','cwrap','HEAPU8','UTF8ToString'] -s EXPORTED_FUNCTIONS=['_main','_malloc','_free'] -s PTHREAD_POOL_SIZE=8 -lwebsocket.js -pthread -Wno-pthreads-mem-growth -Wl,--wrap=fgets,--wrap=fflush,--wrap=getchar")
 
 	# Manual browser test page for guit3-under-Emscripten (migration.md 5.7
 	# left runtime behavior completely unverified). Wired up the same way
@@ -448,6 +448,18 @@ if (EMSCRIPTEN)
 	# so it doesn't have to be baked into ditch3game's package or guit3
 	# itself doesn't have to depend on it.
 	em_package(webuitest ${CMAKE_SOURCE_DIR}/tests/Webtest.t3@Webtest.t3)
+
+	# Packages tests/mp3test (an MP3 playback test game; see its mp3test.t)
+	# for guit3.html?game=mp3test, along with the brunch.mp3 it plays - both
+	# at the root of the virtual filesystem, where the game looks for it.
+	# Neither is checked in (compiled game and MP3 are git-ignored), so this
+	# is only packaged if both were put there.
+	if (EXISTS ${CMAKE_SOURCE_DIR}/tests/mp3test/mp3test.t3 AND
+		EXISTS ${CMAKE_SOURCE_DIR}/tests/mp3test/brunch.mp3)
+		em_package(mp3test
+			${CMAKE_SOURCE_DIR}/tests/mp3test/mp3test.t3@mp3test.t3
+			${CMAKE_SOURCE_DIR}/tests/mp3test/brunch.mp3@brunch.mp3)
+	endif()
 
 	# Optionally package one more game - typically a third-party WebUI game
 	# that can't live in this repo - for guit3.html?game=extra, the same way

@@ -67,7 +67,7 @@ int mean_frame_size,bitrate,fs,hsize,ssize;
  *
  * don't forget to (re)initialise bclean_bytes to 0, and f_bdirty to FALSE!!!
  */
-        if (f_bdirty) 
+        if (f_bdirty) {
                 if (layer3_info.main_data_begin > bclean_bytes) {
                         fillbfr(mean_frame_size + header->padding_bit - hsize);
                         bclean_bytes+=mean_frame_size + header->padding_bit - hsize;
@@ -77,7 +77,7 @@ int mean_frame_size,bitrate,fs,hsize,ssize;
                         /* re-initialise */
                         f_bdirty=FALSE;
                         bclean_bytes=0;
-                }
+                } }
                 
 /* now update the data 'pointer' (counting in bits) according to
  * the main_data_begin information

@@ -172,6 +172,8 @@
     var games = {
       ditch3: { pkg: 'ditch3game.js', file: 'ditch3.t3' },
       webtest: { pkg: 'webuitest.js', file: 'Webtest.t3' },
+      // only if tests/mp3test/ holds a compiled game and brunch.mp3 (CMakeLists.txt)
+      mp3test: { pkg: 'mp3test.js', file: 'mp3test.t3' },
       // only if configured with -DGUIT3_EXTRA_TEST_GAME=... (CMakeLists.txt)
       extra: { pkg: 'guit3extragame.js', file: 'extra.t3' },
     };
@@ -189,6 +191,14 @@
       alert('WebGL context lost. You will need to reload the page.');
       e.preventDefault();
     }, false);
+
+    // Browsers keep an AudioContext suspended until a user gesture.
+    // miniaudio (guit3's audio backend) resumes its contexts on the first
+    // click or touch, but a text game is mostly played from the keyboard,
+    // so let key presses unlock audio too.
+    document.addEventListener('keydown', () => {
+      if (window.miniaudio && window.miniaudio.unlock) window.miniaudio.unlock();
+    }, true);
 
     var Module = {
       arguments: [game.file],

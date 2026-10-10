@@ -1024,12 +1024,12 @@ private:
     /* temporary file safety level setting */
     int temp_file_safety_read_;
     int temp_file_safety_write_;
-    int temp_file_safety_level_set_ : 1;
+    unsigned int temp_file_safety_level_set_ : 1;
 
     /* temporary network safety settings */
     int temp_net_client_safety_;
     int temp_net_server_safety_;
-    int temp_net_safety_level_set_ : 1;
+    unsigned int temp_net_safety_level_set_ : 1;
 
     /* ------------------------------------------------------------------ */
     /*

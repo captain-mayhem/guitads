@@ -298,7 +298,7 @@ void CMpegAmp::imdct(int win_type,int sb,int ch)
 
        float tmp0, tmp1, tmp2, tmp3, tmp4, tmp5, tmp6, tmp7, tmp8, tmp9, tmp10, tmp11;
 
-       register float  save;
+       float  save;
        float  pp1, pp2;
        float   *win_bt;
        int     i, p, ss;

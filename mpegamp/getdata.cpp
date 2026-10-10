@@ -205,7 +205,7 @@ int j,k;
                                         if (ch) is_max[sfb]=(1<<slen[j])-1;
                                         sfb++;
                                 }
-                } else if (info->block_type[0][ch]==2)
+                } else if (info->block_type[0][ch]==2) {
                         if (!info->mixed_block_flag[0][ch]) {
                                 sfb=0;
                                 for (j=1;j<=4;j++)
@@ -244,7 +244,7 @@ int j,k;
                                                 if (ch) is_max[sfb+6]=(1<<slen[j])-1;
                                                 sfb++;
                                         }
-                        } 
+                        } }
         }
 return i;
 }

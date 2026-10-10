@@ -3317,6 +3317,35 @@ own default profile instead of printing a version string and exiting, and that w
 `--version` check, and treat "did this actually exit" as something to verify rather than assume.
 
 
+### 5.23 Emscripten — no sound at all: the audio device was opened from a worker thread
+
+The first audio test under Emscripten (`guit3.html?game=mp3test`, `tests/mp3test` in tads-runner, which
+loops an MP3) played nothing. **Cause:** sounds open their `CTadsAudioDevice` from the decoder thread
+(`CTadsCompressedAudio::open_playback_buffer()` runs on the mpegamp/vorbis playback thread). miniaudio's
+Web Audio backend creates its AudioContext with `EM_ASM`, which runs on the calling thread. In a pthread's
+worker, `window` is undefined, so `ma_context_init__webaudio()` bails and `ma_device_init()` fails. The
+sound then plays silently with no error message. `is_available()` passed because it runs on the main thread.
+
+**Fix ([tadsaudiodev.cpp](tadsaudiodev.cpp)):** `run_on_audio_thread()` sends `ma_device_init/start/stop/
+uninit` and `is_available()`'s context probe to the main thread with `emscripten_proxy_sync()` when called
+from anywhere else. Natively it just calls the function. Nothing else needed to move. The data callback
+already runs on the main thread (miniaudio's ScriptProcessorNode `onaudioprocess`) and reads the lock-free
+ring buffer, and it keeps running while `event_loop()` sits in `emscripten_sleep()`. There's no deadlock
+risk with `dev_mutex_` either: the main thread waiting on a contended `std::mutex` keeps processing the
+system proxy queue.
+
+**Autoplay:** browsers keep an AudioContext suspended until a user gesture. miniaudio resumes its contexts
+on the first `click`/`touchend` only, so `guit3.html` also calls `window.miniaudio.unlock()` on `keydown`
+(a text game is mostly played from the keyboard).
+
+**How it was verified:** headless Chrome (`--autoplay-policy=no-user-gesture-required`, as in the
+"Gotcha" note above) on a throwaway copy of `guit3.html` that wraps `createScriptProcessor()` and logs the
+peak of each output buffer. Result: one device in the "started" state, context `running`, about 65
+2048-frame blocks every 3 s (real time at 44.1 kHz), and non-zero samples (peak about 0.12) throughout.
+The ScriptProcessorNode deprecation warning in the console is
+miniaudio's default path. Its AudioWorklet path needs `MA_ENABLE_AUDIO_WORKLETS` plus `-sAUDIO_WORKLET
+-sWASM_WORKERS` and hasn't been tried.
+
 ## 6. Working notes for a fresh session
 
 ### Building and running

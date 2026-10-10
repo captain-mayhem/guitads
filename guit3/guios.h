@@ -167,7 +167,7 @@ int os_load_builtin_string(int id, char *buf, size_t buflen);
  *   its top-left pixel) already converted to a zero alpha channel - GL has
  *   no color-key equivalent, so the conversion has to happen here.  On
  *   success returns the buffer (free it with th_free()) and fills
- *   *width/*height; on failure returns null.  Windows:
+ *   *width / *height; on failure returns null.  Windows:
  *   LoadImage(LR_CREATEDIBSECTION) + GetDIBits() to a 32bpp DIB, falling
  *   back to os_load_builtin_toolbar_rgba() when the resource isn't there.
  */
