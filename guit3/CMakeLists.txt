@@ -75,8 +75,10 @@ add_executable(guit3
 
 	htmlgui.cpp
 	htmlgui.h
+	htmlres.h
 	guimain.cpp
 	guimain.h
+	guiwebui.h
 
 	# CTadsFont/CHtmlSysFont_win32 (portable - FreeType/ImGui only) + the
 	# os_font_family_is_present()/os_font_data_for_name() platform hooks
@@ -152,11 +154,13 @@ add_executable(guit3
 	tadsvorb.h
 	tadsmidi.cpp
 	tadsmidi.h
+	tadsistr.h
 	tadswav.cpp
 	tadswav.h
 	oem_w32.c
 
 	tadsapp.h
+	guiver.h
 	tadsplat.h
 
 	../htmltads/hos_gui.h

@@ -11922,10 +11922,10 @@ void CHtmlSys_mainwin::render_menu_bar()
 
     if (menu_mnem("Help", 'H'))
     {
-        item(ID_HELP_CONTENTS, "HTML TADS Help");
+        item(ID_HELP_CONTENTS, "GUI TADS Help");
         item(ID_HELP_WWWTADSORG, "TADS Web Site");
         ImGui::Separator();
-        item(ID_HELP_ABOUT, "About HTML TADS...");
+        item(ID_HELP_ABOUT, "About GUI TADS...");
         item(ID_HELP_ABOUT_GAME, "About This Game...");
         ImGui::EndMenu();
     }
@@ -19252,17 +19252,17 @@ void CHtmlSys_creditswin::build_contents(CHtmlTextBuffer *txtbuf)
 
     static const char txt2[] =
         "<br><br>"
-        "<a href='http://www.tads.org'>www.tads.org</a>"
-        "<br><br><hr><br><br>"
+        "<b>GUI TADS Developed and Programmed by</b><br>"
+        "Marco Staginski<br><br>"
         
+        "<b>Based on HTML TADS</b><br>"
+        "<a href='http://www.tads.org'>www.tads.org</a>"
+        "<br><br>"
         "<b>Designed and Programmed by</b><br>"
         "Michael J. Roberts<br><br>"
 
         "<b>Windows Desktop Icons</b><br>"
-        "M. D. Dollahite<br><br>"
-        
-        "<b>64 Port by</b><br>"
-        "Marco Staginski<br><br>";
+        "M. D. Dollahite<br><br>";
 
     static const char txt3[] =
         "<b>JPEG Implementation</b><br>"
@@ -19309,13 +19309,13 @@ void CHtmlSys_creditswin::build_contents(CHtmlTextBuffer *txtbuf)
         "enthusiasm.<br><br><br><br>"
 
         /* copyright-date-string */
-        "<b>Copyright &copy; 1997, 2012 by Michael J. Roberts</b><br>"
+        "<b>GUI TADS Copyright &copy; 2026 by Marco Staginski</b><br><br>"
+
+        "<b>HTML TADS Copyright &copy; 1997, 2012 by Michael J. Roberts</b><br>"
         "This software is copyrighted &ldquo;freeware,&rdquo which means "
         "that you can use and distribute it without charge, but subject "
         "to certain restrictions.  Please refer to the accompanying "
         "<a href=license>license file</a> for details.<br><br>"
-
-        "<b>64-Bit Port Copyright &copy; 2026 by Marco Staginski</b><br>"
 
         "<br><font size=-1>";
 

@@ -46,7 +46,7 @@ Modified
 #include "htmlgui.h"
 #include "htmlpref.h"
 #include "tadsapp.h"
-#include "win32/w32ver.h"
+#include "guiver.h"
 
 
 /* ------------------------------------------------------------------------ */
@@ -79,8 +79,8 @@ public:
 
             /* set up the base update URL */
             _snprintf(url, sizeof(url),
-                      "http://www.tads.org/t3update?package=WinHtml&version=%s",
-                      HTMLTADS_WIN32_BUILD);
+                      "https://github.com/captain-mayhem/guitads/releases/%s",
+                      GUITADS_BUILD);
 
             /* add the metaclass and/or function set information */
             if (exc->metaclass_ != 0)

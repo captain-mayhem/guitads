@@ -1,23 +1,17 @@
-/* Copyright (c) 2006 by Michael J. Roberts.  All Rights Reserved. */
+/* Copyright (c) 2026 by Marco Stagiski. All Rights Reserved. */
 /*
 Name
-  w32ver.h - defines the Windows Port Build Number for HTML TADS
-Function
-  
-Notes
-  
-Modified
-  09/08/06 MJRoberts  - Creation
+  guiver.h - defines the Imgui Port Build Number for GUI TADS
 */
 
-#ifndef W32VER_H
-#define W32VER_H
+#ifndef GUIVER_H
+#define GUIVER_H
 
 /*
- *   The Windows port build number string.  This should simply be incremented
+ *   The Imgui port build number string.  This should simply be incremented
  *   by one on every public release.  
  */
-#define HTMLTADS_WIN32_BUILD  "64-1"
+#define GUITADS_BUILD  "GT-1"
 
 
-#endif /* W32VER_H */
+#endif /* GUIVER_H */

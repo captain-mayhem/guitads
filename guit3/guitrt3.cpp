@@ -60,7 +60,7 @@ int w32_in_debugger = FALSE;
 char *w32_opendlg_filter = (char *)"T3 Applications\0*.t3\0All Files\0*.*\0\0";
 const char *w32_version_string =
     HTMLTADS_VERSION
-    " (Build Win" HTMLTADS_WIN32_BUILD
+    " (Build Guitads " GUITADS_BUILD
     "; TADS " T3VM_VSN_STRING ")";
 const char w32_pref_key_name[] =
     "Software\\TADS\\HTML TADS\\3.0\\Settings";

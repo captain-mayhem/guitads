@@ -11,7 +11,7 @@ static char RCSid[] =
  */
 /*
 Name
-  w32snd.cpp - html tads win32 sound implementation
+  guisnd.cpp - gui tads win32 sound implementation
 Function
   
 Notes
@@ -290,14 +290,14 @@ int CHtmlSysSoundMidi_win32::maybe_suspend(CHtmlSysSound *new_sound)
 
     /*
      *   MIDI is exlusive -- we can only play one MIDI sound at a time.
-     *   However, the current HTML TADS model only allows MIDI to play in
+     *   However, the current GUI TADS model only allows MIDI to play in
      *   one layer (the background layer) anyway, so we should never find
      *   ourselves wanting to play a MIDI sound while another MIDI sound
      *   is already active.  So, we'll just ignore this request entirely;
      *   the result will be that the new foreground sound will be unable
      *   to play.
      *   
-     *   If at some point in the future the HTML TADS model changes to
+     *   If at some point in the future the GUI TADS model changes to
      *   allow multiple layers of MIDI sounds, this part of this routine
      *   will have to have a real implementation.  (The bulk of the code
      *   would be in CTadsMidiFilePlayer, since that's what handles the

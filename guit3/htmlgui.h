@@ -4577,7 +4577,7 @@ protected:
 
 /* ------------------------------------------------------------------------ */
 /*
- *   Simple window class for the "about HTML TADS" dialog.  
+ *   Simple window class for the "about GUI TADS" dialog.  
  */
 class CHtmlSys_abouttadswin: public CHtmlSys_top_win
 {
@@ -4609,7 +4609,7 @@ protected:
     }
 
     /* get our window title */
-    virtual const char *get_dlg_title() const { return "About HTML TADS"; }
+    virtual const char *get_dlg_title() const { return "About GUI TADS"; }
 
     /* get the name of the background picture */
     virtual const char *get_bkg_name() const { return "about.jpg"; }
@@ -4682,14 +4682,14 @@ protected:
 
     /* get our window title */
     virtual const char *get_dlg_title() const
-        { return "About HTML TADS"; }
+        { return "About GUI TADS"; }
 
     /* get the program title for the dialog's display text */
     virtual const char *get_prog_title() const
     {
-        return "<font size=5><b>HTML TADS</b></font><br><br>"
-            "A Multimedia TADS Interpreter<br>"
-            "for Windows 95/98/Me/NT/2000/XP";
+        return "<font size=5><b>GUI TADS</b></font><br><br>"
+            "A cross-platform Multimedia TADS Interpreter<br>"
+            "for Windows/Linux/Emscripten";
     }
 
     /* get extra library credits to show at the start of the list */

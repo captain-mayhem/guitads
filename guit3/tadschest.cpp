@@ -958,7 +958,7 @@ void CHtmlSys_mainwin::show_game_chest(int refresh_only,
                 char idx_buf[20];
 
                 /* build the index number for this entry */
-                sprintf(idx_buf, "%d", i);
+                sprintf(idx_buf, "%zu", i);
 
                 /* get this entry */
                 entry = gch_info_->game_group_.arr_[i];
@@ -1098,7 +1098,7 @@ void CHtmlSys_mainwin::show_game_chest(int refresh_only,
             char idx_buf[20];
 
             /* build the index number for this entry */
-            sprintf(idx_buf, "%d", i);
+            sprintf(idx_buf, "%zu", i);
 
             /* get this entry */
             entry = gch_info_->web_group_.arr_[i];
@@ -3152,7 +3152,7 @@ void CHtmlSys_mainwin::process_game_chest_cmd(
         url = gch_info_->web_group_.arr_[atoi(suffix)]->get_value("url");
 
         /* open the URL */
-        if ((unsigned long)ShellExecute(
+        if ((INT_PTR)ShellExecute(
             0, "open", url, 0, 0, SW_SHOWNORMAL) <= 32)
             MessageBox(0, "Unable to start browser.  You must have a "
                        "Web browser installed to show this link.", "TADS",
@@ -4836,7 +4836,7 @@ public:
                                        MB_YESNO | MB_ICONQUESTION) == IDYES)
                         {
                             /* try opening it */
-                            if ((unsigned long)ShellExecute(
+                            if ((INT_PTR)ShellExecute(
                                 0, "open", fname_.get(), 0, 0,
                                 SW_SHOWNORMAL) <= 32)
                                 MessageBox(0, "Unable to open file.  "
@@ -4947,7 +4947,7 @@ protected:
         /* open the file given by the URL */
         if ((hfile = InternetOpenUrl(hnet, url_.get(), 0, 0,
                                      INTERNET_FLAG_EXISTING_CONNECT,
-                                     (DWORD)this)) == 0)
+                                     (DWORD_PTR)this)) == 0)
         {
             /* complain about it */
             MessageBox(handle_, "Error connecting to Internet site.",
