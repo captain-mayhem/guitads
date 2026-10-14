@@ -41,6 +41,11 @@
 
 #include <GLFW/glfw3.h>
 
+#ifdef __EMSCRIPTEN__
+#include <cstdlib>
+#include <emscripten/em_js.h>
+#endif
+
 #include "tadshtml.h"     /* th_malloc / th_free */
 #include "guios.h"
 #include "htmlres.h"      /* IDS_* string ids */
@@ -60,11 +65,133 @@
  *   non-Windows port can add a lighter probe if it matters.
  */
 
+#ifndef __EMSCRIPTEN__
+
 int os_clipboard_has_text(void)
 {
     const char *s = glfwGetClipboardString(NULL);
     return s != NULL && s[0] != '\0';
 }
+
+#else /* __EMSCRIPTEN__ */
+
+/*
+ *   Emscripten: set/get/has_text all live here instead.  Emscripten's own
+ *   GLFW (-sUSE_GLFW=3) stubs glfwSet/GetClipboardString() out entirely, so
+ *   Ctrl+C silently went nowhere and Paste was permanently disabled (has_text
+ *   always false, so do_accel_keys() skipped Ctrl+V as a disabled command).
+ *
+ *   A page can't read the system clipboard synchronously, so this keeps a
+ *   JS-side copy (Module.guit3Clipboard) and keeps it current from both ends:
+ *
+ *   - Copy/cut writes the text into the cache and out to the system
+ *     clipboard via navigator.clipboard.writeText() (or, where that API is
+ *     missing - a non-secure, non-localhost origin - a one-shot 'copy'
+ *     event via execCommand('copy')).  Both need recent user activation,
+ *     which the Ctrl+C keypress or menu click that got us here provides.
+ *
+ *   - A real Ctrl+V/Shift+Insert makes the browser fire a 'paste' event
+ *     carrying the system clipboard's text, in the same task as the keydown
+ *     - so before guit3's next frame looks at the key state - and the
+ *     listener below refreshes the cache from it.  do_accel_keys() then sees
+ *     the key, can_paste() sees text, and Paste goes through.  Edit > Paste
+ *     from the menu can only offer what the cache already holds (the last
+ *     copy or paste): reading the clipboard without such an event means the
+ *     async navigator.clipboard.readText(), which prompts for permission.
+ *
+ *   The install step also stops the browser's own Ctrl+letter shortcuts
+ *   (Ctrl+R reload, Ctrl+S save page, Ctrl+O open file, Ctrl+F find, ...)
+ *   from firing on top of guit3's accelerators of the same name.  Ctrl+C/V/X
+ *   are left alone - the browser's default action for Ctrl+V is exactly the
+ *   'paste' event above.
+ */
+EM_JS_DEPS(guit3_clipboard, "$stringToNewUTF8,$UTF8ToString");
+
+EM_JS(void, guit3_clipboard_install, (), {
+    if (typeof document === 'undefined' || Module['guit3Clipboard'] !== undefined)
+        return;
+    Module['guit3Clipboard'] = "";
+
+    document.addEventListener('paste', (e) => {
+        if (e.clipboardData)
+            Module['guit3Clipboard'] = e.clipboardData.getData('text/plain');
+    }, true);
+
+    window.addEventListener('keydown', (e) => {
+        /* leave real DOM text fields (if a host page has any) alone */
+        var t = e.target;
+        if (t && (t.isContentEditable || /^(INPUT|TEXTAREA|SELECT)$/.test(t.tagName)))
+            return;
+
+        var plainCtrl = e.ctrlKey && !e.shiftKey && !e.altKey && !e.metaKey;
+        var noMods = !e.ctrlKey && !e.shiftKey && !e.altKey && !e.metaKey;
+        if ((plainCtrl && /^[a-z]$/i.test(e.key) && !/^[cvx]$/i.test(e.key))
+            || (noMods && (e.key === 'F1' || e.key === 'F3')))
+            e.preventDefault();
+    }, true);
+});
+
+/* run the install once at startup, before the first keypress can arrive */
+static const int s_clipboard_installed = (guit3_clipboard_install(), 1);
+
+EM_JS(void, guit3_clipboard_set, (const char *text), {
+    var s = UTF8ToString(text);
+    Module['guit3Clipboard'] = s;
+
+    if (navigator.clipboard && navigator.clipboard.writeText) {
+        navigator.clipboard.writeText(s).catch((err) => {
+            console.warn('guit3: cannot write the system clipboard: ' + err);
+        });
+    } else {
+        var onCopy = (e) => {
+            e.clipboardData.setData('text/plain', s);
+            e.preventDefault();
+        };
+        document.addEventListener('copy', onCopy, true);
+        try {
+            document.execCommand('copy');
+        } finally {
+            document.removeEventListener('copy', onCopy, true);
+        }
+    }
+});
+
+EM_JS(char *, guit3_clipboard_get, (), {
+    var s = Module['guit3Clipboard'];
+    return s ? stringToNewUTF8(s) : 0;
+});
+
+EM_JS(int, guit3_clipboard_has_text, (), {
+    return Module['guit3Clipboard'] ? 1 : 0;
+});
+
+int os_clipboard_set_text(const char *text)
+{
+    guit3_clipboard_set(text);
+    return 1;
+}
+
+char *os_clipboard_get_text(void)
+{
+    /* stringToNewUTF8() allocates with malloc(); hand back a th_malloc() copy */
+    char *s = guit3_clipboard_get();
+    if (s == NULL)
+        return NULL;
+
+    size_t len = strlen(s) + 1;
+    char *result = (char *)th_malloc(len);
+    if (result != NULL)
+        memcpy(result, s, len);
+    free(s);
+    return result;
+}
+
+int os_clipboard_has_text(void)
+{
+    return guit3_clipboard_has_text();
+}
+
+#endif /* __EMSCRIPTEN__ */
 
 
 /* ------------------------------------------------------------------------ */

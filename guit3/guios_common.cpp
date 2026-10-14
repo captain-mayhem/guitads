@@ -35,7 +35,13 @@
  *   as with the old CF_TEXT path.
  *
  *   os_clipboard_has_text() is deliberately NOT here - see guios.h.
+ *
+ *   Emscripten is the exception: its built-in GLFW (-sUSE_GLFW=3) stubs both
+ *   clipboard calls out (set is a no-op, get always returns null), so the
+ *   browser build has its own set/get/has_text in guios_portable.cpp.
  */
+
+#ifndef __EMSCRIPTEN__
 
 int os_clipboard_set_text(const char *text)
 {
@@ -56,6 +62,8 @@ char *os_clipboard_get_text(void)
         memcpy(result, s, len);
     return result;
 }
+
+#endif /* !__EMSCRIPTEN__ */
 
 
 /* ------------------------------------------------------------------------ */

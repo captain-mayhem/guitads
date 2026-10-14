@@ -3718,6 +3718,25 @@ GLFWwindow* CTadsSyswin::syswin_create_system_window(
     ImGui_ImplGlfw_InitForOpenGL(window, true);
 #ifdef __EMSCRIPTEN__
     ImGui_ImplGlfw_InstallEmscriptenCallbacks(window, "#canvas");
+
+    /*
+     *   The GLFW backend's clipboard handlers call glfwSet/GetClipboardString(),
+     *   which Emscripten's GLFW stubs out - route ImGui's own text fields
+     *   (dialogs) through the same browser clipboard the game window uses
+     *   (guios_portable.cpp).
+     */
+    ImGuiPlatformIO &pio = ImGui::GetPlatformIO();
+    pio.Platform_SetClipboardTextFn = [](ImGuiContext *, const char *text) {
+        os_clipboard_set_text(text);
+    };
+    pio.Platform_GetClipboardTextFn = [](ImGuiContext *) -> const char * {
+        /* ImGui only borrows the string until the next call */
+        static char *last = 0;
+        if (last != 0)
+            th_free(last);
+        last = os_clipboard_get_text();
+        return last;
+    };
 #endif
     ImGui_ImplOpenGL3_Init(glsl_version);
     return window;

@@ -3346,6 +3346,46 @@ The ScriptProcessorNode deprecation warning in the console is
 miniaudio's default path. Its AudioWorklet path needs `MA_ENABLE_AUDIO_WORKLETS` plus `-sAUDIO_WORKLET
 -sWASM_WORKERS` and hasn't been tried.
 
+
+### 5.24 Emscripten — Ctrl+C / Ctrl+V did nothing: Emscripten's GLFW has no clipboard
+
+The key handling was fine: `do_accel_keys()` saw Ctrl+C/Ctrl+V. The problem was that Emscripten's built-in
+GLFW (`-sUSE_GLFW=3`, `src/lib/libglfw.js`) stubs out `glfwSetClipboardString()` (it does nothing) and
+`glfwGetClipboardString()` (it always returns null). So copy went nowhere. `os_clipboard_has_text()` was
+always false, so `check_command(ID_EDIT_PASTE)` reported Paste as disabled and the accelerator skipped it.
+ImGui's own text fields use the same GLFW calls through `platform_io`, so they had the same problem.
+
+**Fix:** under `__EMSCRIPTEN__`, all three clipboard hooks moved from [guios_common.cpp](guios_common.cpp)
+into [guios_portable.cpp](guios_portable.cpp), which uses `EM_JS`. A page can't read the clipboard
+synchronously, so the JS side keeps a cached copy in `Module.guit3Clipboard`:
+- **Copy** updates the cache and calls `navigator.clipboard.writeText()`. If that API is missing (a
+  non-secure origin), it falls back to `execCommand('copy')` with a one-shot `copy` listener. Both need recent
+  user activation, which the keypress or menu click provides.
+- **Paste**: a `paste` listener on `document` refreshes the cache from `clipboardData`. The browser fires that
+  event as the default action of Ctrl+V/Shift+Insert, in the same task as the keydown, so the cache is
+  already current when the next frame's `do_accel_keys()` checks the key. **Limitation:** Edit > Paste from
+  the menu only sees the cache (the last copy or paste). Reading the clipboard without that event means
+  calling the async `readText()`, which asks the user for permission.
+- The same install step calls `preventDefault()` on plain Ctrl+letter keydowns (except C/V/X) and on F1/F3.
+  This stops the browser's own shortcuts (Ctrl+R reload, Ctrl+S save page, Ctrl+O, Ctrl+F, Ctrl+P, ...)
+  from firing along with guit3's accelerators. Ctrl+V must keep its default action, because that default
+  is the `paste` event. Chrome reserves Ctrl+N/T/W, so they can't be blocked.
+- [tadswin.cpp](tadswin.cpp) points `ImGuiPlatformIO`'s clipboard callbacks at the `os_clipboard_*` hooks,
+  so the clipboard also works in dialog text fields.
+
+**How it was verified:** headless Chrome ran a throwaway copy of `guit3.html` (COOP/COEP server, results sent
+with `POST`) that stubs `navigator.clipboard.writeText`. The page dispatched synthetic keydown/keyup events,
+with `keyCode` overridden through `defineProperty` because GLFW reads `keyCode`, plus a synthetic
+`ClipboardEvent('paste')`. Results with `ditch3.t3`: Ctrl+V put the test string on the `>` prompt. Ctrl+A
+then Ctrl+C sent the window text, ending in `>` plus the pasted string, to `writeText`. Ctrl+R's keydown was
+`defaultPrevented` and still fired Restore. The real OS clipboard, Edit > Paste from the menu, and dialog
+text fields were not tested. **Harness gotchas:**
+- Don't name a page-level function `run`. `guit3.js` defines a global `run()` (the runtime's own entry
+  point), which replaces yours. Calling it starts the runtime a second time, which aborts with a bare
+  `Assertion failed`.
+- Ctrl+R/Ctrl+O/Ctrl+S open a file dialog, and `do_accel_keys()` ignores all keys while a popup is open,
+  so send those last.
+
 ## 6. Working notes for a fresh session
 
 ### Building and running
