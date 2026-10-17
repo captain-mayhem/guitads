@@ -18,7 +18,23 @@ permissions:
 
 jobs:
   build:
-    runs-on: windows-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - os: windows-latest
+            preset: windows-only
+            build_dir: build/default
+            artifact: guitads-windows
+          - os: ubuntu-latest
+            preset: default
+            build_dir: build/default
+            artifact: guitads-linux
+          - os: ubuntu-latest
+            preset: emscripten
+            build_dir: build/emscripten
+            artifact: guitads-emscripten
+    runs-on: ${{ matrix.os }}
     steps:
       - uses: actions/checkout@v7
         with:
@@ -27,17 +43,49 @@ jobs:
         with:
           repository: captain-mayhem/tads-runner
           path: tads-runner
-      - run: cmake --preset windows-only -DCMAKE_BUILD_TYPE=Release
+      - if: runner.os == 'Linux' && matrix.preset != 'emscripten'
+        name: Install Linux build dependencies
+        # Same package list as build.yml's native Linux job.
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y \
+            ninja-build \
+            libcurl4-openssl-dev \
+            libfontconfig-dev \
+            libgl1-mesa-dev \
+            libx11-dev \
+            libxrandr-dev \
+            libxinerama-dev \
+            libxcursor-dev \
+            libxi-dev \
+            libxkbcommon-dev \
+            libwayland-dev \
+            extra-cmake-modules \
+            pkg-config
+      - if: matrix.preset == 'emscripten'
+        name: Install Emscripten build dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y ninja-build
+      - if: matrix.preset == 'emscripten'
+        name: Set up emsdk
+        # Sets $EMSDK, which the emscripten preset's toolchain file path uses.
+        uses: mymindstorm/setup-emsdk@v16
+        with:
+          version: 4.0.22
+      - run: cmake --preset ${{ matrix.preset }} -DCMAKE_BUILD_TYPE=Release
         working-directory: tads-runner
-      - run: cmake --build build/default --config Release
+      - run: cmake --build ${{ matrix.build_dir }} --config Release
         working-directory: tads-runner
       - name: Package
-        working-directory: tads-runner/build/default
+        # Only the guitads sibling is checked out, so this produces just the
+        # GuiTads-<version>-<system>.zip (see tads-runner's CMakeLists.txt).
+        working-directory: tads-runner/${{ matrix.build_dir }}
         run: cpack
       - uses: actions/upload-artifact@v5
         with:
-          name: htmltads-windows
-          path: tads-runner/build/default/*.zip
+          name: ${{ matrix.artifact }}
+          path: tads-runner/${{ matrix.build_dir }}/*.zip
 
   release:
     needs: build

@@ -10,8 +10,13 @@ jobs:
         include:
           - os: ubuntu-latest
             preset: default
+            build_dir: build/default
           - os: windows-latest
             preset: windows-only
+            build_dir: build/default
+          - os: ubuntu-latest
+            preset: emscripten
+            build_dir: build/emscripten
     runs-on: ${{ matrix.os }}
     steps:
       - uses: actions/checkout@v7
@@ -21,7 +26,7 @@ jobs:
         with:
           repository: captain-mayhem/tads-runner
           path: tads-runner
-      - if: runner.os == 'Linux'
+      - if: runner.os == 'Linux' && matrix.preset != 'emscripten'
         name: Install Linux build dependencies
         # guit3 (htmltads/imgui) builds on Linux as of migration.md's M4
         # milestone: ninja-build for the preset's generator, libcurl for
@@ -44,7 +49,20 @@ jobs:
             libwayland-dev \
             extra-cmake-modules \
             pkg-config
+      - if: matrix.preset == 'emscripten'
+        name: Install Emscripten build dependencies
+        # The emscripten build brings its own curl (tads-runner/curl) and
+        # needs no system libraries - only ninja for the preset's generator.
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y ninja-build
+      - if: matrix.preset == 'emscripten'
+        name: Set up emsdk
+        # Sets $EMSDK, which the emscripten preset's toolchain file path uses.
+        uses: mymindstorm/setup-emsdk@v16
+        with:
+          version: 4.0.22
       - run: cmake --preset ${{ matrix.preset }}
         working-directory: tads-runner
-      - run: cmake --build build/default
+      - run: cmake --build ${{ matrix.build_dir }}
         working-directory: tads-runner
