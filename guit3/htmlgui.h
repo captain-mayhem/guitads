@@ -2953,9 +2953,12 @@ public:
 
     void do_render_content_begin() override;
 
+    /* paints the panel bevel into our own window before closing it */
+    void do_render_content_end() override;
+
     /* -------------------------------------------------------------------- */
     /*
-     *   CHtmlSysFrame implementation 
+     *   CHtmlSysFrame implementation
      */
 
     /* create a banner */

@@ -442,7 +442,9 @@ if (EMSCRIPTEN)
 	# this argument, and CMake target names must be unique project-wide, not
 	# just per-directory - the packaged path (ditch3.t3, after the "@") is
 	# what guit3.html and guit3's own argv actually reference.
-	em_package(ditch3game ${CMAKE_SOURCE_DIR}/tests/ditch3.t3@ditch3.t3)
+	# Part of the GuiT3 package: guit3.html loads it as its default game.
+	em_package(ditch3game ${CMAKE_SOURCE_DIR}/tests/ditch3.t3@ditch3.t3
+		COMPONENT GuiT3)
 
 	# Packages tests/Webtest.t3 (the WebUI test game - see
 	# webui-emscripten-plan.md, its step 3's end-to-end verification test
@@ -484,7 +486,8 @@ if (EMSCRIPTEN)
 	# above and emfont.cpp itself). A separate em_package() call, same
 	# reasoning as ditch3game above - distinct target name, own .data/.js
 	# pair guit3.html loads alongside ditch3game's.
-	em_package(guit3fonts ${CMAKE_CURRENT_SOURCE_DIR}/../imgui/misc/fonts@fonts)
+	em_package(guit3fonts ${CMAKE_CURRENT_SOURCE_DIR}/../imgui/misc/fonts@fonts
+		COMPONENT GuiT3)
 
 	# Unlike ditch3game above (a test-only asset nobody minds having to
 	# build separately), the font package is load-bearing for guit3 itself
@@ -508,7 +511,8 @@ if (EMSCRIPTEN)
 	# Load-bearing the same way guit3fonts is above: real text depends on
 	# it, so it's a real dependency of guit3, not just the default "all"
 	# target em_package() adds it to.
-	em_package(guit3charmap ${CMAKE_SOURCE_DIR}/tads3/charmap/cmaplib.t3r@charmap/cmaplib.t3r)
+	em_package(guit3charmap ${CMAKE_SOURCE_DIR}/tads3/charmap/cmaplib.t3r@charmap/cmaplib.t3r
+		COMPONENT GuiT3)
 	add_dependencies(guit3 build_guit3charmap.data)
 
 	install(FILES
@@ -569,10 +573,12 @@ if (EMSCRIPTEN)
 	# its own directory). Declared here rather than up with guit3fonts/
 	# guit3charmap because build_guit3.t3r - the target em_package()'s
 	# input file actually depends on - isn't defined until make_t3r() above
-	# runs; em_package() itself has no way to express that dependency (it
-	# never DEPENDS on its packaged input paths), so add_dependencies()
-	# below does it explicitly rather than relying on script order alone.
-	em_package(guit3about ${CMAKE_CURRENT_BINARY_DIR}/guit3.t3r@guit3.t3r)
+	# runs; em_package() DEPENDS on its input file, but a custom command
+	# output from another target isn't a target-level dependency, so
+	# add_dependencies() below makes it explicit rather than relying on
+	# script order alone.
+	em_package(guit3about ${CMAKE_CURRENT_BINARY_DIR}/guit3.t3r@guit3.t3r
+		COMPONENT GuiT3)
 	add_dependencies(build_guit3about.data build_guit3.t3r)
 	add_dependencies(guit3 build_guit3about.data)
 endif()

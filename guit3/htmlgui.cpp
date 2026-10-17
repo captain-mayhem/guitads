@@ -4688,8 +4688,9 @@ void CHtmlSysWin_win32::draw_caret_imgui()
  *   was a WS_CHILD of our own permanently-hidden handle_, so like
  *   everything else built on that dead HWND tree it was created but never
  *   actually painted (no message pump - see "root cause: both windows
- *   open"). We draw it ourselves instead, into the foreground draw list so
- *   it isn't affected by our own content child window's clip rect.
+ *   open"). We draw it ourselves instead, into our own window's draw list with
+ *   a full-screen clip rect, so it isn't affected by our own content child
+ *   window's clip rect, yet stays beneath open menus/popups.
  *
  *   border_rc_ is in our *parent's* coordinate space - calc_banner_layout()
  *   computes it alongside our own m_pos, from the same parent-relative
@@ -4711,8 +4712,18 @@ void CHtmlSysWin_win32::draw_banner_border_imgui()
     ImVec2 rc_max(rc_min.x + (float)border_rc_.right,
                   rc_min.y + (float)border_rc_.bottom);
 
-    /* approximates the old border window's COLOR_3DDKSHADOW fill */
-    ImGui::GetForegroundDrawList()->AddRectFilled(rc_min, rc_max, IM_COL32(64, 64, 64, 255));
+    /*
+     *   Approximates the old border window's COLOR_3DDKSHADOW fill. Drawn
+     *   into our own window's draw list (so open menus/popups, which are
+     *   separate windows, composite on top of it) rather than the foreground
+     *   list, with the clip rect widened to the whole screen because the
+     *   border lies outside our own content area, which would otherwise
+     *   clip it away.
+     */
+    ImDrawList *dl = ImGui::GetWindowDrawList();
+    dl->PushClipRectFullScreen();
+    dl->AddRectFilled(rc_min, rc_max, IM_COL32(64, 64, 64, 255));
+    dl->PopClipRect();
 }
 
 /*
@@ -11661,9 +11672,6 @@ int CHtmlSys_mainwin::do_render() {
     ImGui::SetNextWindowSize(viewport->WorkSize);
     int ret = CTadsWin::do_render();
 
-    /* paint the bevel border reserved around the main panel */
-    render_panel_bevel();
-
     /* draw the status line, anchored to the bottom of the work area */
     if (statusline_ != 0)
     {
@@ -11707,6 +11715,14 @@ int CHtmlSys_mainwin::do_render() {
 void CHtmlSys_mainwin::do_render_content_begin() {
     ImGui::PushStyleVar(ImGuiStyleVar_WindowPadding, ImVec2(0.0f, 0.0f));
     ImGui::Begin(m_title.c_str(), nullptr, ImGuiWindowFlags_NoBringToFrontOnFocus | ImGuiWindowFlags_NoDecoration | ImGuiWindowFlags_NoInputs);
+}
+
+void CHtmlSys_mainwin::do_render_content_end() {
+    /* paint the bevel border reserved around the main panel, while our own
+       window is still current (see render_panel_bevel()) */
+    render_panel_bevel();
+
+    CTadsWin::do_render_content_end();
 }
 
 /*
@@ -12016,24 +12032,19 @@ bool CHtmlSys_mainwin::over_statusbar(int x, int y) const
  *   the reserved-but-unpainted strip just showed through as a stray black
  *   line along the right edge and just above the status bar.
  *
- *   Drawn via ImGui::GetForegroundDrawList(), the same technique
- *   CTadsStatusline::render() uses, so it always composites on top of the
- *   panel/banner windows regardless of z-order - and confined strictly to
- *   the reserved margin (never the panel's own interior), so it can't paint
- *   over any game text.
- *
- *   The foreground draw list paints after every ImGui window *and* every
- *   open popup (there's no draw list slot for "above normal windows, below
- *   popups"), so an open dropdown/context menu that happens to overlap this
- *   margin would otherwise get a black line drawn across it. Skip the bevel
- *   entirely while any popup is open - it's a thin cosmetic separator, not
- *   worth a visible glitch cutting across an open menu, and this is how a
- *   native Win32 popup menu behaves anyway (it paints over the whole parent
- *   window, borders included).
+ *   Drawn into our own (main frame) window's draw list, called from
+ *   do_render_content_end() while that window is still current. Child
+ *   windows (the panel/banners) paint above it, but they never cover it:
+ *   it's confined strictly to the reserved margin recalc_banner_layout()
+ *   leaves around the main panel, never the panel's own interior. Open
+ *   menus/popups are separate windows painted after all normal windows, so
+ *   they cover the bevel instead of the bevel cutting across them - unlike
+ *   the foreground draw list, which paints over popups too and forced the
+ *   bevel to be hidden whenever a menu was open.
  */
 void CHtmlSys_mainwin::render_panel_bevel()
 {
-    if (statusline_ == 0 || ImGui::IsPopupOpen("", ImGuiPopupFlags_AnyPopup))
+    if (statusline_ == 0)
         return;
 
     const ImGuiViewport *vp = ImGui::GetMainViewport();
@@ -12042,7 +12053,13 @@ void CHtmlSys_mainwin::render_panel_bevel()
     float right = vp->WorkPos.x + m_size.x;
     float bottom = vp->WorkPos.y + m_size.y - statusline_->get_height();
 
-    ImDrawList *dl = ImGui::GetForegroundDrawList();
+    /*
+     *   Widen the clip rect to the whole screen: with zero window padding,
+     *   ImGui insets a window's clip rect by its border size, which would
+     *   clip away these 1px lines along our own window's outer edges.
+     */
+    ImDrawList *dl = ImGui::GetWindowDrawList();
+    dl->PushClipRectFullScreen();
 
     const ImU32 black = IM_COL32(0, 0, 0, 255);
     const ImU32 white = IM_COL32(255, 255, 255, 255);
@@ -12058,6 +12075,8 @@ void CHtmlSys_mainwin::render_panel_bevel()
 
     /* 3px gray separator strip between the panel and the status bar */
     dl->AddRectFilled(ImVec2(left, bottom - 3.0f), ImVec2(right, bottom), ltgray);
+
+    dl->PopClipRect();
 }
 
 /*
@@ -13652,8 +13671,8 @@ void CHtmlSys_mainwin::recalc_banner_layout()
      *   This margin used to be painted by GDI calls in the now-dead
      *   CHtmlSys_mainwin::do_paint_content() above; those are no-ops on
      *   this port (see tadsplat.h), so the reserved strip is now instead
-     *   painted every frame by render_panel_bevel(), via the same
-     *   foreground-draw-list technique CTadsStatusline::render() uses.
+     *   painted every frame by render_panel_bevel(), into the main frame
+     *   window's own draw list (beneath any open menus/popups).
      *   Keep that function's geometry in sync with this reservation.
      */
     int statusline_ht = (statusline_ != 0 ? (int)statusline_->get_height() : 0);

@@ -15,3 +15,26 @@ Licenses, per Dear ImGui's own misc/fonts/README.txt:
   ProggyTiny.ttf        by Tristan Grimmer, public domain
                         (see http://www.proggyfonts.net/)
   Roboto-Medium.ttf     by Google, Apache License 2.0
+
+Fonts added to match the Windows fonts the guit3 themes ask for
+(htmlpref.cpp's set_theme_defaults()); emfont.cpp's alias table maps the
+Windows names to these.  Full license texts are in licenses/.
+
+  Liberation Sans / Serif / Mono   (Regular, Bold, Italic, BoldItalic)
+                        Liberation Fonts 2.1.5, SIL Open Font License 1.1
+                        Metric-compatible with Arial / Times New Roman /
+                        Courier New.
+  DejaVu Sans           (Regular only; bold/italic dropped to save size) v2.37,
+                        Bitstream Vera / DejaVu license (free, see
+                        licenses/DejaVu-LICENSE.txt).  Stand-in for
+                        Verdana/Tahoma (similar width, not metric-exact).
+  Gelasio               (Regular, Italic) by Eben Sorkin, SIL OFL 1.1.
+                        Metric-compatible with Georgia.  These are the
+                        variable-font files from google/fonts; FreeType
+                        loads the default (Regular, wght=400) instance, so
+                        bold is not available.
+  Comic Relief          (Regular, Bold) by Jeff Davis, SIL OFL 1.1.
+                        Metric-compatible with Comic Sans MS.
+
+The older Cousine/DroidSans/Karla/Proggy/Roboto files above are kept but are
+no longer the substitution targets for Windows font names.
