@@ -38,12 +38,10 @@ Modified
 
 #include <imgui.h>
 #include <imgui_internal.h>
-#include "imgui_impl_opengl3.h"
-#include "imgui_impl_glfw.h"
+#include <ui/imgui_impl_cge_render.h>
+#include <window/window.h>
 
-#ifdef __EMSCRIPTEN__
-#include <emscripten.h>
-#endif
+#include "guiengine.h"
 
 /* include TADS OS headers */
 #include <os.h>
@@ -4561,9 +4559,10 @@ int CHtmlSysWin_win32::is_in_foreground() const
      *   our permanently-hidden top-level HWND (handle_ - see migration.md
      *   "root cause: both windows open"), so comparing HWNDs via
      *   GetForegroundWindow()/IsChild() never matches any more.  Dear
-     *   ImGui already tracks OS window focus itself, via the GLFW
-     *   backend's window-focus callback (ImGui_ImplGlfw_WindowFocusCallback
-     *   -> io.AddFocusEvent()), so ask it instead.
+     *   ImGui already tracks OS window focus itself, via the engine's
+     *   platform backend (the window's focus events ->
+     *   ImGui_ImplCGE_Platform_AddFocus() -> io.AddFocusEvent()), so ask it
+     *   instead.
      */
     return !ImGui::GetIO().AppFocusLost;
 }
@@ -5895,7 +5894,7 @@ long CHtmlSysWin_win32::get_disp_height()
  */
 long CHtmlSysWin_win32::get_pix_per_inch()
 {
-    /* same GLFW content-scale-based DPI query CTadsFont uses */
+    /* same content-scale-based DPI query CTadsFont uses */
     return (long)CTadsFont::get_screen_dpi();
 }
 
@@ -10453,9 +10452,6 @@ CHtmlSys_mainwin::CHtmlSys_mainwin(CHtmlFormatterInput *formatter,
     /* remember whether we're running under the debugger */
     in_debugger_ = in_debugger;
 
-    /* no accelerator keys are down yet (do_accel_keys()'s edge detection) */
-    memset(accel_key_down_, 0, sizeof(accel_key_down_));
-
     /* no Alt+letter menu mnemonic is pending yet */
     pending_menu_mnemonic_ = 0;
 
@@ -10546,16 +10542,29 @@ CHtmlSys_mainwin::CHtmlSys_mainwin(CHtmlFormatterInput *formatter,
     ReleaseDC(GetDesktopWindow(), hdc);
 
     // Setup Dear ImGui context
-    IMGUI_CHECKVERSION();
-    ImGui::CreateContext();
+    /*
+     *   Set up Dear ImGui.  The engine has created the context and its
+     *   backends already (guiengine.h); this only configures it for guit3.
+     */
     ImGuiIO& io = ImGui::GetIO(); (void)io;
     io.ConfigFlags |= ImGuiConfigFlags_NavEnableKeyboard;     // Enable Keyboard Controls
     io.ConfigFlags |= ImGuiConfigFlags_NavEnableGamepad;      // Enable Gamepad Controls
-#ifdef __EMSCRIPTEN__
-    // For an Emscripten build we are disabling file-system access, so let's not attempt to do a fopen() of the imgui.ini file.
-    // You may manually call LoadIniSettingsFromMemory() to load settings from your own storage.
-    io.IniFilename = nullptr;
+#ifndef __EMSCRIPTEN__
+    /*
+     *   keep the windows' positions in imgui.ini in the working directory,
+     *   as before (the engine saves none by default); the Emscripten build
+     *   has no file system worth writing to
+     */
+    io.IniFilename = "imgui.ini";
 #endif
+
+    /*
+     *   The engine gives ImGui its own font first (if it finds it); guit3's
+     *   chrome uses ImGui's default font, which must be Fonts[0] - CTadsFont
+     *   falls back to that one (CTadsFont::push_imgui_font()).
+     */
+    while (io.Fonts->Fonts.Size > 0)
+        io.Fonts->RemoveFont(io.Fonts->Fonts[0]);
 
     /*
      *   The built-in ProggyClean default font is a fixed 13px face, and -
@@ -10570,6 +10579,17 @@ CHtmlSys_mainwin::CHtmlSys_mainwin(CHtmlFormatterInput *formatter,
     ImFontConfig ui_font_cfg;
     ui_font_cfg.SizePixels = 13.0f * CTadsFont::get_dpi_scale();
     io.Fonts->AddFontDefault(&ui_font_cfg);
+
+    /*
+     *   ImGui takes the size text is drawn at from style.FontSizeBase, which
+     *   it sets from the default font only on the first frame - and the
+     *   engine has run frames with its own font already.  Set it for the
+     *   next frame: PushFont()/PopFont() (CTadsFont pushes fonts outside
+     *   frames, for the layout) copy the current size back into
+     *   style.FontSizeBase, so a plain assignment doesn't last.  ImGui's own
+     *   style editor does the same.
+     */
+    ImGui::GetStyle()._NextFrameFontSizeBase = ui_font_cfg.SizePixels;
 
     /*
      *   Tell the shared HTML formatter to scale images by the monitor's
@@ -10638,7 +10658,7 @@ CHtmlSys_mainwin::CHtmlSys_mainwin(CHtmlFormatterInput *formatter,
     idle_timer_id_ = 0;
 
     /* toolbar icon texture not loaded yet */
-    toolbar_tex_ = 0;
+    toolbar_tex_ = nullptr;
     toolbar_tex_w_ = toolbar_tex_h_ = 0;
 
     /* no find text yet */
@@ -10709,8 +10729,7 @@ CHtmlSys_mainwin::~CHtmlSys_mainwin()
     prefs_->save();
 
     /* free the toolbar icon texture, if we ever loaded it */
-    if (toolbar_tex_ != 0)
-        glDeleteTextures(1, &toolbar_tex_);
+    gui_delete_texture(toolbar_tex_);
 
     /* delete all orphaned banners */
     delete_orphaned_banners();
@@ -10782,14 +10801,14 @@ CHtmlSys_mainwin::~CHtmlSys_mainwin()
     if (exe_res_table_ != 0)
         delete exe_res_table_;
 
+    /*
+     *   give the engine's window back; the engine closes it (and ImGui) when
+     *   guit3 is done
+     */
     if (m_window) {
-        // Cleanup
-        ImGui_ImplOpenGL3_Shutdown();
-        ImGui_ImplGlfw_Shutdown();
-        ImGui::DestroyContext();
-
-        glfwDestroyWindow(m_window);
-        glfwTerminate();
+        m_window->show(false);
+        m_window = nullptr;
+        gui_release_window();
     }
 
     /* terminate the application */
@@ -12402,7 +12421,7 @@ void CHtmlSys_mainwin::render_themes_menu_items()
 void CHtmlSys_mainwin::load_toolbar_texture()
 {
     /* only need to do this once */
-    if (toolbar_tex_ != 0)
+    if (toolbar_tex_ != nullptr)
         return;
 
     /*
@@ -12416,21 +12435,13 @@ void CHtmlSys_mainwin::load_toolbar_texture()
     if (pixels == 0)
         return;
 
-    glGenTextures(1, &toolbar_tex_);
-    glBindTexture(GL_TEXTURE_2D, toolbar_tex_);
-
     /*
-     *   nearest filtering, not linear: the icons are packed edge-to-edge in
-     *   the atlas with no padding between frames, and linear filtering would
-     *   bleed each icon's edge pixels into its neighbor's
+     *   drawn with nearest filtering (GUI_SAMPLER_NEAREST, render_toolbar()):
+     *   the icons are packed edge-to-edge in the atlas with no padding
+     *   between frames, and linear filtering would bleed each icon's edge
+     *   pixels into its neighbor's
      */
-    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_NEAREST);
-    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_NEAREST);
-    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_CLAMP);
-    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_CLAMP);
-    glPixelStorei(GL_UNPACK_ROW_LENGTH, 0);
-    glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA, tw, th, 0,
-                GL_RGBA, GL_UNSIGNED_BYTE, pixels);
+    toolbar_tex_ = gui_upload_texture(nullptr, tw, th, pixels);
 
     toolbar_tex_w_ = tw;
     toolbar_tex_h_ = th;
@@ -12490,8 +12501,8 @@ void CHtmlSys_mainwin::render_toolbar()
      *   icon (not the texture-space UVs below) by the display content scale,
      *   the same factor CHtmlSysFont_win32 bakes into text, so the toolbar
      *   isn't a tiny strip on a HiDPI display.  style.FramePadding /
-     *   WindowPadding are already scaled by ScaleAllSizes() in
-     *   syswin_create_system_window().
+     *   WindowPadding are already scaled by the engine's ImGui backend
+     *   (ScaleAllSizes()).
      */
     const float ui_scale = CTadsFont::get_dpi_scale();
     const float icon_w = TOOLBAR_ICON_WIDTH * ui_scale;
@@ -12553,10 +12564,13 @@ void CHtmlSys_mainwin::render_toolbar()
             sprintf(id_buf, "##tb%d", b.cmd);
 
             ImGui::BeginDisabled(!enabled);
+            ImDrawList *dl = ImGui::GetWindowDrawList();
+            ImGui_ImplCGE_SetSampler(dl, gui_sampler(GUI_SAMPLER_NEAREST));
             bool clicked = ImGui::ImageButton(
-                id_buf, (ImTextureID)(intptr_t)toolbar_tex_,
+                id_buf, ImGui_ImplCGE_TextureID(toolbar_tex_),
                 ImVec2(icon_w, icon_h),
                 ImVec2(u0, 0), ImVec2(u1, 1));
+            ImGui_ImplCGE_SetSampler(dl, nullptr);
             ImGui::EndDisabled();
 
             if (b.cmd == ID_THEMES_DROPDOWN)
@@ -15339,9 +15353,10 @@ void CHtmlSys_mainwin::bring_owner_to_front()
     /* show the window in its normal visible state */
     show_normal();
 
-    /* make it the top window (the one real OS window is the GLFW window) */
-    if (m_window != 0)
-        glfwFocusWindow(m_window);
+    /*
+     *   The one real OS window is the engine's, which has no call to bring
+     *   it to the front; guit3 only shows it again (show_normal() above).
+     */
 }
 
 /*
@@ -15349,10 +15364,6 @@ void CHtmlSys_mainwin::bring_owner_to_front()
  */
 void CHtmlSys_mainwin::show_normal()
 {
-    /* if the window is minimized, restore it */
-    if (m_window != 0 && glfwGetWindowAttrib(m_window, GLFW_ICONIFIED))
-        glfwRestoreWindow(m_window);
-
     /* if it's hidden, show it */
     if (!isVisible())
         setVisible(true);
@@ -15740,19 +15751,14 @@ void CHtmlSys_mainwin::do_accel_keys()
         return;
 
     /*
-     *   Update this frame's "just pressed" edge state for every key GLFW
-     *   knows about.  glfwGetKey() only reports current up/down state, so a
-     *   keypress is "down this frame, wasn't down last frame" - tracked in
-     *   accel_key_down_ rather than through ImGui, since there's no public
-     *   GLFW-key-to-ImGuiKey conversion to drive this off IsKeyPressed().
+     *   Was the canonical key (guikeys.h) pressed this frame?  Not counting
+     *   the keyboard's auto-repeat: one command per keypress.
      */
-    bool pressed_this_frame[GLFW_KEY_LAST + 1];
-    for (int key = GLFW_KEY_SPACE ; key <= GLFW_KEY_LAST ; ++key)
+    auto pressed_this_frame = [](int key)
     {
-        bool down = (glfwGetKey(m_window, key) == GLFW_PRESS);
-        pressed_this_frame[key] = down && !accel_key_down_[key];
-        accel_key_down_[key] = down;
-    }
+        ImGuiKey k = gui_key_to_imgui(key);
+        return k != ImGuiKey_None && ImGui::IsKeyPressed(k, false);
+    };
 
     int shift = (io.KeyCtrl ? OS_KEY_CTRL : 0)
               | (io.KeyShift ? OS_KEY_SHIFT : 0)
@@ -15763,22 +15769,16 @@ void CHtmlSys_mainwin::do_accel_keys()
      *   Ctrl+V is), so it isn't covered by the table loop below and needs
      *   its own check, same as the char-forwarding block's Ctrl-letter
      *   shortcuts (htmlgui.cpp's event_loop()) handle the rest of
-     *   do_char()'s otherwise-unreachable control codes. Deliberately
-     *   checked here via pressed_this_frame (glfwGetKey()-based) rather
-     *   than from that block's usual ImGui::IsKeyPressed()-based checks:
-     *   on a German QWERTZ system (where Y and Z swap positions vs. US
-     *   QWERTY), dispatching this exact same do_command() call from the
-     *   IsKeyPressed()-driven block reliably failed to paste, while
-     *   dispatching it from here - identical call, identical key state,
-     *   only the edge-detection mechanism different - reliably worked.
-     *   Root cause not pinned down (a GLFW/ImGui key-mapping discrepancy
-     *   for swapped-layout keys between the poll-based glfwGetKey() and
-     *   the callback-based key state IsKeyPressed() reads seems likely,
-     *   but unconfirmed); keep any future non-table paste trigger here
-     *   rather than re-adding it to the IsKeyPressed()-driven block.
+     *   do_char()'s otherwise-unreachable control codes.  Under GLFW this
+     *   had to be checked with glfwGetKey(), which reads physical US-layout
+     *   key positions, while ImGui's keys followed the layout's labels - on
+     *   a German QWERTZ keyboard (Y and Z swapped) the two disagreed.  The
+     *   engine's keys follow the layout (Windows virtual keys, X11
+     *   KeySyms, the browser's key codes), so this and ImGui now agree:
+     *   Ctrl+Y is the key labeled Y.
      */
     if (!prefs_->get_emacs_ctrl_v() && shift == OS_KEY_CTRL
-        && pressed_this_frame[GLFW_KEY_Y])
+        && pressed_this_frame(GUI_KEY_Y))
     {
         check_cmd_info ci(ID_EDIT_PASTE);
         TadsCmdStat_t stat = check_command(&ci);
@@ -15794,8 +15794,8 @@ void CHtmlSys_mainwin::do_accel_keys()
     for (int i = 0 ; i < count ; ++i)
     {
         const os_accel_entry_t &e = entries[i];
-        if (e.key < GLFW_KEY_SPACE || e.key > GLFW_KEY_LAST
-            || !pressed_this_frame[e.key] || e.shift != shift)
+        if (e.key < GUI_KEY_SPACE || e.key > GUI_KEY_LAST
+            || !pressed_this_frame(e.key) || e.shift != shift)
             continue;
 
         /* only fire commands the menu system currently considers enabled */
@@ -15813,9 +15813,6 @@ void CHtmlSys_mainwin::do_accel_keys()
     }
 }
 
-// Our state
-ImVec4 clear_color = ImVec4(0.45f, 0.55f, 0.60f, 1.00f);
-
 int CHtmlSys_mainwin::event_loop(int* flag) {
     /*
      *   event_loop() is re-entered recursively as a self-pumping wait
@@ -15824,94 +15821,27 @@ int CHtmlSys_mainwin::event_loop(int* flag) {
      *   event_loop(&command_read_) call in the input-reading code), but
      *   also modal dialogs (see the mainloop-stub comment removed below).
      *
-     *   Under Emscripten this can NOT be built on emscripten_set_main_loop()
-     *   the way a top-level "run forever" loop normally would be (as an
-     *   earlier version of this function tried, via EMSCRIPTEN_MAINLOOP_
-     *   BEGIN/END): with simulateInfiniteLoop set, that call works by
-     *   throwing the JS string exception 'unwind' to unwind the C++ stack
-     *   all the way out to the top-level entry point - it is a one-way,
-     *   one-shot trick for main() to hand control to the browser's frame
-     *   pump, not a suspend/resume primitive. Calling it nested, deep in
-     *   the call stack (as reading a command does), unwinds and abandons
-     *   *all* of that stack, including the caller waiting on *flag - so
-     *   even once do_char() correctly set *flag, nothing was left to
-     *   notice: confirmed by instrumentation showing do_char('\r') ran and
-     *   set the flag, but the blocked event_loop(&command_read_) call never
-     *   returned to its caller (see migration.md 5.10).
+     *   Each iteration does the work due between two frames (deferred
+     *   dialogs, audio callbacks, deferred reformatting, timers), then runs
+     *   one engine frame with gui_pump_frame() (guiengine.h): the engine
+     *   processes the window's events and renders, and build() below makes
+     *   the frame's ImGui windows and hands the frame's input to the game.
+     *   While the window is minimized the engine renders nothing and
+     *   sleeps a little per frame, so this loop doesn't spin.
      *
-     *   emscripten_sleep() (Asyncify.handleSleep() under the hood) is the
-     *   real suspend/resume primitive: it genuinely pauses this exact C++
-     *   call stack and hands control to the browser, then resumes right
-     *   here once the delay elapses - which is what a nested wait actually
-     *   needs. ASYNCIFY is already enabled on this target, so a plain loop
-     *   with an emscripten_sleep(0) yield point at the end of each
-     *   iteration works uniformly for both the top-level "run forever" call
-     *   and any nested "wait for *flag" call, with no special-casing
-     *   needed in the loop body below.
+     *   Under Emscripten the engine's pumpFrame() yields to the browser after
+     *   each frame with emscripten_sleep(0) (ASYNCIFY, the engine's threaded
+     *   web configuration), which really suspends this C++ call stack and
+     *   resumes it on the next turn of the browser's event loop.  That works
+     *   uniformly for the top-level "run forever" call and any nested "wait
+     *   for *flag" call.  An earlier version built this on
+     *   emscripten_set_main_loop() (EMSCRIPTEN_MAINLOOP_BEGIN/END), which
+     *   unwinds the whole C++ stack instead - including the caller waiting
+     *   on *flag, so a typed command was never returned (migration.md 5.10).
      */
-    while (!glfwWindowShouldClose(m_window) && (flag == 0 || *flag == 0))
+    auto build = [&]()
     {
-
-        // Poll and handle events (inputs, window resize, etc.)
-        // You can read the io.WantCaptureMouse, io.WantCaptureKeyboard flags to tell if dear imgui wants to use your inputs.
-        // - When io.WantCaptureMouse is true, do not dispatch mouse input data to your main application, or clear/overwrite your copy of the mouse data.
-        // - When io.WantCaptureKeyboard is true, do not dispatch keyboard input data to your main application, or clear/overwrite your copy of the keyboard data.
-        // Generally you may always pass all inputs to dear imgui, and hide them from your application based on those two flags.
-        glfwPollEvents();
-
-        /*
-         *   Run any dialogs queued via queue_deferred_dialog() (e.g. Help >
-         *   About HTML TADS) now, before this iteration's NewFrame() - see
-         *   queue_deferred_dialog()'s comment (htmlgui.h) for why this must
-         *   not happen mid-frame.
-         */
-        run_pending_deferred_dialogs();
-
-        /*
-         *   Run any pending audio 'done' callbacks on the main thread.  The
-         *   playback/fader threads enqueue completed sounds (see
-         *   tadsaudiodev.cpp); this is where the sound-resource queue learns
-         *   a track has finished so it can advance to the next one.  This
-         *   replaces the old HTMLM_SOUND_DONE window message, which had no
-         *   pump to deliver it in the guit3 build.
-         */
-        tads_audio_run_done_callbacks();
-
         ImGuiIO& io = ImGui::GetIO();
-
-        if (glfwGetWindowAttrib(m_window, GLFW_ICONIFIED) != 0)
-        {
-            ImGui_ImplGlfw_Sleep(10);
-            return TRUE;
-        }
-
-        /*
-         *   Run any deferred reformat / resize-reformat / game-chest-reload
-         *   work.  In the Win32 app these were self-posted window messages
-         *   (HTMLM_REFORMAT etc.) picked up by the message loop; guit3 has no
-         *   message loop, so we drain the pending flags here, once per frame,
-         *   before the ImGui frame starts (this does formatting work, not
-         *   ImGui drawing).
-         */
-        run_pending_deferred_all();
-
-        /*
-         *   Fire any per-window timers that have come due (the guit3
-         *   replacement for WM_TIMER - see CTadsWin::win_set_timer()).  Walk
-         *   the whole window tree from the main window, plus the debug log
-         *   window if one is open (it's a separate top-level tree).
-         */
-        {
-            double now_ms = glfwGetTime() * 1000.0;
-            tick_timers_tree(now_ms);
-            if (dbgwin_ != 0)
-                dbgwin_->tick_timers_tree(now_ms);
-        }
-
-        // Start the Dear ImGui frame
-        ImGui_ImplOpenGL3_NewFrame();
-        ImGui_ImplGlfw_NewFrame();
-        ImGui::NewFrame();
 
         /*
          *   Only forward typed characters to the game's own command line
@@ -15919,8 +15849,7 @@ int CHtmlSys_mainwin::event_loop(int* flag) {
          *   them instead - otherwise, e.g., typing into the Find dialog's
          *   "Find what" field would simultaneously leak into the game
          *   command line, since nothing else in this loop checks
-         *   io.WantTextInput before consuming io.InputQueueCharacters (see
-         *   the io.WantCaptureKeyboard/WantCaptureMouse comment above).
+         *   io.WantTextInput before consuming io.InputQueueCharacters.
          *   Also skip while any dialog popup is open (Options, Find, a file
          *   dialog, ...): a non-text-widget dialog (a plain Yes/No confirm)
          *   never sets io.WantTextInput on its own, the same gap
@@ -16167,17 +16096,53 @@ int CHtmlSys_mainwin::event_loop(int* flag) {
          */
         for (CTadsWin *dlg : active_dialogs_)
             dlg->do_render();
+    };
 
-        // Rendering
-        ImGui::Render();
-        int display_w, display_h;
-        glfwGetFramebufferSize(m_window, &display_w, &display_h);
-        glViewport(0, 0, display_w, display_h);
-        glClearColor(clear_color.x * clear_color.w, clear_color.y * clear_color.w, clear_color.z * clear_color.w, clear_color.w);
-        glClear(GL_COLOR_BUFFER_BIT);
-        ImGui_ImplOpenGL3_RenderDrawData(ImGui::GetDrawData());
+    while (!gui_quit_requested() && (flag == 0 || *flag == 0))
+    {
+        /*
+         *   Run any dialogs queued via queue_deferred_dialog() (e.g. Help >
+         *   About HTML TADS) now, before this iteration's NewFrame() - see
+         *   queue_deferred_dialog()'s comment (htmlgui.h) for why this must
+         *   not happen mid-frame.
+         */
+        run_pending_deferred_dialogs();
 
-        glfwSwapBuffers(m_window);
+        /*
+         *   Run any pending audio 'done' callbacks on the main thread.  The
+         *   playback/fader threads enqueue completed sounds (see
+         *   tadsaudiodev.cpp); this is where the sound-resource queue learns
+         *   a track has finished so it can advance to the next one.  This
+         *   replaces the old HTMLM_SOUND_DONE window message, which had no
+         *   pump to deliver it in the guit3 build.
+         */
+        tads_audio_run_done_callbacks();
+
+        /*
+         *   Run any deferred reformat / resize-reformat / game-chest-reload
+         *   work.  In the Win32 app these were self-posted window messages
+         *   (HTMLM_REFORMAT etc.) picked up by the message loop; guit3 has no
+         *   message loop, so we drain the pending flags here, once per frame,
+         *   before the ImGui frame starts (this does formatting work, not
+         *   ImGui drawing).
+         */
+        run_pending_deferred_all();
+
+        /*
+         *   Fire any per-window timers that have come due (the guit3
+         *   replacement for WM_TIMER - see CTadsWin::win_set_timer()).  Walk
+         *   the whole window tree from the main window, plus the debug log
+         *   window if one is open (it's a separate top-level tree).
+         */
+        {
+            double now_ms = (double)os_get_tick_ms();
+            tick_timers_tree(now_ms);
+            if (dbgwin_ != 0)
+                dbgwin_->tick_timers_tree(now_ms);
+        }
+
+        if (!gui_pump_frame(build))
+            break;
 
         /*
         *   if a flag variable was provided, and the flag variable has
@@ -16186,17 +16151,6 @@ int CHtmlSys_mainwin::event_loop(int* flag) {
         */
         if (flag != 0 && *flag != 0)
             return TRUE;
-
-#ifdef __EMSCRIPTEN__
-        /*
-         *   Yield to the browser between frames. This is what makes the
-         *   while-loop above cooperative instead of a hard freeze - see
-         *   this function's opening comment. 0ms still yields at least one
-         *   full event-loop turn (timers, rendering, network callbacks)
-         *   before Asyncify resumes execution right here.
-         */
-        emscripten_sleep(0);
-#endif
     }
     return FALSE;
 }

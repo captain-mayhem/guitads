@@ -58,14 +58,8 @@ jobs:
             libfontconfig-dev \
             libgl1-mesa-dev \
             libegl-dev \
+            libglu1-mesa-dev \
             libx11-dev \
-            libxrandr-dev \
-            libxinerama-dev \
-            libxcursor-dev \
-            libxi-dev \
-            libxkbcommon-dev \
-            libwayland-dev \
-            extra-cmake-modules \
             pkg-config
       - if: matrix.preset == 'emscripten'
         name: Install Emscripten build dependencies

@@ -7,10 +7,7 @@
  *   on WIN32, this file everywhere else (see htmltads/imgui/CMakeLists.txt).
  *
  *   Coverage as of M3 (see migration.md 5.4/B, D-F, K, 5.5):
- *     - D. clipboard has_text  glfwGetClipboardString probe (set/get are the
- *                              shared glfwSet/GetClipboardString() path in
- *                              guios_common.cpp)
- *     - D. wait cursor ...... no-op (GLFW has no busy cursor shape; see below)
+ *     - D. wait cursor ...... no-op (see below)
  *     - E. system colors .... fixed sensible values
  *     - F. shell ............ xdg-open / open via fork+exec
  *     - B. resources ........ string table (guios_common.cpp) + the embedded
@@ -39,159 +36,11 @@
 #include <sys/types.h>
 #include <sys/wait.h>
 
-#include <GLFW/glfw3.h>
-
-#ifdef __EMSCRIPTEN__
-#include <cstdlib>
-#include <emscripten/em_js.h>
-#endif
-
 #include "tadshtml.h"     /* th_malloc / th_free */
 #include "guios.h"
 #include "htmlres.h"      /* IDS_* string ids */
 #include "charmap.h"      /* CCharmapToUni / CCharmapToLocal - item K */
 #include "resload.h"      /* CResLoader - finds charmap/<name>.tcm files */
-
-
-/* ------------------------------------------------------------------------ */
-/*
- *   D. Clipboard - has_text only
- *
- *   set/get are the shared glfwSet/GetClipboardString() path in
- *   guios_common.cpp.  GLFW offers no format query, so the only "is there
- *   text" test is a full fetch; unlike Win32 (IsClipboardFormatAvailable),
- *   this backend has nothing cheaper, and can_paste() - which calls this -
- *   runs every frame from the toolbar.  Acceptable for now; a real
- *   non-Windows port can add a lighter probe if it matters.
- */
-
-#ifndef __EMSCRIPTEN__
-
-int os_clipboard_has_text(void)
-{
-    const char *s = glfwGetClipboardString(NULL);
-    return s != NULL && s[0] != '\0';
-}
-
-#else /* __EMSCRIPTEN__ */
-
-/*
- *   Emscripten: set/get/has_text all live here instead.  Emscripten's own
- *   GLFW (-sUSE_GLFW=3) stubs glfwSet/GetClipboardString() out entirely, so
- *   Ctrl+C silently went nowhere and Paste was permanently disabled (has_text
- *   always false, so do_accel_keys() skipped Ctrl+V as a disabled command).
- *
- *   A page can't read the system clipboard synchronously, so this keeps a
- *   JS-side copy (Module.guit3Clipboard) and keeps it current from both ends:
- *
- *   - Copy/cut writes the text into the cache and out to the system
- *     clipboard via navigator.clipboard.writeText() (or, where that API is
- *     missing - a non-secure, non-localhost origin - a one-shot 'copy'
- *     event via execCommand('copy')).  Both need recent user activation,
- *     which the Ctrl+C keypress or menu click that got us here provides.
- *
- *   - A real Ctrl+V/Shift+Insert makes the browser fire a 'paste' event
- *     carrying the system clipboard's text, in the same task as the keydown
- *     - so before guit3's next frame looks at the key state - and the
- *     listener below refreshes the cache from it.  do_accel_keys() then sees
- *     the key, can_paste() sees text, and Paste goes through.  Edit > Paste
- *     from the menu can only offer what the cache already holds (the last
- *     copy or paste): reading the clipboard without such an event means the
- *     async navigator.clipboard.readText(), which prompts for permission.
- *
- *   The install step also stops the browser's own Ctrl+letter shortcuts
- *   (Ctrl+R reload, Ctrl+S save page, Ctrl+O open file, Ctrl+F find, ...)
- *   from firing on top of guit3's accelerators of the same name.  Ctrl+C/V/X
- *   are left alone - the browser's default action for Ctrl+V is exactly the
- *   'paste' event above.
- */
-EM_JS_DEPS(guit3_clipboard, "$stringToNewUTF8,$UTF8ToString");
-
-EM_JS(void, guit3_clipboard_install, (), {
-    if (typeof document === 'undefined' || Module['guit3Clipboard'] !== undefined)
-        return;
-    Module['guit3Clipboard'] = "";
-
-    document.addEventListener('paste', (e) => {
-        if (e.clipboardData)
-            Module['guit3Clipboard'] = e.clipboardData.getData('text/plain');
-    }, true);
-
-    window.addEventListener('keydown', (e) => {
-        /* leave real DOM text fields (if a host page has any) alone */
-        var t = e.target;
-        if (t && (t.isContentEditable || /^(INPUT|TEXTAREA|SELECT)$/.test(t.tagName)))
-            return;
-
-        var plainCtrl = e.ctrlKey && !e.shiftKey && !e.altKey && !e.metaKey;
-        var noMods = !e.ctrlKey && !e.shiftKey && !e.altKey && !e.metaKey;
-        if ((plainCtrl && /^[a-z]$/i.test(e.key) && !/^[cvx]$/i.test(e.key))
-            || (noMods && (e.key === 'F1' || e.key === 'F3')))
-            e.preventDefault();
-    }, true);
-});
-
-/* run the install once at startup, before the first keypress can arrive */
-static const int s_clipboard_installed = (guit3_clipboard_install(), 1);
-
-EM_JS(void, guit3_clipboard_set, (const char *text), {
-    var s = UTF8ToString(text);
-    Module['guit3Clipboard'] = s;
-
-    if (navigator.clipboard && navigator.clipboard.writeText) {
-        navigator.clipboard.writeText(s).catch((err) => {
-            console.warn('guit3: cannot write the system clipboard: ' + err);
-        });
-    } else {
-        var onCopy = (e) => {
-            e.clipboardData.setData('text/plain', s);
-            e.preventDefault();
-        };
-        document.addEventListener('copy', onCopy, true);
-        try {
-            document.execCommand('copy');
-        } finally {
-            document.removeEventListener('copy', onCopy, true);
-        }
-    }
-});
-
-EM_JS(char *, guit3_clipboard_get, (), {
-    var s = Module['guit3Clipboard'];
-    return s ? stringToNewUTF8(s) : 0;
-});
-
-EM_JS(int, guit3_clipboard_has_text, (), {
-    return Module['guit3Clipboard'] ? 1 : 0;
-});
-
-int os_clipboard_set_text(const char *text)
-{
-    guit3_clipboard_set(text);
-    return 1;
-}
-
-char *os_clipboard_get_text(void)
-{
-    /* stringToNewUTF8() allocates with malloc(); hand back a th_malloc() copy */
-    char *s = guit3_clipboard_get();
-    if (s == NULL)
-        return NULL;
-
-    size_t len = strlen(s) + 1;
-    char *result = (char *)th_malloc(len);
-    if (result != NULL)
-        memcpy(result, s, len);
-    free(s);
-    return result;
-}
-
-int os_clipboard_has_text(void)
-{
-    return guit3_clipboard_has_text();
-}
-
-#endif /* __EMSCRIPTEN__ */
 
 
 /* ------------------------------------------------------------------------ */
@@ -494,19 +343,19 @@ char *os_utf8_to_local(unsigned int codepage, const char *utf8, size_t *out_len)
 /*
  *   L. Keyboard - current-layout char<->key queries.
  *
- *   GLFW's named GLFW_KEY_* constants for the printable range are
+ *   The named GUI_KEY_* constants (guikeys.h) for the printable range are
  *   deliberately identical to the ASCII/US-layout character codes they
- *   produce unshifted (GLFW_KEY_A==65=='A', GLFW_KEY_COMMA==44==',', ...),
+ *   produce unshifted (GUI_KEY_A==65=='A', GUI_KEY_COMMA==44==',', ...),
  *   which is what makes a table-free os_key_to_char() possible; shifted
  *   punctuation/digits still need an explicit table since the shifted
- *   character isn't the key's own GLFW_KEY_* value. There is no portable
+ *   character isn't the key's own GUI_KEY_* value. There is no portable
  *   "ask the OS for the live keyboard layout" API (see guios.h's own note),
  *   so like guios_w32.cpp's VkKeyScan()/MapVirtualKey() calls, this assumes
  *   a US layout.
  */
 int os_key_to_char(os_key_t key)
 {
-    if (key >= GLFW_KEY_SPACE && key <= GLFW_KEY_GRAVE_ACCENT)
+    if (key >= GUI_KEY_SPACE && key <= GUI_KEY_GRAVE_ACCENT)
         return key;
     return 0;
 }
@@ -516,29 +365,29 @@ os_key_t os_char_to_key(int ch, int *shift_out)
     *shift_out = 0;
 
     if (ch >= 'a' && ch <= 'z')
-        return GLFW_KEY_A + (ch - 'a');
+        return GUI_KEY_A + (ch - 'a');
     if (ch >= 'A' && ch <= 'Z')
     {
         *shift_out = OS_KEY_SHIFT;
         return ch;
     }
     if (ch >= '0' && ch <= '9')
-        return GLFW_KEY_0 + (ch - '0');
+        return GUI_KEY_0 + (ch - '0');
 
     switch (ch)
     {
-    case ' ':  return GLFW_KEY_SPACE;
-    case '`':  return GLFW_KEY_GRAVE_ACCENT;
-    case '-':  return GLFW_KEY_MINUS;
-    case '=':  return GLFW_KEY_EQUAL;
-    case '[':  return GLFW_KEY_LEFT_BRACKET;
-    case ']':  return GLFW_KEY_RIGHT_BRACKET;
-    case '\\': return GLFW_KEY_BACKSLASH;
-    case ';':  return GLFW_KEY_SEMICOLON;
-    case '\'': return GLFW_KEY_APOSTROPHE;
-    case ',':  return GLFW_KEY_COMMA;
-    case '.':  return GLFW_KEY_PERIOD;
-    case '/':  return GLFW_KEY_SLASH;
+    case ' ':  return GUI_KEY_SPACE;
+    case '`':  return GUI_KEY_GRAVE_ACCENT;
+    case '-':  return GUI_KEY_MINUS;
+    case '=':  return GUI_KEY_EQUAL;
+    case '[':  return GUI_KEY_LEFT_BRACKET;
+    case ']':  return GUI_KEY_RIGHT_BRACKET;
+    case '\\': return GUI_KEY_BACKSLASH;
+    case ';':  return GUI_KEY_SEMICOLON;
+    case '\'': return GUI_KEY_APOSTROPHE;
+    case ',':  return GUI_KEY_COMMA;
+    case '.':  return GUI_KEY_PERIOD;
+    case '/':  return GUI_KEY_SLASH;
     }
 
     /* shifted digit row: Shift+1..Shift+0 -> !@#$%^&*() */
@@ -547,18 +396,18 @@ os_key_t os_char_to_key(int ch, int *shift_out)
     if (ch != 0 && sd != 0)
     {
         *shift_out = OS_KEY_SHIFT;
-        return GLFW_KEY_0 + (int)((sd - shifted_digits + 1) % 10);
+        return GUI_KEY_0 + (int)((sd - shifted_digits + 1) % 10);
     }
 
     /* other shifted punctuation */
     static const struct { char ch; int key; } shifted[] =
     {
-        { '~', GLFW_KEY_GRAVE_ACCENT }, { '_', GLFW_KEY_MINUS },
-        { '+', GLFW_KEY_EQUAL },        { '{', GLFW_KEY_LEFT_BRACKET },
-        { '}', GLFW_KEY_RIGHT_BRACKET },{ '|', GLFW_KEY_BACKSLASH },
-        { ':', GLFW_KEY_SEMICOLON },    { '"', GLFW_KEY_APOSTROPHE },
-        { '<', GLFW_KEY_COMMA },        { '>', GLFW_KEY_PERIOD },
-        { '?', GLFW_KEY_SLASH },
+        { '~', GUI_KEY_GRAVE_ACCENT }, { '_', GUI_KEY_MINUS },
+        { '+', GUI_KEY_EQUAL },        { '{', GUI_KEY_LEFT_BRACKET },
+        { '}', GUI_KEY_RIGHT_BRACKET },{ '|', GUI_KEY_BACKSLASH },
+        { ':', GUI_KEY_SEMICOLON },    { '"', GUI_KEY_APOSTROPHE },
+        { '<', GUI_KEY_COMMA },        { '>', GUI_KEY_PERIOD },
+        { '?', GUI_KEY_SLASH },
     };
     for (size_t i = 0 ; i < sizeof(shifted)/sizeof(shifted[0]) ; ++i)
     {
@@ -579,44 +428,44 @@ os_key_t os_char_to_key(int ch, int *shift_out)
  */
 static const os_accel_entry_t accel_win[] =
 {
-    { GLFW_KEY_A, OS_KEY_CTRL, ID_EDIT_SELECTALL },
-    { GLFW_KEY_C, OS_KEY_CTRL, ID_EDIT_COPY },
-    { GLFW_KEY_INSERT, OS_KEY_CTRL, ID_EDIT_COPY },
-    { GLFW_KEY_F, OS_KEY_CTRL, ID_EDIT_FIND },
-    { GLFW_KEY_X, OS_KEY_CTRL, ID_EDIT_CUT },
-    { GLFW_KEY_DELETE, OS_KEY_SHIFT, ID_EDIT_CUT },
-    { GLFW_KEY_V, OS_KEY_CTRL, ID_EDIT_PASTE },
-    { GLFW_KEY_INSERT, OS_KEY_SHIFT, ID_EDIT_PASTE },
-    { GLFW_KEY_Z, OS_KEY_CTRL, ID_EDIT_UNDO },
-    { GLFW_KEY_Q, OS_KEY_CTRL, ID_FILE_QUIT },
-    { GLFW_KEY_S, OS_KEY_CTRL, ID_FILE_SAVEGAME },
-    { GLFW_KEY_R, OS_KEY_CTRL, ID_FILE_RESTOREGAME },
-    { GLFW_KEY_O, OS_KEY_CTRL, ID_FILE_LOADGAME },
-    { GLFW_KEY_PERIOD, OS_KEY_ALT, ID_GO_NEXT },
-    { GLFW_KEY_COMMA, OS_KEY_ALT, ID_GO_PREVIOUS },
-    { GLFW_KEY_F1, 0, ID_HELP_COMMAND },
-    { GLFW_KEY_F3, 0, ID_EDIT_FINDNEXT },
+    { GUI_KEY_A, OS_KEY_CTRL, ID_EDIT_SELECTALL },
+    { GUI_KEY_C, OS_KEY_CTRL, ID_EDIT_COPY },
+    { GUI_KEY_INSERT, OS_KEY_CTRL, ID_EDIT_COPY },
+    { GUI_KEY_F, OS_KEY_CTRL, ID_EDIT_FIND },
+    { GUI_KEY_X, OS_KEY_CTRL, ID_EDIT_CUT },
+    { GUI_KEY_DELETE, OS_KEY_SHIFT, ID_EDIT_CUT },
+    { GUI_KEY_V, OS_KEY_CTRL, ID_EDIT_PASTE },
+    { GUI_KEY_INSERT, OS_KEY_SHIFT, ID_EDIT_PASTE },
+    { GUI_KEY_Z, OS_KEY_CTRL, ID_EDIT_UNDO },
+    { GUI_KEY_Q, OS_KEY_CTRL, ID_FILE_QUIT },
+    { GUI_KEY_S, OS_KEY_CTRL, ID_FILE_SAVEGAME },
+    { GUI_KEY_R, OS_KEY_CTRL, ID_FILE_RESTOREGAME },
+    { GUI_KEY_O, OS_KEY_CTRL, ID_FILE_LOADGAME },
+    { GUI_KEY_PERIOD, OS_KEY_ALT, ID_GO_NEXT },
+    { GUI_KEY_COMMA, OS_KEY_ALT, ID_GO_PREVIOUS },
+    { GUI_KEY_F1, 0, ID_HELP_COMMAND },
+    { GUI_KEY_F3, 0, ID_EDIT_FINDNEXT },
 };
 
 static const os_accel_entry_t accel_emacs[] =
 {
-    { GLFW_KEY_A, OS_KEY_CTRL, ID_EDIT_SELECTALL },
-    { GLFW_KEY_C, OS_KEY_CTRL, ID_EDIT_COPY },
-    { GLFW_KEY_INSERT, OS_KEY_CTRL, ID_EDIT_COPY },
-    { GLFW_KEY_F, OS_KEY_CTRL, ID_EDIT_FIND },
-    { GLFW_KEY_X, OS_KEY_CTRL, ID_EDIT_CUT },
-    { GLFW_KEY_DELETE, OS_KEY_SHIFT, ID_EDIT_CUT },
-    { GLFW_KEY_Y, OS_KEY_CTRL, ID_EDIT_PASTE },
-    { GLFW_KEY_INSERT, OS_KEY_SHIFT, ID_EDIT_PASTE },
-    { GLFW_KEY_Z, OS_KEY_CTRL, ID_EDIT_UNDO },
-    { GLFW_KEY_Q, OS_KEY_CTRL, ID_FILE_QUIT },
-    { GLFW_KEY_S, OS_KEY_CTRL, ID_FILE_SAVEGAME },
-    { GLFW_KEY_R, OS_KEY_CTRL, ID_FILE_RESTOREGAME },
-    { GLFW_KEY_O, OS_KEY_CTRL, ID_FILE_LOADGAME },
-    { GLFW_KEY_PERIOD, OS_KEY_ALT, ID_GO_NEXT },
-    { GLFW_KEY_COMMA, OS_KEY_ALT, ID_GO_PREVIOUS },
-    { GLFW_KEY_F1, 0, ID_HELP_COMMAND },
-    { GLFW_KEY_F3, 0, ID_EDIT_FINDNEXT },
+    { GUI_KEY_A, OS_KEY_CTRL, ID_EDIT_SELECTALL },
+    { GUI_KEY_C, OS_KEY_CTRL, ID_EDIT_COPY },
+    { GUI_KEY_INSERT, OS_KEY_CTRL, ID_EDIT_COPY },
+    { GUI_KEY_F, OS_KEY_CTRL, ID_EDIT_FIND },
+    { GUI_KEY_X, OS_KEY_CTRL, ID_EDIT_CUT },
+    { GUI_KEY_DELETE, OS_KEY_SHIFT, ID_EDIT_CUT },
+    { GUI_KEY_Y, OS_KEY_CTRL, ID_EDIT_PASTE },
+    { GUI_KEY_INSERT, OS_KEY_SHIFT, ID_EDIT_PASTE },
+    { GUI_KEY_Z, OS_KEY_CTRL, ID_EDIT_UNDO },
+    { GUI_KEY_Q, OS_KEY_CTRL, ID_FILE_QUIT },
+    { GUI_KEY_S, OS_KEY_CTRL, ID_FILE_SAVEGAME },
+    { GUI_KEY_R, OS_KEY_CTRL, ID_FILE_RESTOREGAME },
+    { GUI_KEY_O, OS_KEY_CTRL, ID_FILE_LOADGAME },
+    { GUI_KEY_PERIOD, OS_KEY_ALT, ID_GO_NEXT },
+    { GUI_KEY_COMMA, OS_KEY_ALT, ID_GO_PREVIOUS },
+    { GUI_KEY_F1, 0, ID_HELP_COMMAND },
+    { GUI_KEY_F3, 0, ID_EDIT_FINDNEXT },
 };
 
 int os_load_accel_table(int accel_id, os_accel_entry_t *entries,

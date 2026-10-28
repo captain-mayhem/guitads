@@ -1462,7 +1462,7 @@ inline BOOL TranslateCharsetInfo(DWORD *, CHARSETINFO *ci, DWORD)
 #define FF_DONTCARE 0
 #define FIXED_PITCH 1
 
-/* keyboard/mouse-event API - dead, guit3 reads input through GLFW/ImGui,
+/* keyboard/mouse-event API - dead, guit3 reads input through the engine/ImGui,
    not raw Win32 messages (migration.md 3.4) */
 typedef short SHORT;
 inline SHORT GetAsyncKeyState(int) { return 0; }

@@ -1,6 +1,6 @@
 # This is the guit3-only sibling of the old htmltads repo: it holds just the
-# HTML TADS core sources guit3 (the cross-platform Dear ImGui/GLFW
-# interpreter) needs, plus the GPLv3-sourced (via QTads) htmltads/
+# HTML TADS core sources guit3 (the cross-platform Dear ImGui interpreter on
+# Captain's Game Engine) needs, plus the GPLv3-sourced (via QTads) htmltads/
 # core files, and drops everything specific to the legacy Win32 htmlt3/
 # htmltdb3/tadsweb targets (scintilla/, textindex/, t3doc/, wbaddons/, and
 # the Win32 resource chain rooted at win32/htmlt3.rc - see guit3/CMakeLists.txt's
@@ -16,10 +16,11 @@
 # skips those and only adds its legacy htmlt3/htmltdb3/tadsweb targets. See
 # tads-runner's CMakeLists.txt and CLAUDE.md.
 
-# Captain's Game Engine is a third sibling checkout. It brings the shared
+# Captain's Game Engine is a third sibling checkout. guit3 runs on it (the
+# window, the graphics, the main loop, Dear ImGui), and it brings the shared
 # 3rdparty libraries (zlib, libpng, libjpeg, FreeType, Dear ImGui, miniaudio,
-# libogg, libvorbis) as targets; libmng, GLFW and mpegamp stay here. It is
-# added once, before anything here uses those targets.
+# libogg, libvorbis) as targets; libmng and mpegamp stay here. It is added
+# once, before anything here uses those targets.
 if (NOT TARGET CGE::Engine)
 	set(CGE_DIR "${CMAKE_CURRENT_SOURCE_DIR}/../captainsengine" CACHE PATH "Path to Captain's Game Engine")
 	if (NOT EXISTS "${CGE_DIR}/CMakeLists.txt")
@@ -34,14 +35,5 @@ if (NOT TARGET CGE::Engine)
 endif()
 
 add_subdirectory(libmng)
-
-if (NOT EMSCRIPTEN)
-	# GLFW has no Emscripten backend of its own to build - under that
-	# platform, Emscripten emulates the GLFW API itself via the
-	# -sUSE_GLFW=3 link flag (set on guit3 itself, see guit3/CMakeLists.txt),
-	# so there is no vendored library to add here.
-	set(GLFW_LIBRARY_TYPE "STATIC")
-	add_subdirectory(glfw)
-endif()
 
 add_subdirectory(guit3)

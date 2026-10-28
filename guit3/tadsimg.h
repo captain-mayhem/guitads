@@ -24,6 +24,8 @@ Modified
 
 #include "tadsplat.h"
 
+namespace CGE { namespace Gfx { class Texture; } }
+
 #ifndef HTML_OS_H
 #include "html_os.h"
 #endif
@@ -59,7 +61,7 @@ public:
 
     /*
      *   Get the display content-scale factor (1.0 at "100%" scaling, 1.5 at
-     *   150%, etc.), from the same GLFW content-scale query CTadsFont uses
+     *   150%, etc.), from the same content-scale query CTadsFont uses
      *   for fonts.  Image pixel buffers have no intrinsic DPI, so - to match
      *   htmlt3, where the whole window bitmap was scaled up by the OS - every
      *   image is laid out and drawn at its pixel size times this factor, so
@@ -104,7 +106,7 @@ protected:
     int alloc_dib();
 
     /*
-     *   Upload the decoded pixel buffer (pix_) to an OpenGL texture stored in
+     *   Upload the decoded pixel buffer (pix_) to the texture stored in
      *   m_texture.  This is the single point where every image type (JPEG,
      *   PNG, MNG) is turned into something ImGui::Image() can render; call it
      *   once the pixels in pix_ are ready.  Safe to call repeatedly (used by
@@ -139,7 +141,8 @@ protected:
      */
     int bpp_;
 
-    uint32_t m_texture;
+    /* the image on the render device, for ImGui::Image() */
+    CGE::Gfx::Texture *m_texture;
 };
 
 #endif /* TADSIMG_H */

@@ -25,7 +25,7 @@ Modified
  *   keyboard utilities class
  *
  *   'vkey' throughout this class is a canonical key code (os_key_t, guios.h)
- *   - a GLFW_KEY_* value - not a Windows VK_xxx code.  It was ported from
+ *   - a GUI_KEY_* value - not a Windows VK_xxx code.  It was ported from
  *   VK_xxx to the canonical enum as part of migration.md 5.4/L; the two
  *   remaining keyboard-layout queries (unshifted char for a key, key for a
  *   character) go through guios.h's os_key_to_char()/os_char_to_key().
@@ -54,8 +54,8 @@ protected:
     class CHtmlHashTable *hash_vkey;
 
     /*
-     *   Shifted key mapping.  For each canonical key code K (GLFW_KEY_*,
-     *   up to GLFW_KEY_LAST), this contains the character obtained from
+     *   Shifted key mapping.  For each canonical key code K (GUI_KEY_*,
+     *   up to GUI_KEY_LAST), this contains the character obtained from
      *   Shift+K, if any.
      */
     char shiftmap[512];

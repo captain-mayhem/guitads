@@ -25,7 +25,6 @@ Modified
 #else
 #include "tadsplat.h"
 #endif
-#include <GLFW/glfw3.h>
 #include <imgui.h>
 #include <vector>
 #include <string>
@@ -36,6 +35,8 @@ Modified
 #ifndef TADSHTML_H
 #include "tadshtml.h"
 #endif
+
+namespace CGE { class AppWindow; namespace Gfx { class Texture; } }
 
 
 /* ------------------------------------------------------------------------ */
@@ -59,16 +60,16 @@ void ht_GetTextExtentPoint32(HDC dc, const textchar_t *txt, size_t len,
 
 /* ------------------------------------------------------------------------ */
 /*
- *   ImGui-native replacement for the Win32 MessageBox() API.  Runs its own
- *   local GLFW/ImGui frame loop on the given window (blocking the caller,
+ *   ImGui-native replacement for the Win32 MessageBox() API.  Pumps its own
+ *   frames on the given window (gui_pump_frame(), blocking the caller,
  *   just like a real MessageBox() call) until the user dismisses it, and
  *   returns the same IDOK/IDCANCEL/IDYES/IDNO result codes.  'type' accepts
  *   the same MB_OK/MB_OKCANCEL/MB_YESNO button-set flags MessageBox() does
  *   (icon flags are accepted but ignored, since we draw a plain modal).  If
- *   'window' is null (no GLFW window exists yet), falls back to a real
+ *   'window' is null (no main window exists yet), falls back to a real
  *   MessageBox() so early startup errors still get shown.
  */
-int tadswin_message_box(GLFWwindow *window, const textchar_t *msg,
+int tadswin_message_box(CGE::AppWindow *window, const textchar_t *msg,
                         const textchar_t *caption, UINT type);
 
 
@@ -224,7 +225,7 @@ public:
     /*
      *   Create the system window object
      */
-    virtual GLFWwindow* syswin_create_system_window(
+    virtual CGE::AppWindow* syswin_create_system_window(
         const textchar_t* wintitle,
         DWORD style,
         int x, int y, int wid, int ht);
@@ -453,8 +454,8 @@ public:
     /* get the window handle */
     HWND get_handle() { return handle_; }
 
-    /* get the top-level GLFW window, if this window owns one */
-    GLFWwindow *get_glfw_window() { return m_window; }
+    /* get the engine's window, if this (top-level) window owns it */
+    CGE::AppWindow *get_app_window() { return m_window; }
 
     /*
      *   Tear this window down.  For a real child HWND this is DestroyWindow()
@@ -1560,7 +1561,7 @@ protected:
     
     /* our handle */
     HWND handle_;
-    GLFWwindow* m_window = nullptr;
+    CGE::AppWindow* m_window = nullptr;
 
     /* our device context handle, valid during painting */
     HDC hdc_;

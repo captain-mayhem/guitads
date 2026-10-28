@@ -4,7 +4,7 @@
  *   Each function here is the Windows code that used to be inlined at the
  *   call site, moved behind the neutral guios.h interface unchanged.  A
  *   future non-Windows port supplies its own file implementing the same
- *   hooks (xdg-open, the ImGui style palette, glfwSetClipboardString, ...);
+ *   hooks (xdg-open, the ImGui style palette, ...);
  *   CMake picks exactly one backend per build.  See migration.md 5.4/D-F.
  */
 
@@ -20,24 +20,6 @@
 #ifndef MAPVK_VK_TO_CHAR
 #define MAPVK_VK_TO_CHAR   2
 #endif
-
-
-/* ------------------------------------------------------------------------ */
-/*
- *   D. Clipboard - has_text only
- *
- *   set/get are the shared glfwSet/GetClipboardString() path in
- *   guios_common.cpp.  Only this probe stays per-platform: it runs every
- *   frame from render_toolbar()'s Paste-button enable check, and
- *   IsClipboardFormatAvailable() answers it without opening the clipboard,
- *   which the GLFW fetch the portable backend uses cannot.
- */
-
-int os_clipboard_has_text(void)
-{
-    return IsClipboardFormatAvailable(CF_TEXT)
-        || IsClipboardFormatAvailable(CF_UNICODETEXT);
-}
 
 
 /* ------------------------------------------------------------------------ */
@@ -194,109 +176,109 @@ char *os_utf8_to_local(unsigned int codepage, const char *utf8, size_t *out_len)
  *   L. Keyboard
  *
  *   Letters and digits need no table entry: VK_A..VK_Z/VK_0..VK_9,
- *   GLFW_KEY_A..GLFW_KEY_Z/GLFW_KEY_0..GLFW_KEY_9, and their ASCII codes are
- *   all numerically identical, so vk_to_glfw_key()/glfw_key_to_vk() treat
+ *   GUI_KEY_A..GUI_KEY_Z/GUI_KEY_0..GUI_KEY_9, and their ASCII codes are
+ *   all numerically identical, so vk_to_gui_key()/gui_key_to_vk() treat
  *   them as the identity.  Everything else - named keys (VK_BACK, VK_F1,
  *   ...), the numeric keypad, and the punctuation keys reachable through
  *   os_char_to_key()'s xch[] table in tadskb.cpp - goes through the table
  *   below.  The punctuation entries (VK_OEM_*) assume a US keyboard layout,
- *   the same assumption GLFW's own Win32 backend makes internally when it
- *   translates scan codes to GLFW_KEY_* constants - there is no portable way
+ *   the same assumption GLFW's Win32 backend made when it translated scan
+ *   codes to the GLFW_KEY_* codes guikeys.h keeps - there is no portable way
  *   to ask "what layout is this," so the two sides have to agree on one.
  */
-struct vk_glfw_pair_t { int vk; int glfw_key; };
-static const vk_glfw_pair_t vk_glfw_table[] =
+struct vk_gui_pair_t { int vk; int gui_key; };
+static const vk_gui_pair_t vk_gui_table[] =
 {
-    { VK_BACK, GLFW_KEY_BACKSPACE },
-    { VK_TAB, GLFW_KEY_TAB },
-    { VK_RETURN, GLFW_KEY_ENTER },
-    { VK_PAUSE, GLFW_KEY_PAUSE },
-    { VK_ESCAPE, GLFW_KEY_ESCAPE },
-    { VK_SPACE, GLFW_KEY_SPACE },
-    { VK_PRIOR, GLFW_KEY_PAGE_UP },
-    { VK_NEXT, GLFW_KEY_PAGE_DOWN },
-    { VK_END, GLFW_KEY_END },
-    { VK_HOME, GLFW_KEY_HOME },
-    { VK_LEFT, GLFW_KEY_LEFT },
-    { VK_UP, GLFW_KEY_UP },
-    { VK_RIGHT, GLFW_KEY_RIGHT },
-    { VK_DOWN, GLFW_KEY_DOWN },
-    { VK_SNAPSHOT, GLFW_KEY_PRINT_SCREEN },
-    { VK_INSERT, GLFW_KEY_INSERT },
-    { VK_DELETE, GLFW_KEY_DELETE },
-    { VK_NUMPAD0, GLFW_KEY_KP_0 },
-    { VK_NUMPAD1, GLFW_KEY_KP_1 },
-    { VK_NUMPAD2, GLFW_KEY_KP_2 },
-    { VK_NUMPAD3, GLFW_KEY_KP_3 },
-    { VK_NUMPAD4, GLFW_KEY_KP_4 },
-    { VK_NUMPAD5, GLFW_KEY_KP_5 },
-    { VK_NUMPAD6, GLFW_KEY_KP_6 },
-    { VK_NUMPAD7, GLFW_KEY_KP_7 },
-    { VK_NUMPAD8, GLFW_KEY_KP_8 },
-    { VK_NUMPAD9, GLFW_KEY_KP_9 },
-    { VK_MULTIPLY, GLFW_KEY_KP_MULTIPLY },
-    { VK_ADD, GLFW_KEY_KP_ADD },
-    { VK_SUBTRACT, GLFW_KEY_KP_SUBTRACT },
-    { VK_DECIMAL, GLFW_KEY_KP_DECIMAL },
-    { VK_DIVIDE, GLFW_KEY_KP_DIVIDE },
-    { VK_F1, GLFW_KEY_F1 }, { VK_F2, GLFW_KEY_F2 },
-    { VK_F3, GLFW_KEY_F3 }, { VK_F4, GLFW_KEY_F4 },
-    { VK_F5, GLFW_KEY_F5 }, { VK_F6, GLFW_KEY_F6 },
-    { VK_F7, GLFW_KEY_F7 }, { VK_F8, GLFW_KEY_F8 },
-    { VK_F9, GLFW_KEY_F9 }, { VK_F10, GLFW_KEY_F10 },
-    { VK_F11, GLFW_KEY_F11 }, { VK_F12, GLFW_KEY_F12 },
-    { VK_F13, GLFW_KEY_F13 }, { VK_F14, GLFW_KEY_F14 },
-    { VK_F15, GLFW_KEY_F15 }, { VK_F16, GLFW_KEY_F16 },
-    { VK_F17, GLFW_KEY_F17 }, { VK_F18, GLFW_KEY_F18 },
-    { VK_F19, GLFW_KEY_F19 }, { VK_F20, GLFW_KEY_F20 },
-    { VK_F21, GLFW_KEY_F21 }, { VK_F22, GLFW_KEY_F22 },
-    { VK_F23, GLFW_KEY_F23 }, { VK_F24, GLFW_KEY_F24 },
+    { VK_BACK, GUI_KEY_BACKSPACE },
+    { VK_TAB, GUI_KEY_TAB },
+    { VK_RETURN, GUI_KEY_ENTER },
+    { VK_PAUSE, GUI_KEY_PAUSE },
+    { VK_ESCAPE, GUI_KEY_ESCAPE },
+    { VK_SPACE, GUI_KEY_SPACE },
+    { VK_PRIOR, GUI_KEY_PAGE_UP },
+    { VK_NEXT, GUI_KEY_PAGE_DOWN },
+    { VK_END, GUI_KEY_END },
+    { VK_HOME, GUI_KEY_HOME },
+    { VK_LEFT, GUI_KEY_LEFT },
+    { VK_UP, GUI_KEY_UP },
+    { VK_RIGHT, GUI_KEY_RIGHT },
+    { VK_DOWN, GUI_KEY_DOWN },
+    { VK_SNAPSHOT, GUI_KEY_PRINT_SCREEN },
+    { VK_INSERT, GUI_KEY_INSERT },
+    { VK_DELETE, GUI_KEY_DELETE },
+    { VK_NUMPAD0, GUI_KEY_KP_0 },
+    { VK_NUMPAD1, GUI_KEY_KP_1 },
+    { VK_NUMPAD2, GUI_KEY_KP_2 },
+    { VK_NUMPAD3, GUI_KEY_KP_3 },
+    { VK_NUMPAD4, GUI_KEY_KP_4 },
+    { VK_NUMPAD5, GUI_KEY_KP_5 },
+    { VK_NUMPAD6, GUI_KEY_KP_6 },
+    { VK_NUMPAD7, GUI_KEY_KP_7 },
+    { VK_NUMPAD8, GUI_KEY_KP_8 },
+    { VK_NUMPAD9, GUI_KEY_KP_9 },
+    { VK_MULTIPLY, GUI_KEY_KP_MULTIPLY },
+    { VK_ADD, GUI_KEY_KP_ADD },
+    { VK_SUBTRACT, GUI_KEY_KP_SUBTRACT },
+    { VK_DECIMAL, GUI_KEY_KP_DECIMAL },
+    { VK_DIVIDE, GUI_KEY_KP_DIVIDE },
+    { VK_F1, GUI_KEY_F1 }, { VK_F2, GUI_KEY_F2 },
+    { VK_F3, GUI_KEY_F3 }, { VK_F4, GUI_KEY_F4 },
+    { VK_F5, GUI_KEY_F5 }, { VK_F6, GUI_KEY_F6 },
+    { VK_F7, GUI_KEY_F7 }, { VK_F8, GUI_KEY_F8 },
+    { VK_F9, GUI_KEY_F9 }, { VK_F10, GUI_KEY_F10 },
+    { VK_F11, GUI_KEY_F11 }, { VK_F12, GUI_KEY_F12 },
+    { VK_F13, GUI_KEY_F13 }, { VK_F14, GUI_KEY_F14 },
+    { VK_F15, GUI_KEY_F15 }, { VK_F16, GUI_KEY_F16 },
+    { VK_F17, GUI_KEY_F17 }, { VK_F18, GUI_KEY_F18 },
+    { VK_F19, GUI_KEY_F19 }, { VK_F20, GUI_KEY_F20 },
+    { VK_F21, GUI_KEY_F21 }, { VK_F22, GUI_KEY_F22 },
+    { VK_F23, GUI_KEY_F23 }, { VK_F24, GUI_KEY_F24 },
 
     /* punctuation - US layout VK_OEM_* codes */
-    { VK_OEM_1, GLFW_KEY_SEMICOLON },        /* ;: */
-    { VK_OEM_PLUS, GLFW_KEY_EQUAL },         /* =+ */
-    { VK_OEM_COMMA, GLFW_KEY_COMMA },        /* ,< */
-    { VK_OEM_MINUS, GLFW_KEY_MINUS },        /* -_ */
-    { VK_OEM_PERIOD, GLFW_KEY_PERIOD },      /* .> */
-    { VK_OEM_2, GLFW_KEY_SLASH },            /* /? */
-    { VK_OEM_3, GLFW_KEY_GRAVE_ACCENT },     /* `~ */
-    { VK_OEM_4, GLFW_KEY_LEFT_BRACKET },     /* [{ */
-    { VK_OEM_5, GLFW_KEY_BACKSLASH },        /* \| */
-    { VK_OEM_6, GLFW_KEY_RIGHT_BRACKET },    /* ]} */
-    { VK_OEM_7, GLFW_KEY_APOSTROPHE },       /* '" */
+    { VK_OEM_1, GUI_KEY_SEMICOLON },        /* ;: */
+    { VK_OEM_PLUS, GUI_KEY_EQUAL },         /* =+ */
+    { VK_OEM_COMMA, GUI_KEY_COMMA },        /* ,< */
+    { VK_OEM_MINUS, GUI_KEY_MINUS },        /* -_ */
+    { VK_OEM_PERIOD, GUI_KEY_PERIOD },      /* .> */
+    { VK_OEM_2, GUI_KEY_SLASH },            /* /? */
+    { VK_OEM_3, GUI_KEY_GRAVE_ACCENT },     /* `~ */
+    { VK_OEM_4, GUI_KEY_LEFT_BRACKET },     /* [{ */
+    { VK_OEM_5, GUI_KEY_BACKSLASH },        /* \| */
+    { VK_OEM_6, GUI_KEY_RIGHT_BRACKET },    /* ]} */
+    { VK_OEM_7, GUI_KEY_APOSTROPHE },       /* '" */
 };
-static const int vk_glfw_table_cnt =
-    sizeof(vk_glfw_table) / sizeof(vk_glfw_table[0]);
+static const int vk_gui_table_cnt =
+    sizeof(vk_gui_table) / sizeof(vk_gui_table[0]);
 
 static bool is_alnum_vk(int vk)
 {
     return (vk >= 'A' && vk <= 'Z') || (vk >= '0' && vk <= '9');
 }
 
-static os_key_t vk_to_glfw_key(int vk)
+static os_key_t vk_to_gui_key(int vk)
 {
     if (is_alnum_vk(vk))
         return vk;
-    for (int i = 0 ; i < vk_glfw_table_cnt ; ++i)
-        if (vk_glfw_table[i].vk == vk)
-            return vk_glfw_table[i].glfw_key;
+    for (int i = 0 ; i < vk_gui_table_cnt ; ++i)
+        if (vk_gui_table[i].vk == vk)
+            return vk_gui_table[i].gui_key;
     return 0;
 }
 
-static int glfw_key_to_vk(os_key_t key)
+static int gui_key_to_vk(os_key_t key)
 {
-    if ((key >= GLFW_KEY_A && key <= GLFW_KEY_Z)
-        || (key >= GLFW_KEY_0 && key <= GLFW_KEY_9))
+    if ((key >= GUI_KEY_A && key <= GUI_KEY_Z)
+        || (key >= GUI_KEY_0 && key <= GUI_KEY_9))
         return key;
-    for (int i = 0 ; i < vk_glfw_table_cnt ; ++i)
-        if (vk_glfw_table[i].glfw_key == key)
-            return vk_glfw_table[i].vk;
+    for (int i = 0 ; i < vk_gui_table_cnt ; ++i)
+        if (vk_gui_table[i].gui_key == key)
+            return vk_gui_table[i].vk;
     return 0;
 }
 
 int os_key_to_char(os_key_t key)
 {
-    int vk = glfw_key_to_vk(key);
+    int vk = gui_key_to_vk(key);
     if (vk == 0)
         return 0;
 
@@ -315,7 +297,7 @@ os_key_t os_char_to_key(int ch, int *shift_out)
                | (s & 0x200 ? OS_KEY_CTRL : 0)
                | (s & 0x400 ? OS_KEY_ALT : 0);
 
-    return vk_to_glfw_key(s & 0xFF);
+    return vk_to_gui_key(s & 0xFF);
 }
 
 /*
@@ -328,44 +310,44 @@ os_key_t os_char_to_key(int ch, int *shift_out)
  */
 static const os_accel_entry_t accel_win[] =
 {
-    { GLFW_KEY_A, OS_KEY_CTRL, ID_EDIT_SELECTALL },
-    { GLFW_KEY_C, OS_KEY_CTRL, ID_EDIT_COPY },
-    { GLFW_KEY_INSERT, OS_KEY_CTRL, ID_EDIT_COPY },
-    { GLFW_KEY_F, OS_KEY_CTRL, ID_EDIT_FIND },
-    { GLFW_KEY_X, OS_KEY_CTRL, ID_EDIT_CUT },
-    { GLFW_KEY_DELETE, OS_KEY_SHIFT, ID_EDIT_CUT },
-    { GLFW_KEY_V, OS_KEY_CTRL, ID_EDIT_PASTE },
-    { GLFW_KEY_INSERT, OS_KEY_SHIFT, ID_EDIT_PASTE },
-    { GLFW_KEY_Z, OS_KEY_CTRL, ID_EDIT_UNDO },
-    { GLFW_KEY_Q, OS_KEY_CTRL, ID_FILE_QUIT },
-    { GLFW_KEY_S, OS_KEY_CTRL, ID_FILE_SAVEGAME },
-    { GLFW_KEY_R, OS_KEY_CTRL, ID_FILE_RESTOREGAME },
-    { GLFW_KEY_O, OS_KEY_CTRL, ID_FILE_LOADGAME },
-    { GLFW_KEY_PERIOD, OS_KEY_ALT, ID_GO_NEXT },
-    { GLFW_KEY_COMMA, OS_KEY_ALT, ID_GO_PREVIOUS },
-    { GLFW_KEY_F1, 0, ID_HELP_COMMAND },
-    { GLFW_KEY_F3, 0, ID_EDIT_FINDNEXT },
+    { GUI_KEY_A, OS_KEY_CTRL, ID_EDIT_SELECTALL },
+    { GUI_KEY_C, OS_KEY_CTRL, ID_EDIT_COPY },
+    { GUI_KEY_INSERT, OS_KEY_CTRL, ID_EDIT_COPY },
+    { GUI_KEY_F, OS_KEY_CTRL, ID_EDIT_FIND },
+    { GUI_KEY_X, OS_KEY_CTRL, ID_EDIT_CUT },
+    { GUI_KEY_DELETE, OS_KEY_SHIFT, ID_EDIT_CUT },
+    { GUI_KEY_V, OS_KEY_CTRL, ID_EDIT_PASTE },
+    { GUI_KEY_INSERT, OS_KEY_SHIFT, ID_EDIT_PASTE },
+    { GUI_KEY_Z, OS_KEY_CTRL, ID_EDIT_UNDO },
+    { GUI_KEY_Q, OS_KEY_CTRL, ID_FILE_QUIT },
+    { GUI_KEY_S, OS_KEY_CTRL, ID_FILE_SAVEGAME },
+    { GUI_KEY_R, OS_KEY_CTRL, ID_FILE_RESTOREGAME },
+    { GUI_KEY_O, OS_KEY_CTRL, ID_FILE_LOADGAME },
+    { GUI_KEY_PERIOD, OS_KEY_ALT, ID_GO_NEXT },
+    { GUI_KEY_COMMA, OS_KEY_ALT, ID_GO_PREVIOUS },
+    { GUI_KEY_F1, 0, ID_HELP_COMMAND },
+    { GUI_KEY_F3, 0, ID_EDIT_FINDNEXT },
 };
 
 static const os_accel_entry_t accel_emacs[] =
 {
-    { GLFW_KEY_A, OS_KEY_CTRL, ID_EDIT_SELECTALL },
-    { GLFW_KEY_C, OS_KEY_CTRL, ID_EDIT_COPY },
-    { GLFW_KEY_INSERT, OS_KEY_CTRL, ID_EDIT_COPY },
-    { GLFW_KEY_F, OS_KEY_CTRL, ID_EDIT_FIND },
-    { GLFW_KEY_X, OS_KEY_CTRL, ID_EDIT_CUT },
-    { GLFW_KEY_DELETE, OS_KEY_SHIFT, ID_EDIT_CUT },
-    { GLFW_KEY_Y, OS_KEY_CTRL, ID_EDIT_PASTE },
-    { GLFW_KEY_INSERT, OS_KEY_SHIFT, ID_EDIT_PASTE },
-    { GLFW_KEY_Z, OS_KEY_CTRL, ID_EDIT_UNDO },
-    { GLFW_KEY_Q, OS_KEY_CTRL, ID_FILE_QUIT },
-    { GLFW_KEY_S, OS_KEY_CTRL, ID_FILE_SAVEGAME },
-    { GLFW_KEY_R, OS_KEY_CTRL, ID_FILE_RESTOREGAME },
-    { GLFW_KEY_O, OS_KEY_CTRL, ID_FILE_LOADGAME },
-    { GLFW_KEY_PERIOD, OS_KEY_ALT, ID_GO_NEXT },
-    { GLFW_KEY_COMMA, OS_KEY_ALT, ID_GO_PREVIOUS },
-    { GLFW_KEY_F1, 0, ID_HELP_COMMAND },
-    { GLFW_KEY_F3, 0, ID_EDIT_FINDNEXT },
+    { GUI_KEY_A, OS_KEY_CTRL, ID_EDIT_SELECTALL },
+    { GUI_KEY_C, OS_KEY_CTRL, ID_EDIT_COPY },
+    { GUI_KEY_INSERT, OS_KEY_CTRL, ID_EDIT_COPY },
+    { GUI_KEY_F, OS_KEY_CTRL, ID_EDIT_FIND },
+    { GUI_KEY_X, OS_KEY_CTRL, ID_EDIT_CUT },
+    { GUI_KEY_DELETE, OS_KEY_SHIFT, ID_EDIT_CUT },
+    { GUI_KEY_Y, OS_KEY_CTRL, ID_EDIT_PASTE },
+    { GUI_KEY_INSERT, OS_KEY_SHIFT, ID_EDIT_PASTE },
+    { GUI_KEY_Z, OS_KEY_CTRL, ID_EDIT_UNDO },
+    { GUI_KEY_Q, OS_KEY_CTRL, ID_FILE_QUIT },
+    { GUI_KEY_S, OS_KEY_CTRL, ID_FILE_SAVEGAME },
+    { GUI_KEY_R, OS_KEY_CTRL, ID_FILE_RESTOREGAME },
+    { GUI_KEY_O, OS_KEY_CTRL, ID_FILE_LOADGAME },
+    { GUI_KEY_PERIOD, OS_KEY_ALT, ID_GO_NEXT },
+    { GUI_KEY_COMMA, OS_KEY_ALT, ID_GO_PREVIOUS },
+    { GUI_KEY_F1, 0, ID_HELP_COMMAND },
+    { GUI_KEY_F3, 0, ID_EDIT_FINDNEXT },
 };
 
 int os_load_accel_table(int accel_id, os_accel_entry_t *entries,
@@ -407,7 +389,7 @@ int os_load_accel_table(int accel_id, os_accel_entry_t *entries,
         if (raw[i].fVirt & FVIRTKEY)
         {
             /* virtual-key entry: fVirt's shift bits are explicit */
-            key = vk_to_glfw_key(raw[i].key);
+            key = vk_to_gui_key(raw[i].key);
             shift = ((raw[i].fVirt & FSHIFT) ? OS_KEY_SHIFT : 0)
                   | ((raw[i].fVirt & FCONTROL) ? OS_KEY_CTRL : 0)
                   | ((raw[i].fVirt & FALT) ? OS_KEY_ALT : 0);

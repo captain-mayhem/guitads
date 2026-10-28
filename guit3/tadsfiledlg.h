@@ -26,9 +26,10 @@
  *     until the dialog closes, exactly like tadswin_message_box() does.
  */
 
-#include <GLFW/glfw3.h>
 #include <imgui.h>
 #include <functional>
+
+namespace CGE { class AppWindow; }
 
 #ifndef TADSFILEDLG_H
 #define TADSFILEDLG_H
@@ -83,17 +84,17 @@ public:
     static void render();
 
     /*
-     *   Blocking variant, for use outside any ImGui frame.  Runs its own
-     *   local GLFW/ImGui frame loop on 'window' until the user picks a
+     *   Blocking variant, for use outside any ImGui frame.  Pumps its own
+     *   frames (gui_pump_frame()) on 'window' until the user picks a
      *   file or cancels.  Returns true and fills 'result_buf' with the
      *   chosen full path on success; returns false (result_buf untouched)
-     *   on Cancel.  If 'window' is null (no GLFW window exists yet), falls
+     *   on Cancel.  If 'window' is null (no main window exists yet), falls
      *   back to the native GetOpenFileName()/GetSaveFileName() common
      *   dialog, mirroring tadswin_message_box()'s fallback for the same
      *   situation.
      *
-     *   'render_background', if given, is called once per frame (after
-     *   NewFrame(), before the dialog itself is drawn) to draw whatever
+     *   'render_background', if given, is called once per frame (when the
+     *   frame's ImGui windows are built) to draw whatever
      *   should appear behind/around the dialog - e.g. the main window's own
      *   do_render(), so an already-running game stays visible and the
      *   dialog looks like a floating modal instead of covering the whole
@@ -107,7 +108,7 @@ public:
      *   nothing behind it yet, e.g. the very first "choose a game" prompt
      *   at startup).
      */
-    static bool open_blocking(GLFWwindow *window, TadsFileDlgMode mode,
+    static bool open_blocking(CGE::AppWindow *window, TadsFileDlgMode mode,
                               const char *title, const char *filter,
                               const char *initial_path, bool must_exist,
                               char *result_buf, size_t result_buf_size,

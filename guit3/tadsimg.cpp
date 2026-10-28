@@ -38,6 +38,9 @@ Modified
 #include "tadsfont.h"
 #endif
 #include <imgui_internal.h>
+#include <ui/imgui_impl_cge_render.h>
+
+#include "guiengine.h"
 
 /*
  *   Display content-scale factor - the one guit3 uses everywhere, defined in
@@ -69,7 +72,7 @@ CTadsImage::CTadsImage()
     /* presume we won't have alpha information */
     has_alpha_ = FALSE;
 
-    m_texture = 0;
+    m_texture = nullptr;
 }
 
 /*
@@ -100,16 +103,14 @@ void CTadsImage::delete_image()
     width_ = 0;
     height_ = 0;
 
-    if (m_texture != 0) {
-        glDeleteTextures(1, &m_texture);
-        m_texture = 0;
-    }
+    gui_delete_texture(m_texture);
+    m_texture = nullptr;
 }
 
 /*
  *   Draw the image.
  *
- *   The image lives in an OpenGL texture (see create_texture()); we render it
+ *   The image lives in a texture (see create_texture()); we render it
  *   through ImGui.  'pos' is the destination rectangle in the current ImGui
  *   window's local coordinate space.  The legacy GDI blit path (CreateDC /
  *   StretchBlt / AlphaBlend / a 1bpp AND-mask) has been removed - guit3 has no
@@ -126,13 +127,13 @@ void CTadsImage::draw(CTadsWin *win, CHtmlRect *pos,
 
     /*
      *   Make sure the texture exists.  It's normally created when the image
-     *   is decoded, but that can happen before the OpenGL context is ready
+     *   is decoded, but that can happen before the render device is ready
      *   (e.g. resources loaded during startup), so create it here on first
      *   use as a fallback.
      */
-    if (m_texture == 0 && pix_ != 0)
+    if (m_texture == nullptr && pix_ != 0)
         create_texture();
-    if (m_texture == 0)
+    if (m_texture == nullptr)
         return;
 
     long dst_wid = pos->right - pos->left;
@@ -184,8 +185,7 @@ void CTadsImage::draw(CTadsWin *win, CHtmlRect *pos,
     case HTMLIMG_DRAW_TILE:
         /*
          *   repeat the image as many times as needed to fill the destination
-         *   area; GL_REPEAT wrapping on the texture turns a >1 UV range into
-         *   tiling for us
+         *   area; a repeating sampler turns a >1 UV range into tiling for us
          */
         uv1.x = (float)dst_wid / (float)eff_wid;
         uv1.y = (float)dst_ht / (float)eff_ht;
@@ -193,19 +193,21 @@ void CTadsImage::draw(CTadsWin *win, CHtmlRect *pos,
     }
 
     ImGui::SetCursorPos(ImVec2((float)pos->left, (float)pos->top));
-    ImGui::Image((ImTextureID)(intptr_t)m_texture, draw_size, uv0, uv1);
+    ImDrawList *dl = ImGui::GetWindowDrawList();
+    ImGui_ImplCGE_SetSampler(dl, gui_sampler(GUI_SAMPLER_REPEAT));
+    ImGui::Image(ImGui_ImplCGE_TextureID(m_texture), draw_size, uv0, uv1);
+    ImGui_ImplCGE_SetSampler(dl, nullptr);
 }
 
 /*
- *   Upload the decoded pixel buffer to an OpenGL texture.
+ *   Upload the decoded pixel buffer to a texture.
  *
  *   pix_ is a Windows-DIB-style buffer: rows run bottom-up, each row is padded
  *   to a 4-byte boundary, and pixels are in BGR order (24bpp) or pre-multiplied
  *   BGRA order (32bpp - the decoders pre-multiply by alpha for the old
  *   AlphaBlend path).  We convert to a top-down, straight-alpha RGBA image
- *   before uploading: the Microsoft OpenGL 1.1 headers don't reliably expose
- *   GL_BGRA, and ImGui's blend function expects straight (non-pre-multiplied)
- *   alpha.  This matches the conversion the toolbar-icon loader in htmlgui.cpp
+ *   before uploading: the texture is RGBA, and ImGui's blend function
+ *   expects straight (non-pre-multiplied) alpha.  This matches the conversion the toolbar-icon loader in htmlgui.cpp
  *   already does.
  */
 void CTadsImage::create_texture()
@@ -216,11 +218,8 @@ void CTadsImage::create_texture()
     if (pix_ == 0 || width_ == 0 || height_ == 0 || (bpp != 24 && bpp != 32))
     {
         /* drop any stale texture so we don't render garbage */
-        if (m_texture != 0)
-        {
-            glDeleteTextures(1, &m_texture);
-            m_texture = 0;
-        }
+        gui_delete_texture(m_texture);
+        m_texture = nullptr;
         return;
     }
 
@@ -259,18 +258,8 @@ void CTadsImage::create_texture()
         }
     }
 
-    /* (re-)create the GL texture, reusing the id if we already have one */
-    if (m_texture == 0)
-        glGenTextures(1, &m_texture);
-    glBindTexture(GL_TEXTURE_2D, m_texture);
-    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR);
-    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
-    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_REPEAT);
-    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_REPEAT);
-    glPixelStorei(GL_UNPACK_ROW_LENGTH, 0);
-    glPixelStorei(GL_UNPACK_ALIGNMENT, 4);
-    glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA, width_, height_, 0,
-                 GL_RGBA, GL_UNSIGNED_BYTE, rgba);
+    /* (re-)fill the texture, in place if the size is the same (MNG frames) */
+    m_texture = gui_upload_texture(m_texture, (int)width_, (int)height_, rgba);
 
     delete [] rgba;
 }
@@ -435,7 +424,7 @@ int CTadsImage::create_pix_dword_aligned(const unsigned char *const *src_rows,
     /* remember the byte width */
     width_bytes_ = out_width_bytes;
 
-    /* upload the decoded pixels to an OpenGL texture for rendering */
+    /* upload the decoded pixels to a texture for rendering */
     create_texture();
 
     /* success */
@@ -444,8 +433,8 @@ int CTadsImage::create_pix_dword_aligned(const unsigned char *const *src_rows,
 
 /*
  *   Allocate our pixel buffer.  This used to be a GDI DIB section created
- *   against the desktop DC; nothing blits it any more (draw() goes through an
- *   OpenGL texture - see the file header), so it is now just an
+ *   against the desktop DC; nothing blits it any more (draw() goes through a
+ *   texture - see the file header), so it is now just an
  *   os_alloc_huge() block.  The buffer keeps the DIB memory layout the
  *   decoders' row walkers and create_texture() still assume: rows bottom-up,
  *   each row padded to a 4-byte (DWORD) boundary.  See migration.md 5.4/H.

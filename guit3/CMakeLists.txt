@@ -68,14 +68,11 @@ add_executable(guit3
 	mpegamp_w32.cpp
 	mpegamp_w32.h
 
-	# Dear ImGui's GLFW and OpenGL 3 backends. The engine's ImGui copy has
-	# none (it has its own backends), so guit3 carries these until it uses
-	# the engine's.
-	imgui_impl_glfw.cpp
-	imgui_impl_glfw.h
-	imgui_impl_opengl3.cpp
-	imgui_impl_opengl3.h
-	imgui_impl_opengl3_loader.h
+	# guit3 on Captain's Game Engine: the application, the frame pump and
+	# guit3's key codes (see guiengine.h)
+	guiengine.cpp
+	guiengine.h
+	guikeys.h
 
 	htmlgui.cpp
 	htmlgui.h
@@ -290,9 +287,11 @@ elseif (EMSCRIPTEN)
 	target_sources(guit3 PRIVATE emfont.cpp)
 	target_link_libraries(guit3 PRIVATE freetype)
 else()
+	# fcfont.cpp reads the fonts' names with FreeType too (the engine
+	# library keeps its own copy private)
 	find_package(Fontconfig REQUIRED)
 	target_sources(guit3 PRIVATE fcfont.cpp)
-	target_link_libraries(guit3 PRIVATE Fontconfig::Fontconfig)
+	target_link_libraries(guit3 PRIVATE Fontconfig::Fontconfig freetype)
 endif()
 
 target_compile_definitions(guit3 PRIVATE
@@ -337,26 +336,31 @@ if (WIN32)
 	)
 endif()
 
-# The engine's Dear ImGui (with FreeType). Its imgui target carries the
-# sources, so they are compiled into guit3 itself as long as guit3 doesn't
-# link the engine library, which exports ImGui.
+# Captain's Game Engine: the window, the graphics, the main loop and Dear
+# ImGui (with FreeType and the engine's backends), which the engine library
+# exports - guit3 shares the engine's one ImGui context. The engine library
+# and its render backend are copied next to guit3 on Windows.
 target_link_libraries(guit3 PRIVATE
-	imgui
+	CGE::Engine
 )
+cge_copy_runtime(guit3)
+if (MSVC)
+	# the engine needs C++20, which brings MSVC's /permissive- with it; the
+	# (C-era) TADS sources assign string literals to char pointers
+	target_compile_options(guit3 PRIVATE /Zc:strictStrings-)
+endif()
 
-if (EMSCRIPTEN)
-	# GLFW and OpenGL come from the Emscripten toolchain itself (see the
-	# link flags below), not from the vendored glfw target or a system
-	# OpenGL - there is neither under this platform.
-else()
-	target_link_libraries(guit3 PRIVATE glfw)
-
-	if (WIN32)
-		target_link_libraries(guit3 PRIVATE Opengl32.lib)
-	else()
-		find_package(OpenGL REQUIRED)
-		target_link_libraries(guit3 PRIVATE OpenGL::GL)
-	endif()
+# The engine's configuration (the window, the renderer) and its font, next
+# to the executable: guit3 is started from any folder (often a game's), and
+# the engine looks there when the working directory has no engine.ini. On
+# the web they are packaged into the virtual file system below.
+if (NOT EMSCRIPTEN)
+	add_custom_command(TARGET guit3 POST_BUILD
+		COMMAND ${CMAKE_COMMAND} -E copy_if_different
+			${CMAKE_CURRENT_SOURCE_DIR}/engine.ini $<TARGET_FILE_DIR:guit3>/engine.ini
+		COMMAND ${CMAKE_COMMAND} -E copy_directory
+			${CGE_FONTS_DIR} $<TARGET_FILE_DIR:guit3>/fonts
+	)
 endif()
 
 if (EMSCRIPTEN)
@@ -424,7 +428,7 @@ if (EMSCRIPTEN)
 	# to be confounded (several stacked headless Chrome instances competing
 	# for CPU - see webui-emscripten-plan.md); re-measured cleanly in step 4,
 	# 8 starts fine. Keep the bridge's MAX_CONNS and this number in step.
-	set_target_properties(guit3 PROPERTIES LINK_FLAGS "-s ASSERTIONS=1 -s WASM=1 -s USE_GLFW=3 -s FULL_ES3=1 -s USE_WEBGL2=1 -s ASYNCIFY -s ASYNCIFY_IMPORTS=_emscripten_receive_on_main_thread_js -s FORCE_FILESYSTEM -s ALLOW_MEMORY_GROWTH=1 -s INITIAL_MEMORY=256MB -s SAFE_HEAP=1 -s EXPORTED_RUNTIME_METHODS=['ccall','cwrap','HEAPU8','UTF8ToString'] -s EXPORTED_FUNCTIONS=['_main','_malloc','_free'] -s PTHREAD_POOL_SIZE=8 -lwebsocket.js -pthread -Wno-pthreads-mem-growth -Wl,--wrap=fgets,--wrap=fflush,--wrap=getchar")
+	set_target_properties(guit3 PROPERTIES LINK_FLAGS "-s ASSERTIONS=1 -s WASM=1 -s ASYNCIFY -s ASYNCIFY_IMPORTS=_emscripten_receive_on_main_thread_js -s FORCE_FILESYSTEM -s ALLOW_MEMORY_GROWTH=1 -s INITIAL_MEMORY=256MB -s SAFE_HEAP=1 -s EXPORTED_RUNTIME_METHODS=['ccall','cwrap','HEAPU8','UTF8ToString'] -s EXPORTED_FUNCTIONS=['_main','_malloc','_free'] -s PTHREAD_POOL_SIZE=8 -lwebsocket.js -pthread -Wno-pthreads-mem-growth -Wl,--wrap=fgets,--wrap=fflush,--wrap=getchar")
 
 	# Manual browser test page for guit3-under-Emscripten (migration.md 5.7
 	# left runtime behavior completely unverified). Wired up the same way
@@ -525,6 +529,13 @@ if (EMSCRIPTEN)
 		COMPONENT GuiT3)
 	add_dependencies(guit3 build_guit3charmap.data)
 
+	# The engine's configuration (engine.ini, see above), at the root of the
+	# virtual file system, where the engine reads it. Load-bearing like the
+	# two above: without it the engine starts without graphics.
+	em_package(guit3engine ${CMAKE_CURRENT_SOURCE_DIR}/engine.ini@engine.ini
+		COMPONENT GuiT3)
+	add_dependencies(guit3 build_guit3engine.data)
+
 	install(FILES
 		"$<TARGET_FILE_DIR:guit3>/guit3.wasm"
 		${CMAKE_CURRENT_SOURCE_DIR}/emscripten/guit3.html
@@ -599,6 +610,16 @@ install(TARGETS guit3
 	DESTINATION .
 	COMPONENT GuiT3
 )
+
+if (NOT EMSCRIPTEN)
+	# the engine library, its render backend and its fonts (on Linux in
+	# lib/, found through RPATH), and its configuration
+	cge_install_runtime(guit3 . COMPONENT GuiT3)
+	install(FILES engine.ini
+		DESTINATION .
+		COMPONENT GuiT3
+	)
+endif()
 
 install(FILES
 	${CMAKE_SOURCE_DIR}/tads3/charmap/cmaplib.t3r

@@ -2980,14 +2980,15 @@ public:
      *   Called from guimain.cpp right after our own create_system_window()
      *   returns, the same way the debug log window is created there - NOT
      *   from do_create() (where this used to live): do_create() runs
-     *   *during* our own create_system_window() call, before our real GLFW
-     *   window/OpenGL context exists yet, and aboutbox_ needs a null
+     *   *during* our own create_system_window() call, before we have
+     *   claimed the engine's window, and aboutbox_ needs a null
      *   parent (see run_aboutbox(), migration.md 5.4/N) to render as a
      *   real floating overlay - calling create_system_window(0, ...) that
      *   early would hit CTadsSyswin::syswin_create_system_window()'s
-     *   "only one real window" check while no window has been made yet,
-     *   so it would actually try to stand up a second, premature GLFW/GL
-     *   context and crash.
+     *   "only one real window" check while no window has been claimed yet,
+     *   so the about box would take the engine's window instead of the
+     *   main window (under GLFW: stand up a second, premature GL context
+     *   and crash).
      */
     void create_aboutbox_win();
 
@@ -3302,8 +3303,8 @@ public:
      *   only fires in a debug ImGui build) catch exactly this and assert
      *   ("Forgot to call Render() or EndFrame() at the end of the previous
      *   frame?").  event_loop() itself drains this queue once per
-     *   iteration, right after glfwPollEvents() and before the NewFrame()
-     *   for that iteration - i.e. between two logical frames, at every
+     *   iteration, before it pumps that iteration's frame
+     *   - i.e. between two logical frames, at every
      *   nesting depth (the same drain code runs whether it's the top-level
      *   event_loop() or one already nested inside a dialog's own, so e.g.
      *   opening Credits from within the About dialog queues onto and
@@ -3547,15 +3548,6 @@ private:
     CStringBuf game_internal_charset_;
 
     /*
-     *   Per-key "was it down last frame" state for do_accel_keys()'s edge
-     *   detection - glfwGetKey() only reports current state, so a keypress
-     *   is "key down this frame and wasn't last frame", tracked here rather
-     *   than through ImGui (whose IsKeyPressed() needs an ImGuiKey, and
-     *   there's no public GLFW-key-to-ImGuiKey conversion).
-     */
-    bool accel_key_down_[GLFW_KEY_LAST + 1];
-
-    /*
      *   Top-level menu mnemonic requested by Alt+<letter> (e.g. Alt+F for
      *   File), detected in event_loop() and consumed by render_menu_bar()
      *   on the next call - this ImGui build has no built-in "&" mnemonic
@@ -3589,10 +3581,10 @@ private:
     HWND toolbar_;
 
     /*
-     *   GL texture atlas for the ImGui toolbar's icons (loaded lazily from
+     *   Texture atlas for the ImGui toolbar's icons (loaded lazily from
      *   IDB_TERP_TOOLBAR by load_toolbar_texture()), and its pixel size
      */
-    GLuint toolbar_tex_;
+    CGE::Gfx::Texture *toolbar_tex_;
     int toolbar_tex_w_, toolbar_tex_h_;
 
     /* idle timer ID */

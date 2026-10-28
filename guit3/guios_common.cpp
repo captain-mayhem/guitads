@@ -11,8 +11,9 @@
 
 #include <chrono>
 #include <cstring>
+#include <string>
 
-#include <GLFW/glfw3.h>
+#include <platform/services.h>
 
 #include "tadshtml.h"     /* th_malloc / th_free */
 #include "htmlres.h"     /* IDS_* */
@@ -24,46 +25,94 @@
 /*
  *   D. Clipboard (plain text, UTF-8)
  *
- *   GLFW moves UTF-8 bytes to/from the system clipboard on every platform
- *   (Win32: CF_UNICODETEXT), so set/get are the same code everywhere and
- *   live here rather than in the per-platform backends.  The window argument
- *   has been deprecated-and-ignored since GLFW 3.0, so NULL is fine.
+ *   The engine's platform services move UTF-8 text to/from the system
+ *   clipboard on every platform (Windows: CF_UNICODETEXT; Linux: the X11
+ *   CLIPBOARD selection; the web: the text copied or pasted last in the
+ *   page, kept current by the browser's paste event - see
+ *   CGE::Platform in the engine's platform/services.h).
  *
- *   The engine's text is local-codepage; the copy/paste call sites in
- *   htmlgui.cpp convert with os_local_to_utf8() / os_utf8_to_local() (item K)
- *   on the way through.  CR/LF normalization stays the caller's job, exactly
- *   as with the old CF_TEXT path.
- *
- *   os_clipboard_has_text() is deliberately NOT here - see guios.h.
- *
- *   Emscripten is the exception: its built-in GLFW (-sUSE_GLFW=3) stubs both
- *   clipboard calls out (set is a no-op, get always returns null), so the
- *   browser build has its own set/get/has_text in guios_portable.cpp.
+ *   The TADS engine's text is local-codepage; the copy/paste call sites in
+ *   htmlgui.cpp convert with os_local_to_utf8() / os_utf8_to_local() (item
+ *   K) on the way through.  CR/LF normalization stays the caller's job,
+ *   exactly as with the old CF_TEXT path.
  */
-
-#ifndef __EMSCRIPTEN__
 
 int os_clipboard_set_text(const char *text)
 {
-    glfwSetClipboardString(NULL, text);
-    return 1;
+    return CGE::Platform::setClipboardText(text) ? 1 : 0;
 }
 
 char *os_clipboard_get_text(void)
 {
-    const char *s = glfwGetClipboardString(NULL);
-    if (s == NULL)
+    std::string s = CGE::Platform::getClipboardText();
+    if (s.empty())
         return NULL;
 
-    /* GLFW owns 's' only until the next clipboard call, so copy it now */
-    size_t len = strlen(s) + 1;
-    char *result = (char *)th_malloc(len);
+    char *result = (char *)th_malloc(s.size() + 1);
     if (result != NULL)
-        memcpy(result, s, len);
+        memcpy(result, s.c_str(), s.size() + 1);
     return result;
 }
 
-#endif /* !__EMSCRIPTEN__ */
+int os_clipboard_has_text(void)
+{
+    return CGE::Platform::hasClipboardText() ? 1 : 0;
+}
+
+
+/* ------------------------------------------------------------------------ */
+/*
+ *   L. The ImGui key of a canonical key code (guikeys.h)
+ */
+ImGuiKey gui_key_to_imgui(int key)
+{
+    if (key >= GUI_KEY_A && key <= GUI_KEY_A + 25)
+        return (ImGuiKey)(ImGuiKey_A + (key - GUI_KEY_A));
+    if (key >= GUI_KEY_0 && key <= GUI_KEY_9)
+        return (ImGuiKey)(ImGuiKey_0 + (key - GUI_KEY_0));
+    if (key >= GUI_KEY_F1 && key <= GUI_KEY_F24)
+        return (ImGuiKey)(ImGuiKey_F1 + (key - GUI_KEY_F1));
+    if (key >= GUI_KEY_KP_0 && key <= GUI_KEY_KP_9)
+        return (ImGuiKey)(ImGuiKey_Keypad0 + (key - GUI_KEY_KP_0));
+
+    switch (key)
+    {
+    case GUI_KEY_SPACE:         return ImGuiKey_Space;
+    case GUI_KEY_APOSTROPHE:    return ImGuiKey_Apostrophe;
+    case GUI_KEY_COMMA:         return ImGuiKey_Comma;
+    case GUI_KEY_MINUS:         return ImGuiKey_Minus;
+    case GUI_KEY_PERIOD:        return ImGuiKey_Period;
+    case GUI_KEY_SLASH:         return ImGuiKey_Slash;
+    case GUI_KEY_SEMICOLON:     return ImGuiKey_Semicolon;
+    case GUI_KEY_EQUAL:         return ImGuiKey_Equal;
+    case GUI_KEY_LEFT_BRACKET:  return ImGuiKey_LeftBracket;
+    case GUI_KEY_BACKSLASH:     return ImGuiKey_Backslash;
+    case GUI_KEY_RIGHT_BRACKET: return ImGuiKey_RightBracket;
+    case GUI_KEY_GRAVE_ACCENT:  return ImGuiKey_GraveAccent;
+    case GUI_KEY_ESCAPE:        return ImGuiKey_Escape;
+    case GUI_KEY_ENTER:         return ImGuiKey_Enter;
+    case GUI_KEY_TAB:           return ImGuiKey_Tab;
+    case GUI_KEY_BACKSPACE:     return ImGuiKey_Backspace;
+    case GUI_KEY_INSERT:        return ImGuiKey_Insert;
+    case GUI_KEY_DELETE:        return ImGuiKey_Delete;
+    case GUI_KEY_RIGHT:         return ImGuiKey_RightArrow;
+    case GUI_KEY_LEFT:          return ImGuiKey_LeftArrow;
+    case GUI_KEY_DOWN:          return ImGuiKey_DownArrow;
+    case GUI_KEY_UP:            return ImGuiKey_UpArrow;
+    case GUI_KEY_PAGE_UP:       return ImGuiKey_PageUp;
+    case GUI_KEY_PAGE_DOWN:     return ImGuiKey_PageDown;
+    case GUI_KEY_HOME:          return ImGuiKey_Home;
+    case GUI_KEY_END:           return ImGuiKey_End;
+    case GUI_KEY_PRINT_SCREEN:  return ImGuiKey_PrintScreen;
+    case GUI_KEY_PAUSE:         return ImGuiKey_Pause;
+    case GUI_KEY_KP_DECIMAL:    return ImGuiKey_KeypadDecimal;
+    case GUI_KEY_KP_DIVIDE:     return ImGuiKey_KeypadDivide;
+    case GUI_KEY_KP_MULTIPLY:   return ImGuiKey_KeypadMultiply;
+    case GUI_KEY_KP_SUBTRACT:   return ImGuiKey_KeypadSubtract;
+    case GUI_KEY_KP_ADD:        return ImGuiKey_KeypadAdd;
+    default:                    return ImGuiKey_None;
+    }
+}
 
 
 /* ------------------------------------------------------------------------ */

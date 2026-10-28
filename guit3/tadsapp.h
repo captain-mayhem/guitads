@@ -630,9 +630,9 @@ public:
 /*
  *   Number of rows in a KeyMapTable - one per canonical key code (os_key_t,
  *   guios.h; formerly a Windows VK_xxx code, migration.md 5.4/L), so this
- *   must cover GLFW_KEY_LAST (348 as of GLFW 3.4).  Kept as a plain literal,
- *   matching tadskb.h's shiftmap[512], rather than pulling GLFW into this
- *   header just for the one constant.
+ *   must cover GUI_KEY_LAST (348, guikeys.h).  Kept as a plain literal,
+ *   matching tadskb.h's shiftmap[512], rather than pulling guikeys.h into
+ *   this header just for the one constant.
  */
 #define KEYMAP_ROW_COUNT  512
 

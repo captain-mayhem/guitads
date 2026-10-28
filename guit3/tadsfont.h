@@ -166,10 +166,10 @@ public:
 
     /*
      *   Get the screen's logical DPI (pixels per inch), for converting
-     *   between point sizes and pixel sizes.  This is the GLFW/ImGui
+     *   between point sizes and pixel sizes.  This is the engine/ImGui
      *   equivalent of querying LOGPIXELSY from the desktop DC: ImGui
      *   renders at a fixed baseline of 96 DPI ("100% scaling"), with the
-     *   primary monitor's content scale factor accounting for the rest.
+     *   window's content scale factor accounting for the rest.
      */
     static float get_screen_dpi();
 

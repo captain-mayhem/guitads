@@ -3407,6 +3407,68 @@ jewelhunter's `PLAN.md`, Phase 5. These are the first two steps:
 three pictures and played its music on Windows (screenshot, WASAPI loopback), on Linux (WSLg) and in headless
 Chrome (`guit3.html?game=extra`, an `AnalyserNode` on miniaudio's output).
 
+### 5.26 Moving onto Captain's Game Engine — the window, the loop, ImGui's backends and the images
+
+guit3 now runs on the engine: GLFW and ImGui's GLFW and OpenGL 3 backends are gone. These steps of
+jewelhunter's `PLAN.md` (Phase 5) had to go together: once the engine owns the window and the GL context,
+GLFW's ImGui backend has no window, and the engine's ImGui renderer takes engine textures, not GL texture
+names.
+- **The application:** `guiengine.h`/`.cpp`. `main()` calls `gui_run_application()`, which starts the engine
+  with guit3 as its `CGE::IApplication`. All of guit3 (the old `main()`, now `guit3_main()`) runs inside the
+  application's first `update()`; when it returns, the engine shuts down. The engine has created the window
+  (hidden, `windowShown = false`), the GL context, Dear ImGui and its backends before that.
+- **The loops:** `event_loop()`, `tadswin_message_box()` and `CTadsFileDialog::open_blocking()` call
+  `gui_pump_frame(build)` instead of `glfwPollEvents()` + `NewFrame()` + render + swap. That runs
+  `Engine::pumpFrame()`: the engine processes the window's events and renders a frame, and the application's
+  `render()` calls `build`, which makes the frame's ImGui windows (between the engine's `NewFrame()` and
+  `Render()`). In `event_loop()`, the between-frames work (deferred dialogs, audio callbacks, deferred
+  reformatting, timers) stays in the loop and the old frame body became the `build` lambda.
+  `gui_pump_frame()` can't be called from inside `build` (it prints an error and returns false).
+  `glfwWindowShouldClose()` became `gui_quit_requested()`. The minimized-window check is gone: the engine
+  doesn't render while minimized and sleeps a little per frame instead. On the web, `pumpFrame()` yields with
+  `emscripten_sleep(0)` (the engine's threaded configuration, `CGE_WEB_THREADS`), as `event_loop()` did itself.
+- **The window:** the first top-level window claims the engine's window (`gui_claim_window()`); the others
+  (debug log, about box) stay ImGui windows inside it. `CTadsWin::m_window` is a `CGE::AppWindow*`:
+  `changeSize()` (logical pixels), `setTitle()`, `show()`. The engine has no call to bring its window to the
+  front or to restore it from minimized, so `bring_owner_to_front()`/`show_normal()` only show it.
+- **The engine's configuration:** `engine.ini` (the window size, `windowShown = false`, the renderer) is copied
+  next to `guit3.exe`, with the engine's `fonts/`. guit3 is usually started from another folder (a game's), so
+  the engine now looks next to the executable when the working directory has no `engine.ini`. On the web it is
+  packaged as `guit3engine.data`.
+- **ImGui:** guit3 configures the engine's context instead of creating one. It removes the engine's font so
+  ProggyClean (13 px × the content scale) is `Fonts[0]` again, and sets the base font size through
+  `style._NextFrameFontSizeBase`: ImGui 1.92 takes it from the default font only on the first frame, which
+  the engine has already run, and `PushFont()`/`PopFont()` outside a frame (CTadsFont's layout) copy the
+  current size back into `style.FontSizeBase`, so a plain assignment doesn't last. `imgui.ini` is kept in
+  the working directory as before (not on the web).
+- **DPI (3.5a):** the engine's ImGui backend scales the style's sizes with the window's content scale. guit3
+  turns its font scaling off (`ImGui_ImplCGE_Platform_SetScaleFonts(false)`), because CTadsFont bakes the
+  scale into the fonts' pixel sizes. `CTadsFont::get_dpi_scale()` is the engine window's content scale.
+- **Keys:** guit3's canonical key codes keep GLFW's numbers under the names `GUI_KEY_*` (`guikeys.h`), so the
+  accelerator tables and CTadsKeyboard are unchanged. `do_accel_keys()` reads them through ImGui
+  (`gui_key_to_imgui()`, `IsKeyPressed(key, false)`) instead of `glfwGetKey()`. The engine's keys follow the
+  keyboard layout (Windows virtual keys), so on a German QWERTZ keyboard Ctrl+Y is now the key labeled Y; with
+  GLFW, `glfwGetKey()` read US-layout positions (see the Ctrl+Y note in section 6). The engine's `~` console is
+  switched off, and Escape doesn't quit (`IApplication`'s default).
+- **The clipboard** goes through `CGE::Platform` on every platform (`guios_common.cpp`). Emscripten's own JS
+  clipboard and key glue in `guios_portable.cpp` is gone: the engine's web window has the same (it keeps
+  Ctrl+C/V/X, F5, F11, F12 for the browser and prevents the default of the other keys).
+- **Images:** pictures (`CTadsImage`) and the toolbar's icons are engine textures (`gui_upload_texture()`,
+  updated in place for MNG frames) drawn with `ImGui_ImplCGE_TextureID()`. The engine's ImGui renderer
+  samples linear and clamped; tiled pictures use a repeating sampler and the toolbar a nearest one, set
+  around the draw with the engine's new `ImGui_ImplCGE_SetSampler()`.
+- **Build:** guit3 links `CGE::Engine` (shared, `CGE.dll`/`CGE_GL.dll` copied next to it on Windows) instead
+  of compiling the `imgui` target. The engine needs C++20, which in MSVC brings `/permissive-`; guit3 adds
+  `/Zc:strictStrings-` because the TADS sources assign string literals to `char *`. `fcfont.cpp` links the
+  engine's `freetype` target itself (the engine library keeps its copy private). The Linux CI installs the
+  engine's packages instead of GLFW's. On Linux guit3 is an X11 client (XWayland on Wayland desktops).
+
+**How it was verified:** the media test game of 5.25 (PNG, JPEG, animated MNG, looping OGG) and `ditch3.t3` on
+Windows (screenshots, SendInput, WASAPI loopback), Linux (WSLg, xdotool, an `XGetImage` capture) and in
+headless Chrome (`guit3.html?game=extra`, CDP input, an `AnalyserNode` per Web Audio device): pictures, the
+MNG animation, menus, the toolbar, Ctrl+O with its confirmation box and the blocking file dialog, Enter at the
+prompt, the music, and on Windows paste, copy, a hyperlink click and closing the window.
+
 ## 6. Working notes for a fresh session
 
 ### Building and running
@@ -3430,7 +3492,8 @@ Run it with a test game from `tads-runner/tests/`, with the working directory se
 - **Wait ~5 seconds after launch** before assuming the window exists; 3s was sometimes too early and produced
   false "window not found" results.
 - **Find the window via `EnumWindows`/`GetWindowThreadProcessId`/`GetClassName`** filtered to the target PID,
-  class `GLFW30`. Don't rely on `FindWindow` by class + null title.
+  class `GLFW30` (since 5.26 the engine's window: the process's `MainWindowHandle`, titled after the game).
+  Don't rely on `FindWindow` by class + null title.
 - **Screenshot with `GetWindowRect` + `Graphics.CopyFromScreen`.** For small chrome (status bar, scrollbar
   track), crop and 3× upscale rather than eyeballing the full screenshot; `Bitmap.GetPixel()` is the reliable
   way to confirm an exact color reached the screen.

@@ -24,9 +24,9 @@ Modified
 #include <stdlib.h>
 #include <stdio.h>
 #include <memory.h>
-#include <GLFW/glfw3.h>
-#include "imgui_impl_glfw.h"
 #include <misc/freetype/imgui_freetype.h>
+
+#include "guiengine.h"
 
 #ifndef TADSFONT_H
 #include "tadsfont.h"
@@ -140,9 +140,9 @@ void CTadsFont::unselect(HDC dc, HGDIOBJ oldfont)
 /*
  *   Get the screen's logical DPI.  See the declaration in tadsfont.h for
  *   why 96 is the right baseline here: it's the same convention
- *   CTadsSyswin::syswin_create_system_window() already uses
- *   (ImGui_ImplGlfw_GetContentScaleForMonitor() returns 1.0 at "100%"
- *   scaling, which GDI would have reported as 96 DPI).
+ *   CTadsSyswin::syswin_create_system_window() already uses (the engine's
+ *   window reports a content scale of 1.0 at "100%" scaling, which GDI
+ *   would have reported as 96 DPI).
  */
 float CTadsFont::get_screen_dpi()
 {
@@ -150,16 +150,11 @@ float CTadsFont::get_screen_dpi()
 }
 
 /*
- *   The primary monitor's content scale factor.  See tadsfont.h.  Guards
- *   against a null monitor (no display / headless) by falling back to 1.0.
+ *   The window's content scale factor.  See tadsfont.h.
  */
 float CTadsFont::get_dpi_scale()
 {
-    GLFWmonitor *mon = glfwGetPrimaryMonitor();
-    float s = (mon != 0
-               ? ImGui_ImplGlfw_GetContentScaleForMonitor(mon)
-               : 1.0f);
-    return (s > 0.0f ? s : 1.0f);
+    return gui_content_scale();
 }
 
 /*

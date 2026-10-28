@@ -33,12 +33,10 @@ Modified
 #include <stdio.h>
 
 #include <imgui.h>
-#include "imgui_impl_glfw.h"
-#include "imgui_impl_opengl3.h"
 
-#ifdef __EMSCRIPTEN__
-#include <emscripten.h>
-#endif
+#include <window/window.h>
+
+#include "guiengine.h"
 
 #ifndef HTMLRES_H
 #include "htmlres.h"
@@ -121,10 +119,10 @@ void ht_GetTextExtentPoint32(HDC dc, const textchar_t *txt, size_t len,
 /*
  *   ImGui-native replacement for MessageBox().  See tadswin.h for details.
  */
-int tadswin_message_box(GLFWwindow *window, const textchar_t *msg,
+int tadswin_message_box(CGE::AppWindow *window, const textchar_t *msg,
                         const textchar_t *caption, UINT type)
 {
-    /* with no GLFW window yet, there's nothing to render into */
+    /* with no main window yet, there's nothing to render into */
     if (window == 0)
         return MessageBox(0, msg, caption, type);
 
@@ -154,14 +152,8 @@ int tadswin_message_box(GLFWwindow *window, const textchar_t *msg,
 
     int result = 0;
     bool popup_opened = false;
-    while (result == 0 && !glfwWindowShouldClose(window))
+    auto build = [&]()
     {
-        glfwPollEvents();
-
-        ImGui_ImplOpenGL3_NewFrame();
-        ImGui_ImplGlfw_NewFrame();
-        ImGui::NewFrame();
-
         /* open the popup on the first frame only; BeginPopupModal keeps it up */
         if (!popup_opened)
         {
@@ -210,28 +202,10 @@ int tadswin_message_box(GLFWwindow *window, const textchar_t *msg,
 
             ImGui::EndPopup();
         }
+    };
 
-        ImGui::Render();
-        int display_w, display_h;
-        glfwGetFramebufferSize(window, &display_w, &display_h);
-        glViewport(0, 0, display_w, display_h);
-        glClearColor(0.45f, 0.55f, 0.60f, 1.00f);
-        glClear(GL_COLOR_BUFFER_BIT);
-        ImGui_ImplOpenGL3_RenderDrawData(ImGui::GetDrawData());
-
-        glfwSwapBuffers(window);
-
-#ifdef __EMSCRIPTEN__
-        /*
-         *   Yield to the browser between frames - see the identical fix
-         *   (and its rationale) in CTadsFileDialog::open_blocking()
-         *   (tadsfiledlg.cpp, migration.md 5.12). Without this, this is a
-         *   plain busy loop that hard-freezes the tab for as long as the
-         *   message box is open.
-         */
-        emscripten_sleep(0);
-#endif
-    }
+    while (result == 0 && gui_pump_frame(build))
+        ;
 
     /* if the user closed the window itself, treat it like Cancel/No */
     return result != 0 ? result : IDCANCEL;
@@ -2070,7 +2044,7 @@ int CTadsWin::alloc_timer_id()
  */
 void CTadsWin::win_set_timer(UINT_PTR id, unsigned int interval_ms)
 {
-    double now = glfwGetTime() * 1000.0;
+    double now = (double)os_get_tick_ms();
 
     /* if this id is already scheduled, just update it */
     for (size_t i = 0 ; i < timer_scheds_.size() ; ++i)
@@ -2679,7 +2653,7 @@ HRESULT STDMETHODCALLTYPE CTadsWin::Drop(
 
 void CTadsWin::setWindowTitle(const textchar_t* title) {
     if (m_window) {
-        glfwSetWindowTitle(m_window, title);
+        m_window->setTitle(title);
     }
     auto pos = m_title.find("##");
     if (pos == m_title.npos) {
@@ -2696,29 +2670,25 @@ void CTadsWin::setVisible(bool visible) {
         /*
          *   Top-level window (parent_ == nullptr): its Win32 HWND
          *   (handle_) must never be shown on screen, or we'd end up with a
-         *   second, real OS window alongside the GLFW/ImGui one.  It still
+         *   second, real OS window alongside the engine's one.  It still
          *   exists in parallel because not-yet-ported native children
          *   (banners, scrollbars, dialogs) need a real HWND to parent
          *   themselves to.
          *
-         *   Only the *main* top-level window actually owns a GLFWwindow
-         *   (m_window) - syswin_create_system_window()'s GLFW overload
-         *   deliberately refuses to create a second one ("we want only one
-         *   real main window").  A secondary top-level window, like the
-         *   debug log (CHtmlSys_dbglogwin), has m_window == nullptr and is
-         *   instead drawn every frame as an ImGui overlay inside the main
-         *   window's GLFW context (see CTadsWin::do_render_content_begin()'s
+         *   Only the *main* top-level window actually owns the engine's
+         *   window (m_window) - syswin_create_system_window() gives it to
+         *   the first top-level window only (gui_claim_window()).  A
+         *   secondary top-level window, like the debug log
+         *   (CHtmlSys_dbglogwin), has m_window == nullptr and is instead
+         *   drawn every frame as an ImGui overlay inside the engine's
+         *   window (see CTadsWin::do_render_content_begin()'s
          *   parentless branch and CHtmlSys_mainwin::event_loop()'s
          *   dbgwin_->do_render() call) - so it has nothing here to
          *   show/hide at all; isVisible() (used to gate that overlay
          *   rendering) already reflects m_visible regardless.
          */
-        if (m_window) {
-            if (visible)
-                glfwShowWindow(m_window);
-            else
-                glfwHideWindow(m_window);
-        }
+        if (m_window)
+            m_window->show(visible);
     }
     else if (visible) {
 		ShowWindow(handle_, SW_SHOW);
@@ -3632,113 +3602,38 @@ HWND CTadsSyswin::syswin_create_system_window(DWORD ex_style,
                           x, y, wid, ht, parent, menu, inst, param);
 }
 
-static void charCallback(GLFWwindow* window, unsigned int codepoint) {
-
-}
-
-GLFWwindow* CTadsSyswin::syswin_create_system_window(
+CGE::AppWindow* CTadsSyswin::syswin_create_system_window(
     const textchar_t* wintitle,
     DWORD sstyle,
     int x, int y, int wid, int ht) {
-    //we want only one real main window
-    if (glfwGetCurrentContext() != nullptr) {
+    /*
+     *   The engine has one window, which the main window claims; any other
+     *   top-level window (the debug log, the about box) is drawn as an
+     *   ImGui window inside it.  It starts hidden (windowShown = false in
+     *   engine.ini): our caller (CTadsWin::create_system_window) decides
+     *   whether to show it, via setVisible().
+     */
+    CGE::AppWindow* window = gui_claim_window();
+    if (window == nullptr)
         return nullptr;
-    }
     if (wid == CW_USEDEFAULT)
         wid = 1426;
     if (ht == CW_USEDEFAULT)
         ht = 746;
-    // Decide GL+GLSL versions
-#if defined(IMGUI_IMPL_OPENGL_ES2)
-    // GL ES 2.0 + GLSL 100 (WebGL 1.0)
-    const char* glsl_version = "#version 100";
-    glfwWindowHint(GLFW_CONTEXT_VERSION_MAJOR, 2);
-    glfwWindowHint(GLFW_CONTEXT_VERSION_MINOR, 0);
-    glfwWindowHint(GLFW_CLIENT_API, GLFW_OPENGL_ES_API);
-#elif defined(IMGUI_IMPL_OPENGL_ES3)
-    // GL ES 3.0 + GLSL 300 es (WebGL 2.0)
-    const char* glsl_version = "#version 300 es";
-    glfwWindowHint(GLFW_CONTEXT_VERSION_MAJOR, 3);
-    glfwWindowHint(GLFW_CONTEXT_VERSION_MINOR, 0);
-    glfwWindowHint(GLFW_CLIENT_API, GLFW_OPENGL_ES_API);
-#elif defined(__APPLE__)
-    // GL 3.2 + GLSL 150
-    const char* glsl_version = "#version 150";
-    glfwWindowHint(GLFW_CONTEXT_VERSION_MAJOR, 3);
-    glfwWindowHint(GLFW_CONTEXT_VERSION_MINOR, 2);
-    glfwWindowHint(GLFW_OPENGL_PROFILE, GLFW_OPENGL_CORE_PROFILE);  // 3.2+ only
-    glfwWindowHint(GLFW_OPENGL_FORWARD_COMPAT, GL_TRUE);            // Required on Mac
-#else
-    // GL 3.0 + GLSL 130
-    const char* glsl_version = "#version 130";
-    glfwWindowHint(GLFW_CONTEXT_VERSION_MAJOR, 3);
-    glfwWindowHint(GLFW_CONTEXT_VERSION_MINOR, 0);
-    //glfwWindowHint(GLFW_OPENGL_PROFILE, GLFW_OPENGL_CORE_PROFILE);  // 3.2+ only
-    //glfwWindowHint(GLFW_OPENGL_FORWARD_COMPAT, GL_TRUE);            // 3.0+ only
-#endif
-
-    // Create window with graphics context
-    /*
-     *   Start hidden: GLFW shows a window by default as soon as it's
-     *   created, but our caller (CTadsWin::create_system_window) decides
-     *   whether the window should actually be shown, and does so
-     *   separately via setVisible().  Without this hint the window would
-     *   flash on screen immediately, regardless of the caller's "show"
-     *   argument.
-     */
-    glfwWindowHint(GLFW_VISIBLE, GLFW_FALSE);
-    float main_scale = ImGui_ImplGlfw_GetContentScaleForMonitor(glfwGetPrimaryMonitor()); // Valid on GLFW 3.3+ only
-    GLFWwindow* window = glfwCreateWindow((int)(wid * main_scale), (int)(ht * main_scale), wintitle, nullptr, nullptr);
-    if (window == nullptr) {
-        fprintf(stderr, "glfwCreateWindow failed\n");
-        return nullptr;
-    }
-    glfwMakeContextCurrent(window);
-    glfwSwapInterval(1); // Enable vsync
-
-    // Setup scaling
-    ImGuiStyle& style = ImGui::GetStyle();
-    style.ScaleAllSizes(main_scale);        // Bake a fixed style scale. (until we have a solution for dynamic style scaling, changing this requires resetting Style + calling this again)
-    /*
-     *   Deliberately NOT setting style.FontScaleDpi here.  The ImGui example
-     *   code this was copied from adds its fonts at their nominal point size
-     *   and relies on FontScaleDpi to do the DPI step - but CTadsFont works
-     *   the other way round: it already bakes the monitor's content scale
-     *   into every font it creates, via get_screen_dpi() (= 96 * content
-     *   scale) feeding calc_lfHeight().  Setting FontScaleDpi = main_scale on
-     *   top of that applied the content scale a second time, so on a display
-     *   scaled above 100% all game text came out at scale-squared (e.g. 2.25x
-     *   at 150%) and no longer matched the formatter's own layout metrics.
-     *   Leaving it at its default 1.0 makes text scale by exactly the content
-     *   scale, the same factor the window itself is enlarged by above.
-     */
-
-
-    // Setup Platform/Renderer backends
-    ImGui_ImplGlfw_InitForOpenGL(window, true);
-#ifdef __EMSCRIPTEN__
-    ImGui_ImplGlfw_InstallEmscriptenCallbacks(window, "#canvas");
 
     /*
-     *   The GLFW backend's clipboard handlers call glfwSet/GetClipboardString(),
-     *   which Emscripten's GLFW stubs out - route ImGui's own text fields
-     *   (dialogs) through the same browser clipboard the game window uses
-     *   (guios_portable.cpp).
+     *   The size is in logical pixels (96 DPI); the window scales it with
+     *   the screen's content scale.  So does the engine's ImGui backend with
+     *   the style's sizes - but not with the fonts: CTadsFont already bakes
+     *   the content scale into every font it creates, via get_screen_dpi()
+     *   (= 96 * content scale) feeding calc_lfHeight(), so scaling the fonts
+     *   again applied the content scale a second time, and on a display
+     *   scaled above 100% all game text came out at scale-squared (e.g.
+     *   2.25x at 150%) and no longer matched the formatter's own layout
+     *   metrics.  guiengine.cpp turns the engine's font scaling off.
      */
-    ImGuiPlatformIO &pio = ImGui::GetPlatformIO();
-    pio.Platform_SetClipboardTextFn = [](ImGuiContext *, const char *text) {
-        os_clipboard_set_text(text);
-    };
-    pio.Platform_GetClipboardTextFn = [](ImGuiContext *) -> const char * {
-        /* ImGui only borrows the string until the next call */
-        static char *last = 0;
-        if (last != 0)
-            th_free(last);
-        last = os_clipboard_get_text();
-        return last;
-    };
-#endif
-    ImGui_ImplOpenGL3_Init(glsl_version);
+    window->changeSize(wid, ht);
+    window->setTitle(wintitle);
     return window;
 }
 

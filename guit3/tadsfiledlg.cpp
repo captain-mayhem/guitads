@@ -16,13 +16,8 @@
 #include <os.h>
 
 #include <imgui.h>
-#include "imgui_impl_glfw.h"
-#include "imgui_impl_opengl3.h"
 
-#ifdef __EMSCRIPTEN__
-#include <emscripten.h>
-#endif
-
+#include "guiengine.h"
 #include "tadsfiledlg.h"
 #include "tadsapp.h"
 #include "tadsfont.h"        /* CTadsFont::get_dpi_scale() - see migration.md 3.5a */
@@ -586,12 +581,12 @@ void CTadsFileDialog::render()
     draw_frame();
 }
 
-bool CTadsFileDialog::open_blocking(GLFWwindow *window, TadsFileDlgMode mode,
+bool CTadsFileDialog::open_blocking(CGE::AppWindow *window, TadsFileDlgMode mode,
     const char *title, const char *filter, const char *initial_path,
     bool must_exist, char *result_buf, size_t result_buf_size,
     std::function<void()> render_background)
 {
-    /* with no GLFW window yet, fall back to the native common dialog */
+    /* with no main window yet, fall back to the native common dialog */
     if (window == 0)
     {
         /* the initial path may be a bare dir or a full path; split it */
@@ -644,14 +639,8 @@ bool CTadsFileDialog::open_blocking(GLFWwindow *window, TadsFileDlgMode mode,
             }
         });
 
-    while (!done && !glfwWindowShouldClose(window))
+    auto build = [&]()
     {
-        glfwPollEvents();
-
-        ImGui_ImplOpenGL3_NewFrame();
-        ImGui_ImplGlfw_NewFrame();
-        ImGui::NewFrame();
-
         if (render_background)
         {
             /*
@@ -666,31 +655,10 @@ bool CTadsFileDialog::open_blocking(GLFWwindow *window, TadsFileDlgMode mode,
             /* nothing behind the dialog - just draw the dialog itself */
             draw_frame();
         }
+    };
 
-        ImGui::Render();
-        int display_w, display_h;
-        glfwGetFramebufferSize(window, &display_w, &display_h);
-        glViewport(0, 0, display_w, display_h);
-        glClearColor(0.45f, 0.55f, 0.60f, 1.00f);
-        glClear(GL_COLOR_BUFFER_BIT);
-        ImGui_ImplOpenGL3_RenderDrawData(ImGui::GetDrawData());
-
-        glfwSwapBuffers(window);
-
-#ifdef __EMSCRIPTEN__
-        /*
-         *   Yield to the browser between frames, exactly like
-         *   CHtmlSys_mainwin::event_loop()'s own Emscripten path (see
-         *   migration.md 5.10) - without this, this loop is a plain busy
-         *   loop that never returns control to the browser's JS event
-         *   loop, hard-freezing the tab for as long as the dialog is
-         *   open (discovered wiring up a real os_askfile() hook for Unix,
-         *   migration.md 5.12 - this modal loop had never been
-         *   click-tested under Emscripten before).
-         */
-        emscripten_sleep(0);
-#endif
-    }
+    while (!done && gui_pump_frame(build))
+        ;
 
     if (got_result)
     {

@@ -493,14 +493,14 @@ int t3main(int argc, char **argv, struct appctxdef *appctx, char *)
  *   around to parent not-yet-ported native children (banners, scrollbars,
  *   dialogs) - see CTadsWin::setVisible()'s own comment - and is never
  *   itself shown on screen either way, so hiding it is a no-op. The window
- *   actually visible on screen is the separate GLFWwindow (m_window), which
- *   only setVisible() (via glfwHideWindow()) reaches. Leaving the GLFW
+ *   actually visible on screen is the engine's window (m_window), which
+ *   only setVisible() (via AppWindow::show()) reaches. Leaving that
  *   window shown here meant Web UI games left a visible guit3 window
  *   sitting on screen that Windows reports as "Not Responding," since
  *   nothing pumps its message loop while the VM thread blocks in the Web
  *   UI's own network wait (getNetEvent()) instead of the ordinary
  *   console-input wait that otherwise drives event_loop()'s
- *   glfwPollEvents() calls.
+ *   frames.
  *
  *   Under Emscripten, tads3/emscripten/osemscripten.cpp is also
  *   unconditionally compiled into the shared htmlt3/guit3 web build (one

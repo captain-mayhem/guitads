@@ -2,7 +2,7 @@
  *   guios.h - guit3 OS-service platform hooks
  *
  *   A neutral, windows.h-free home for the small OS-integration calls the
- *   guit3 GUI layer still needs but that GLFW/ImGui/FreeType don't provide:
+ *   guit3 GUI layer still needs but that the engine/ImGui/FreeType don't provide:
  *   shell integration, system colors, the clipboard, mouse cursors, the
  *   millisecond tick clock, character-set conversion and keyboard-layout
  *   queries.  Each hook is declared here once and implemented per platform
@@ -19,7 +19,7 @@
 #define GUIOS_H
 
 #include <stddef.h>
-#include <GLFW/glfw3.h>
+#include "guikeys.h"
 
 
 /* ------------------------------------------------------------------------ */
@@ -39,25 +39,23 @@ unsigned long os_get_tick_ms(void);
 /*
  *   D. Clipboard (plain text, UTF-8)
  *
- *   set/get move UTF-8 bytes to/from the system clipboard - on every
- *   platform this is glfwSet/GetClipboardString(), so those two live in the
- *   shared guios_common.cpp.  The engine's own text is local-codepage, so
- *   the copy/paste call sites convert with os_local_to_utf8() /
- *   os_utf8_to_local() (item K) on the way through; CR/LF normalization
- *   stays the caller's job, as it always was.
+ *   set/get move UTF-8 bytes to/from the system clipboard through the
+ *   engine's platform services (CGE::Platform), the same on every platform,
+ *   so all three live in the shared guios_common.cpp.  The TADS engine's own
+ *   text is local-codepage, so the copy/paste call sites convert with
+ *   os_local_to_utf8() / os_utf8_to_local() (item K) on the way through;
+ *   CR/LF normalization stays the caller's job, as it always was.
  *
- *   has_text stays per-platform: GLFW has no "is there text" query short of
- *   a full fetch, and can_paste() - hence this - runs every frame from the
- *   toolbar, so the Win32 backend keeps the cheap IsClipboardFormatAvailable()
- *   probe (guios_w32.cpp) and only the non-Windows backend pays for the
- *   fetch (guios_portable.cpp).
+ *   has_text runs every frame (can_paste(), from the toolbar); the engine
+ *   answers it without fetching the text where the platform can
+ *   (Windows: IsClipboardFormatAvailable()).
  */
 
 /* Replace the clipboard contents with the given NUL-terminated UTF-8 string.
    Returns nonzero on success.  (guios_common.cpp) */
 int os_clipboard_set_text(const char *text);
 
-/* Nonzero if the clipboard currently holds text.  (per-platform backend) */
+/* Nonzero if the clipboard currently holds text.  (guios_common.cpp) */
 int os_clipboard_has_text(void);
 
 /* Return a copy of the clipboard's text as UTF-8, allocated with th_malloc()
@@ -266,12 +264,12 @@ char *os_utf8_to_local(unsigned int codepage,
  *   L. Keyboard - canonical key codes, layout queries, and accelerator
  *   tables
  *
- *   guit3's one canonical key code is a plain GLFW_KEY_* value (already
- *   portable - identical across GLFW's Win32/X11/Cocoa backends, so unlike
- *   items B-K there's no separate "portable backend" to build later: the
- *   enum itself needs no per-platform variant.  Two things still do need an
- *   OS query, because they depend on the live keyboard layout, which GLFW
- *   doesn't expose: what character an unshifted key produces
+ *   guit3's one canonical key code is a plain GUI_KEY_* value (guikeys.h -
+ *   GLFW's numbering, kept from when guit3 ran on GLFW), the same on every
+ *   platform, so unlike items B-K there's no separate "portable backend" to
+ *   build: the enum itself needs no per-platform variant.  Two things still
+ *   do need an OS query, because they depend on the live keyboard layout:
+ *   what character an unshifted key produces
  *   (os_key_to_char, replacing MapVirtualKey), and what key produces a given
  *   character (os_char_to_key, replacing VkKeyScan).  CTadsKeyboard
  *   (tadskb.cpp) is the one caller of both - it used to call the Win32 APIs
@@ -292,12 +290,12 @@ char *os_utf8_to_local(unsigned int codepage,
 #define OS_KEY_CTRL    0x0002
 #define OS_KEY_ALT     0x0004
 
-/* a canonical key code - one of the portable GLFW_KEY_* values */
+/* a canonical key code - one of the portable GUI_KEY_* values */
 typedef int os_key_t;
 
 /*
  *   Return the unshifted, unmodified character 'key' produces on the
- *   current keyboard layout (e.g. GLFW_KEY_A -> 'A'), or 0 if it doesn't
+ *   current keyboard layout (e.g. GUI_KEY_A -> 'A'), or 0 if it doesn't
  *   produce a printable ASCII character.  Windows:
  *   MapVirtualKey(vk, MAPVK_VK_TO_CHAR).
  */

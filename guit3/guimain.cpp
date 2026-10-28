@@ -63,6 +63,9 @@ Modified
 #ifndef W32MAIN_H
 #include "guimain.h"
 #endif
+#ifndef GUIENGINE_H
+#include "guiengine.h"
+#endif
 #ifndef TADSDLG_H
 #include "tadsdlg.h"
 #endif
@@ -192,7 +195,7 @@ static int askfile_hook(const char *prompt, const char *filter,
     }
 
     return CTadsFileDialog::open_blocking(
-        win != 0 ? win->get_glfw_window() : 0,
+        win != 0 ? win->get_app_window() : 0,
         is_save ? TADSFILEDLG_SAVE : TADSFILEDLG_OPEN,
         prompt, filter, initial_path, !is_save,
         fname_buf, fname_buf_len, render_background) ? 1 : 0;
@@ -242,10 +245,10 @@ static int get_game_name_cb(void *ctx, char *buf, size_t buflen)
      *   Ask for the game's filename via the ImGui-native file dialog.  This
      *   runs before event_loop() ever starts, so there's no ImGui frame in
      *   progress yet to defer into - use the blocking entry point instead
-     *   (CTadsFileDialog::open_blocking(), which self-pumps its own local
-     *   GLFW/ImGui frame loop on the main window, same as
-     *   tadswin_message_box() does for the same "called outside any frame"
-     *   situation).  The main window's GLFW window already exists by this
+     *   (CTadsFileDialog::open_blocking(), which pumps its own frames on
+     *   the main window, same as tadswin_message_box() does for the same
+     *   "called outside any frame" situation).  The main window has
+     *   claimed the engine's window by this
      *   point (win->create_system_window() runs earlier in WinMain(), well
      *   before the VM calls back into this function to ask for a game
      *   name), so this doesn't need the native GetOpenFileName() fallback
@@ -254,7 +257,7 @@ static int get_game_name_cb(void *ctx, char *buf, size_t buflen)
     os_load_string(IDS_CHOOSE_GAME, prompt, sizeof(prompt));
 
     ret = CTadsFileDialog::open_blocking(
-        win != 0 ? win->get_glfw_window() : 0,
+        win != 0 ? win->get_app_window() : 0,
         TADSFILEDLG_OPEN, prompt, w32_opendlg_filter,
         CTadsApp::get_app()->get_openfile_dir(), TRUE, buf, buflen);
 
@@ -641,7 +644,7 @@ static void run_game(int argc, char** argv,
 
     /*
      *   Create the "About This Game" dialog window now that our own window
-     *   (and its GLFW/OpenGL context) genuinely exists - see
+     *   (the engine's window, claimed) genuinely exists - see
      *   CHtmlSys_mainwin::create_aboutbox_win() for why this can't happen
      *   any earlier, e.g. from inside our own do_create().
      */
@@ -902,9 +905,9 @@ done:
 
 /* ------------------------------------------------------------------------ */
 /*
- *   Main entrypoint 
+ *   guit3 itself, run by the engine as its application (guiengine.h)
  */
-int main(int argc, char** argv){
+static int guit3_main(int argc, char** argv){
     INITCOMMONCONTROLSEX ice;
 
     /* initialize COM */
@@ -980,6 +983,14 @@ int main(int argc, char** argv){
 
     /* success */
     return 0;
+}
+
+/*
+ *   Main entrypoint: Captain's Game Engine owns the window and the main
+ *   loop, and runs guit3_main() from its application's first update
+ */
+int main(int argc, char** argv){
+    return gui_run_application(argc, argv, guit3_main);
 }
 
 /* ------------------------------------------------------------------------ */

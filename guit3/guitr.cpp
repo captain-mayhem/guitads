@@ -215,8 +215,8 @@ void w32_msgbox(const char *msg, const char *url)
                 msg);
 
         /* show the check-for-updates box */
-        GLFWwindow *win = CHtmlSys_mainwin::get_main_win() != 0
-            ? CHtmlSys_mainwin::get_main_win()->get_glfw_window() : 0;
+        CGE::AppWindow *win = CHtmlSys_mainwin::get_main_win() != 0
+            ? CHtmlSys_mainwin::get_main_win()->get_app_window() : 0;
         int btn = tadswin_message_box(win, buf, "TADS",
                                       MB_YESNO | MB_ICONEXCLAMATION);
 
@@ -230,8 +230,8 @@ void w32_msgbox(const char *msg, const char *url)
     else
     {
         /* use the standard box (just the message and an "OK" button) */
-        GLFWwindow *win = CHtmlSys_mainwin::get_main_win() != 0
-            ? CHtmlSys_mainwin::get_main_win()->get_glfw_window() : 0;
+        CGE::AppWindow *win = CHtmlSys_mainwin::get_main_win() != 0
+            ? CHtmlSys_mainwin::get_main_win()->get_app_window() : 0;
         tadswin_message_box(win, msg, "TADS", MB_OK | MB_ICONEXCLAMATION);
     }
 }
@@ -263,8 +263,8 @@ int os_input_dialog(int icon_id, const char *prompt, int standard_button_set,
                     const char **buttons, int button_count,
                     int default_index, int cancel_index)
 {
-    GLFWwindow *win = CHtmlSys_mainwin::get_main_win() != 0
-        ? CHtmlSys_mainwin::get_main_win()->get_glfw_window() : 0;
+    CGE::AppWindow *win = CHtmlSys_mainwin::get_main_win() != 0
+        ? CHtmlSys_mainwin::get_main_win()->get_app_window() : 0;
 
     switch (standard_button_set)
     {

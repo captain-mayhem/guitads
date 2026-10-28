@@ -2,17 +2,19 @@
 
 [![build](https://github.com/captain-mayhem/guitads/actions/workflows/build.yml/badge.svg)](https://github.com/captain-mayhem/guitads/actions/workflows/build.yml)
 
-guitads holds `guit3`, a cross-platform (Dear ImGui / GLFW) HTML TADS 3
+guitads holds `guit3`, a cross-platform (Dear ImGui) HTML TADS 3
 interpreter ported from the Win32 `htmlt3` client of HTML TADS. It also holds
 the HTML TADS core (sourced from GPL3 licensed QTads) and the third-party libraries only guit3 needs
-(libmng, GLFW, the mpegamp MP3 decoder).
+(libmng, the mpegamp MP3 decoder).
 It is not built
 on its own: tads-runner picks it up as a sibling checkout via
 `add_subdirectory()`: [tads-runner](https://github.com/captain-mayhem/tads-runner), which is licensed under GPL-2.0
 
-guit3 is being moved onto [Captain's Game Engine](https://github.com/captain-mayhem/captainsengine)
-(LGPL 2.1), a third sibling checkout. The engine provides zlib, libpng, libjpeg, FreeType, Dear ImGui,
-miniaudio, libogg and libvorbis. guitads finds it in `../captainsengine`; set `CGE_DIR` to use another folder.
+guit3 runs on [Captain's Game Engine](https://github.com/captain-mayhem/captainsengine)
+(LGPL 2.1), a third sibling checkout: the engine provides the window, the graphics, the main loop and
+Dear ImGui, and zlib, libpng, libjpeg, FreeType, miniaudio, libogg and libvorbis. guit3 links the engine
+library (`CGE.dll` and `CGE_GL.dll` next to `guit3.exe` on Windows, `lib/` on Linux) and reads the
+engine's `engine.ini` next to its executable. guitads finds it in `../captainsengine`; set `CGE_DIR` to use another folder.
 
 See LICENSE for licensing details
 
