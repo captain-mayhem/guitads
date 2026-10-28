@@ -70,8 +70,8 @@ static void TlsSetValue(DWORD idx, void *val)
 #endif
 #include "htmlgui.h"
 #include "htmlprs.h"
-#include "imgui/imgui.h"
-#include "imgui/imgui_internal.h"
+#include <imgui.h>
+#include <imgui_internal.h>
 
 
 /* ------------------------------------------------------------------------ */

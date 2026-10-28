@@ -18,7 +18,7 @@
 
 #include <os.h>
 
-#include <imgui/imgui.h>
+#include <imgui.h>
 
 #include "tadsfolderdlg.h"
 #include "tadsfont.h"        /* CTadsFont::get_dpi_scale() - see migration.md 3.5a */

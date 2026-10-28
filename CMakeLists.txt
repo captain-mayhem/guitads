@@ -1,6 +1,6 @@
-# This is the guit3-only sibling of the old htmltads repo: it vendors just the
-# 3rdparty libraries and HTML TADS core sources guit3 (the cross-platform Dear
-# ImGui/GLFW interpreter) needs, plus the GPLv3-sourced (via QTads) htmltads/
+# This is the guit3-only sibling of the old htmltads repo: it holds just the
+# HTML TADS core sources guit3 (the cross-platform Dear ImGui/GLFW
+# interpreter) needs, plus the GPLv3-sourced (via QTads) htmltads/
 # core files, and drops everything specific to the legacy Win32 htmlt3/
 # htmltdb3/tadsweb targets (scintilla/, textindex/, t3doc/, wbaddons/, and
 # the Win32 resource chain rooted at win32/htmlt3.rc - see guit3/CMakeLists.txt's
@@ -16,9 +16,23 @@
 # skips those and only adds its legacy htmlt3/htmltdb3/tadsweb targets. See
 # tads-runner's CMakeLists.txt and CLAUDE.md.
 
-add_subdirectory(zlib)
-add_subdirectory(libpng)
-add_subdirectory(jpeg)
+# Captain's Game Engine is a third sibling checkout. It brings the shared
+# 3rdparty libraries (zlib, libpng, libjpeg, FreeType, Dear ImGui, miniaudio,
+# libogg, libvorbis) as targets; libmng, GLFW and mpegamp stay here. It is
+# added once, before anything here uses those targets.
+if (NOT TARGET CGE::Engine)
+	set(CGE_DIR "${CMAKE_CURRENT_SOURCE_DIR}/../captainsengine" CACHE PATH "Path to Captain's Game Engine")
+	if (NOT EXISTS "${CGE_DIR}/CMakeLists.txt")
+		message(FATAL_ERROR "Captain's Game Engine not found at ${CGE_DIR} - set CGE_DIR")
+	endif()
+	# guit3 waits for input in nested loops and uses threads, so on the web
+	# the engine is built in its threaded configuration (pthreads, ASYNCIFY)
+	if (EMSCRIPTEN)
+		set(CGE_WEB_THREADS ON)
+	endif()
+	add_subdirectory(${CGE_DIR} cge)
+endif()
+
 add_subdirectory(libmng)
 
 if (NOT EMSCRIPTEN)
@@ -29,16 +43,5 @@ if (NOT EMSCRIPTEN)
 	set(GLFW_LIBRARY_TYPE "STATIC")
 	add_subdirectory(glfw)
 endif()
-
-set(BUILD_SHARED_LIBS OFF)
-set(SKIP_INSTALL_ALL ON)
-add_subdirectory(freetype)
-
-add_subdirectory(imgui)
-
-# libogg/libvorbis back guit3's Ogg Vorbis audio decoder (tadsvorb.cpp) on
-# every platform.
-add_subdirectory(libogg)
-add_subdirectory(libvorbis)
 
 add_subdirectory(guit3)

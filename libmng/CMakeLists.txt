@@ -163,16 +163,18 @@ CHECK_INCLUDE_FILE("io.h"           HAVE_IO_H)
 CHECK_INCLUDE_FILE("fcntl.h"        HAVE_FCNTL_H)
 CHECK_INCLUDE_FILE("assert.h"       HAVE_ASSERT_H)
 CHECK_INCLUDE_FILE("limits.h"       HAVE_LIMITS_H)
-CHECK_INCLUDE_FILE("math.h"         HAVE_LIBM)
+# (not HAVE_LIBM: libvorbis caches that name for its check for a library m,
+# which Windows doesn't have)
+CHECK_INCLUDE_FILE("math.h"         HAVE_MNG_MATH_H)
 CHECK_INCLUDE_FILE("malloc.h"       HAVE_MALLOC_H)
 CHECK_INCLUDE_FILE("search.h"       HAVE_SEARCH_H)
 CHECK_INCLUDE_FILE("sys/time.h"     HAVE_SYS_TIME_H)
 CHECK_INCLUDE_FILE("windows.h"      HAVE_WINDOWS_H)
 CHECK_INCLUDE_FILE("dlfcn.h"        HAVE_DLFCN_H)
 #
-IF(NOT HAVE_LIBM)
+IF(NOT HAVE_MNG_MATH_H)
  MESSAGE(FATAL_ERROR "pow() REQUIRED: not found. Quitting.")
-ENDIF(NOT HAVE_LIBM)
+ENDIF(NOT HAVE_MNG_MATH_H)
 #
 #FIND_PACKAGE(JPEG)
 #

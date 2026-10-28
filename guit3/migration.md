@@ -3386,6 +3386,27 @@ text fields were not tested. **Harness gotchas:**
 - Ctrl+R/Ctrl+O/Ctrl+S open a file dialog, and `do_accel_keys()` ignores all keys while a popup is open,
   so send those last.
 
+### 5.25 Moving onto Captain's Game Engine — the build and the shared libraries
+
+guit3 is moving onto [Captain's Game Engine](https://github.com/captain-mayhem/captainsengine) (CGE), a
+third sibling checkout (`../captainsengine`, or `CGE_DIR`). The plan and the status of each step are in
+jewelhunter's `PLAN.md`, Phase 5. These are the first two steps:
+- **The build:** guitads' `CMakeLists.txt` adds the engine first, once (`add_subdirectory(${CGE_DIR} cge)`
+  unless `CGE::Engine` exists). On Emscripten it selects the engine's threaded configuration
+  (`CGE_WEB_THREADS`). The CI workflows check out the engine too.
+- **The shared libraries:** guitads' zlib, libpng, jpeg, freetype, imgui, miniaudio, libogg and libvorbis
+  are gone. guit3 links the engine's targets of the same names. libmng, GLFW and mpegamp stay here. guit3
+  doesn't link the engine library yet, so it still compiles Dear ImGui into itself, now from the engine's
+  `imgui` target. ImGui's GLFW and OpenGL 3 backends, which the engine's copy doesn't have, moved to this
+  folder until guit3 uses the engine's backends. Includes are now `<imgui.h>`, `<imgui_internal.h>` and
+  `<misc/freetype/imgui_freetype.h>`. The fonts for the Emscripten build moved to `emscripten/fonts`.
+- libmng's configure had to stop using the cache variable `HAVE_LIBM` for its `math.h` check. The engine's
+  libvorbis, which is now configured first, caches that name for a different check that fails on Windows.
+
+**How it was verified:** a small test game with a PNG, a JPEG, an animated MNG and a looping OGG showed all
+three pictures and played its music on Windows (screenshot, WASAPI loopback), on Linux (WSLg) and in headless
+Chrome (`guit3.html?game=extra`, an `AnalyserNode` on miniaudio's output).
+
 ## 6. Working notes for a fresh session
 
 ### Building and running

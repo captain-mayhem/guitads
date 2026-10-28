@@ -20,7 +20,7 @@ Modified
 #ifndef TADSFONT_H
 #define TADSFONT_H
 
-#include <imgui/imgui.h>
+#include <imgui.h>
 #include "tadsplat.h"
 
 /*

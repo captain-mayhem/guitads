@@ -43,6 +43,10 @@ jobs:
         with:
           repository: captain-mayhem/tads-runner
           path: tads-runner
+      - uses: actions/checkout@v7
+        with:
+          repository: captain-mayhem/captainsengine
+          path: captainsengine
       - if: runner.os == 'Linux' && matrix.preset != 'emscripten'
         name: Install Linux build dependencies
         # Same package list as build.yml's native Linux job.
@@ -53,6 +57,7 @@ jobs:
             libcurl4-openssl-dev \
             libfontconfig-dev \
             libgl1-mesa-dev \
+            libegl-dev \
             libx11-dev \
             libxrandr-dev \
             libxinerama-dev \

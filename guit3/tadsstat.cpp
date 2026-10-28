@@ -21,7 +21,7 @@ Modified
 */
 
 #include "tadsplat.h"
-#include <imgui/imgui.h>
+#include <imgui.h>
 
 #ifndef TADSSTAT_H
 #include "tadsstat.h"

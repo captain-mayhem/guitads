@@ -27,7 +27,7 @@
  */
 
 #include <GLFW/glfw3.h>
-#include <imgui/imgui.h>
+#include <imgui.h>
 #include <functional>
 
 #ifndef TADSFILEDLG_H

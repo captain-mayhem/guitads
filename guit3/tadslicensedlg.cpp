@@ -11,7 +11,7 @@
 
 #include <string>
 
-#include <imgui/imgui.h>
+#include <imgui.h>
 
 #include "tadshtml.h"     /* th_free() */
 #include "tadslicensedlg.h"

@@ -21,7 +21,7 @@ Modified
 #define HTMLSYS_GUI_H
 
 #include "tadsplat.h"
-#include <imgui/imgui.h>
+#include <imgui.h>
 
 /* TADS OS layer - for I/O routines */
 #include <os.h>

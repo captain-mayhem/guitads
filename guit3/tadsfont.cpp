@@ -25,8 +25,8 @@ Modified
 #include <stdio.h>
 #include <memory.h>
 #include <GLFW/glfw3.h>
-#include <imgui/imgui_impl_glfw.h>
-#include <imgui/misc/freetype/imgui_freetype.h>
+#include "imgui_impl_glfw.h"
+#include <misc/freetype/imgui_freetype.h>
 
 #ifndef TADSFONT_H
 #include "tadsfont.h"

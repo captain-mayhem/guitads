@@ -24,7 +24,7 @@
 #include FT_TRUETYPE_TABLES_H
 #include <stdio.h>
 #include <string.h>
-#include <imgui/imgui.h>
+#include <imgui.h>
 
 #ifndef TADSHTML_H
 #include "tadshtml.h"

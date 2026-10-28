@@ -68,10 +68,14 @@ add_executable(guit3
 	mpegamp_w32.cpp
 	mpegamp_w32.h
 
-	# miniaudio - single-file cross-platform audio output backend, compiled
-	# straight into guit3 (its only consumer).  See migration.md 3.7.
-	../miniaudio/miniaudio.c
-	../miniaudio/miniaudio.h
+	# Dear ImGui's GLFW and OpenGL 3 backends. The engine's ImGui copy has
+	# none (it has its own backends), so guit3 carries these until it uses
+	# the engine's.
+	imgui_impl_glfw.cpp
+	imgui_impl_glfw.h
+	imgui_impl_opengl3.cpp
+	imgui_impl_opengl3.h
+	imgui_impl_opengl3_loader.h
 
 	htmlgui.cpp
 	htmlgui.h
@@ -268,7 +272,7 @@ endif()
 # (Emscripten) a small bundled font set - there is no real system font store
 # to enumerate inside a browser sandbox, so emfont.cpp instead scans a
 # handful of font files (the standard Dear ImGui sample fonts - see
-# ../imgui/misc/fonts/README.txt) packaged into the Emscripten build's
+# emscripten/fonts/README.txt) packaged into the Emscripten build's
 # virtual filesystem below, at the "fonts" virtual path emfont.cpp reads
 # from. CTadsFont falls back to the ImGui atlas default font for any name
 # that isn't among them, same as it would for a real system with no
@@ -282,7 +286,9 @@ elseif (APPLE)
 		"-framework CoreFoundation"
 	)
 elseif (EMSCRIPTEN)
+	# emfont.cpp reads the font files' names with FreeType
 	target_sources(guit3 PRIVATE emfont.cpp)
+	target_link_libraries(guit3 PRIVATE freetype)
 else()
 	find_package(Fontconfig REQUIRED)
 	target_sources(guit3 PRIVATE fcfont.cpp)
@@ -309,11 +315,12 @@ target_link_libraries(guit3 PRIVATE
 target_include_directories(guit3 PRIVATE
 	.
 	../mpegamp
-	../miniaudio
 )
 
+# miniaudio is the audio output backend (migration.md 3.7)
 target_link_libraries(guit3 PRIVATE
 	Vorbis::vorbisfile
+	miniaudio
 )
 
 if (WIN32)
@@ -330,6 +337,9 @@ if (WIN32)
 	)
 endif()
 
+# The engine's Dear ImGui (with FreeType). Its imgui target carries the
+# sources, so they are compiled into guit3 itself as long as guit3 doesn't
+# link the engine library, which exports ImGui.
 target_link_libraries(guit3 PRIVATE
 	imgui
 )
@@ -478,7 +488,7 @@ if (EMSCRIPTEN)
 		em_package(guit3extragame ${GUIT3_EXTRA_TEST_GAME}@extra.t3)
 	endif()
 
-	# Packages the standard Dear ImGui sample fonts (../imgui/misc/fonts -
+	# Packages the standard Dear ImGui sample fonts (emscripten/fonts -
 	# see that directory's README.txt for the list and licenses) into their
 	# own virtual filesystem entry, mapped to the "fonts" virtual directory
 	# emfont.cpp's os_font_family_is_present()/os_font_data_for_name()/
@@ -486,7 +496,7 @@ if (EMSCRIPTEN)
 	# above and emfont.cpp itself). A separate em_package() call, same
 	# reasoning as ditch3game above - distinct target name, own .data/.js
 	# pair guit3.html loads alongside ditch3game's.
-	em_package(guit3fonts ${CMAKE_CURRENT_SOURCE_DIR}/../imgui/misc/fonts@fonts
+	em_package(guit3fonts ${CMAKE_CURRENT_SOURCE_DIR}/emscripten/fonts@fonts
 		COMPONENT GuiT3)
 
 	# Unlike ditch3game above (a test-only asset nobody minds having to

@@ -6,7 +6,7 @@
  *   Unlike Win32 (guifont_w32.cpp/GDI), Linux (fcfont.cpp/fontconfig) and
  *   macOS (ctfont.cpp/CoreText), there is no installed-font store to query
  *   inside a browser sandbox - Emscripten ships no fontconfig-equivalent
- *   API. Instead, a set of real open-source font files (see ../../imgui/misc/fonts/README.txt for the list and
+ *   API. Instead, a set of real open-source font files (see emscripten/fonts/README.txt for the list and
  *   licenses) is packaged into the Emscripten virtual filesystem at build
  *   time (em_package(guit3fonts ...) in htmltads/imgui/CMakeLists.txt,
  *   mapped to the virtual path FONTS_DIR below) and this backend enumerates
@@ -32,7 +32,7 @@
 #include <ft2build.h>
 #include FT_FREETYPE_H
 #include FT_TRUETYPE_TABLES_H
-#include <imgui/imgui.h>
+#include <imgui.h>
 
 #ifndef TADSFONT_H
 #include "tadsfont.h"
@@ -197,7 +197,7 @@ bool find_face_file(FT_Library ft, const char *family, int weight, int italic,
  *   (non-substituting) FcFontList() call keeps its own answer honest.
  *
  *   The targets are chosen to match the Windows originals as closely as
- *   open fonts allow (see ../imgui/misc/fonts/README.txt): Liberation Sans/
+ *   open fonts allow (see emscripten/fonts/README.txt): Liberation Sans/
  *   Serif/Mono are metric-compatible with Arial/Times New Roman/Courier New
  *   (so line breaks and widths match), Gelasio with Georgia, Comic Relief
  *   with Comic Sans MS; DejaVu Sans is the usual (not metric-exact) stand-in

@@ -16,7 +16,7 @@
 #define _stricmp strcasecmp
 #endif
 
-#include <imgui/imgui.h>
+#include <imgui.h>
 
 #include "tadsfinddlg.h"
 #include "tadsfont.h"        /* CTadsFont::get_dpi_scale() - see migration.md 3.5a */

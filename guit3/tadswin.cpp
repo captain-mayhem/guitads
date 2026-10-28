@@ -32,9 +32,9 @@ Modified
 #include <stdarg.h>
 #include <stdio.h>
 
-#include <imgui/imgui.h>
-#include <imgui/imgui_impl_glfw.h>
-#include <imgui/imgui_impl_opengl3.h>
+#include <imgui.h>
+#include "imgui_impl_glfw.h"
+#include "imgui_impl_opengl3.h"
 
 #ifdef __EMSCRIPTEN__
 #include <emscripten.h>
@@ -58,7 +58,7 @@ Modified
 #ifndef GUIOS_H
 #include "guios.h"
 #endif
-#include "imgui/imgui_internal.h"
+#include <imgui_internal.h>
 
 #ifndef WM_MOUSEWHEEL
 #define WM_MOUSEWHEEL   0x020A                            /* from WinUser.h */

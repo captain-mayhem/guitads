@@ -26,7 +26,7 @@ Modified
 #include "tadsplat.h"
 #endif
 #include <GLFW/glfw3.h>
-#include <imgui/imgui.h>
+#include <imgui.h>
 #include <vector>
 #include <string>
 

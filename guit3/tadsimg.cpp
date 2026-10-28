@@ -37,7 +37,7 @@ Modified
 #ifndef TADSFONT_H
 #include "tadsfont.h"
 #endif
-#include <imgui/imgui_internal.h>
+#include <imgui_internal.h>
 
 /*
  *   Display content-scale factor - the one guit3 uses everywhere, defined in
