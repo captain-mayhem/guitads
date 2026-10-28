@@ -3469,6 +3469,49 @@ headless Chrome (`guit3.html?game=extra`, CDP input, an `AnalyserNode` per Web A
 MNG animation, menus, the toolbar, Ctrl+O with its confirmation box and the blocking file dialog, Enter at the
 prompt, the music, and on Windows paste, copy, a hyperlink click and closing the window.
 
+### 5.27 Moving onto Captain's Game Engine — the platform hooks and the settings store
+
+The `guios.h` hooks that the engine's platform services cover now go through `CGE::Platform` on every
+platform (`guios_common.cpp`), and the settings store (`tadssettings.h`) uses the engine's settings file.
+- **Tick clock:** `os_get_tick_ms()` is `CGE::Platform::getTickMs()`.
+- **Wait cursor:** `os_set_wait_cursor()` sets `CGE::Platform::CURSOR_WAIT`, which takes effect at once, also
+  while the operation blocks the frame loop; the token is the previous cursor. Off Windows this was a no-op
+  before (GLFW had no busy cursor).
+- **URLs:** `os_open_url()` converts the URL from the local code page (`CP_ACP`) to UTF-8 and calls
+  `CGE::Platform::openUrl()`: ShellExecute on Windows, a detached `xdg-open` on Linux (the engine now also
+  calls `setsid()`, as guit3's own double fork did), a new tab on the web. On the web this used to fail
+  (`fork()` in wasm), so hyperlinks to web pages and the Help menu's web pages now open there.
+- **What stays per platform:** `guios_w32.cpp` and `guios_portable.cpp` keep the hooks the engine has no
+  service for: system colors (E), the bundled resources (B), the character-set conversion (K), the
+  keyboard layout queries and accelerator tables (L) and the debug console (M).
+- **Settings:** one backend for every platform, `tadssettings.cpp`, on `CGE::Settings::user()`: the engine's
+  `settings.ini` in the folder of `appName = "guit3"` (`%APPDATA%\guit3`, `$XDG_CONFIG_HOME/guit3`, and on
+  the web `/IDBFS/guit3`, kept in IndexedDB). `tadssettings_w32.cpp` (the registry) and
+  `tadssettings_portable.cpp` (an INI file) are deleted. A key path `A\B\C` is the group `A/B/C`; key and
+  value names are percent-encoded where the file format gives a character a meaning (`/`, `=`, line breaks,
+  a leading `[`, `;` or `#`), since the "Game Profiles" value names are game file paths. Values keep the old
+  text form (decimal numbers, `Yes`/`No`). The engine keeps a group only while it has values, so keys
+  created empty are remembered for the session. On the desktop the store is saved when a key is closed or
+  deleted (the old backends wrote at once; the engine itself saves only at shutdown); on the web the engine
+  saves after every frame, pumped ones too, and saving per key as well started overlapping IndexedDB syncs.
+- **The import:** on the first start (no `imported` value in the file) the old settings are copied once: on
+  Windows the registry tree `HKEY_CURRENT_USER\Software\TADS\HTML TADS\3.0\Settings` (`REG_SZ` and
+  `REG_BINARY` values; others are skipped), on Linux the old file `$XDG_CONFIG_HOME/HTML TADS 3/settings.ini`
+  (read by its own small parser: its names weren't escaped, so the engine's parser can't read them back).
+  The old settings stay where they are. **Decided:** the classic HTML TADS interpreter shares that registry
+  key, so until now both interpreters shared themes and options on Windows; after the import they don't.
+- `load_menu_with_profiles()` (dead native-menu code) used the registry directly; it uses `CTadsSettings`
+  now, and the registry stubs in `tadsplat.h` are gone.
+
+**How it was verified:** Windows (the registry's settings plus test values with `/`, `=`, `%`, a leading `#`,
+a binary and a DWORD value: all imported as expected, the DWORD skipped; a theme color edited in the file
+shows in the game; picking a theme for a game writes the association at once and it applies after a
+restart; the registry is unchanged afterwards). Linux (an old-style file with a `/` in a name, escapes and a
+binary value is imported, its `Show Timer=0` hides the timer, and the Themes menu lists the imported theme;
+clicking an `http:` link starts `xdg-open` in its own session with the decoded URL, and guit3 stays
+responsive while it hangs). Web (a link click calls `window.open(url, "_blank")`; a theme picked for the game
+is still applied after reloading the page).
+
 ## 6. Working notes for a fresh session
 
 ### Building and running

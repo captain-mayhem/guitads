@@ -15,14 +15,12 @@
  *   of Settings\Profiles" and a flat key/value file would not give that for
  *   free.
  *
- *   One backend is selected per platform by CMake.  The Win32 backend
- *   (tadssettings_w32.cpp) is CTadsRegistry lifted verbatim, so the Windows
- *   build is byte-identical; the non-Windows backend
- *   (tadssettings_portable.cpp) is an INI-style file under
- *   $XDG_CONFIG_HOME / ~/Library/Preferences - migration.md's M3 work,
- *   landed but unverified until there's a real non-Windows build to run it
- *   on (M4).  See section 5.4 item C.  This mirrors the
- *   os_font_family_is_present() / guios.h precedent.
+ *   One backend serves every platform (tadssettings.cpp): the engine's
+ *   settings file (CGE::Settings::user()), with the old registry settings
+ *   (Windows) or the old INI file (Linux) imported once on the first start.
+ *   Until migration.md 5.27 there was one backend per platform, the
+ *   registry (tadssettings_w32.cpp) and an INI file
+ *   (tadssettings_portable.cpp).  See section 5.4 item C.
  */
 
 #ifndef TADSSETTINGS_H
@@ -36,9 +34,8 @@
 
 
 /*
- *   An opaque handle to an open settings key.  On Windows this is really an
- *   HKEY; neutral code must not assume anything about it beyond "null means
- *   failure".
+ *   An opaque handle to an open settings key.  Callers must not assume
+ *   anything about it beyond "null means failure".
  */
 typedef struct tads_settings_key_opaque *tads_settings_key_t;
 
@@ -65,14 +62,13 @@ class CTadsSettings
 public:
     /*
      *   Open the settings key at the given backslash-delimited path, relative
-     *   to the current user's settings root (Windows: HKEY_CURRENT_USER).  If
-     *   'create' is true the key and any missing parents are created;
-     *   otherwise a missing key yields a null return.  Close the result with
-     *   close_key().
+     *   to the current user's settings root.  If 'create' is true the key
+     *   and any missing parents are created; otherwise a missing key yields
+     *   a null return.  Close the result with close_key().
      */
     static tads_settings_key_t open_key(const textchar_t *path, int create);
 
-    /* close a key opened with open_key() */
+    /* close a key opened with open_key(), saving the changes made */
     static void close_key(tads_settings_key_t key);
 
     /* is a value with the given name set under this key? */

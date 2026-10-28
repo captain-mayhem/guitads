@@ -91,9 +91,10 @@ add_executable(guit3
 
 	# guit3 OS-service platform hooks (shell, system colors, clipboard,
 	# cursors, tick clock) - neutral header + hooks that are the same code
-	# everywhere (guios_common.cpp) + one per-platform backend selected
-	# below.  Same shape as guifont.cpp's os_font_family_is_present().  See
-	# migration.md 5.4/D-F and 5.5.
+	# everywhere, mostly on the engine's platform services
+	# (guios_common.cpp) + one per-platform backend selected below.  Same
+	# shape as guifont.cpp's os_font_family_is_present().  See
+	# migration.md 5.4/D-F, 5.5 and 5.27.
 	guios.h
 	guios_common.cpp
 	# embedded runtbar.bmp byte array, generated with `xxd -i`, and the
@@ -104,12 +105,12 @@ add_executable(guit3
 	guires_data.cpp
 
 	# Persistent settings store (app options, per-theme "profile" trees,
-	# per-game theme associations) - neutral interface + one backend per
-	# platform, replacing CTadsRegistry / the inline Reg* calls.  The Win32
-	# backend is that registry code lifted verbatim; the non-Windows backend
-	# is an INI-style file under $XDG_CONFIG_HOME / ~/Library/Preferences.
-	# See migration.md 5.4/C and 5.5 (M2/A2).
+	# per-game theme associations) - neutral interface, replacing
+	# CTadsRegistry / the inline Reg* calls, on the engine's settings file
+	# for every platform; the old registry settings (Windows) or INI file
+	# (Linux) are imported once.  See migration.md 5.4/C and 5.27.
 	tadssettings.h
+	tadssettings.cpp
 	guisnd.cpp
 	guisnd.h
 	guiimg.cpp
@@ -249,20 +250,12 @@ else()
 endif()
 
 # guios.h per-platform backend: the Win32 code lifted verbatim, or the
-# portable (GLFW / POSIX) implementation.  guios_common.cpp (above) carries
-# the hooks that are identical on both.  See migration.md 5.4/D-F.
+# portable implementation.  guios_common.cpp (above) carries the hooks that
+# are identical on both.  See migration.md 5.4/D-F.
 if (WIN32)
 	target_sources(guit3 PRIVATE guios_w32.cpp)
 else()
 	target_sources(guit3 PRIVATE guios_portable.cpp)
-endif()
-
-# tadssettings.h per-platform backend: the registry code lifted verbatim, or
-# the portable INI-file implementation.  See migration.md 5.4/C.
-if (WIN32)
-	target_sources(guit3 PRIVATE tadssettings_w32.cpp)
-else()
-	target_sources(guit3 PRIVATE tadssettings_portable.cpp)
 endif()
 
 # tadsfont.h's os_font_family_is_present()/os_font_data_for_name()/

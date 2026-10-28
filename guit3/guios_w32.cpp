@@ -2,10 +2,11 @@
  *   guios_w32.cpp - Win32 backend for the guit3 OS-service hooks (guios.h)
  *
  *   Each function here is the Windows code that used to be inlined at the
- *   call site, moved behind the neutral guios.h interface unchanged.  A
- *   future non-Windows port supplies its own file implementing the same
- *   hooks (xdg-open, the ImGui style palette, ...);
- *   CMake picks exactly one backend per build.  See migration.md 5.4/D-F.
+ *   call site, moved behind the neutral guios.h interface unchanged.
+ *   guios_portable.cpp implements the same hooks off Windows; CMake picks
+ *   exactly one backend per build.  The hooks the engine's platform services
+ *   cover (clipboard, tick clock, wait cursor, URLs) are in
+ *   guios_common.cpp.  See migration.md 5.4/D-F and 5.27.
  */
 
 #include <windows.h>
@@ -20,39 +21,6 @@
 #ifndef MAPVK_VK_TO_CHAR
 #define MAPVK_VK_TO_CHAR   2
 #endif
-
-
-/* ------------------------------------------------------------------------ */
-/*
- *   D. Wait cursor
- */
-
-os_cursor_token_t os_set_wait_cursor(void)
-{
-    /* stock cursors are cached by the OS, so LoadCursor() on demand is fine */
-    return (os_cursor_token_t)SetCursor(LoadCursor(NULL, IDC_WAIT));
-}
-
-void os_restore_cursor(os_cursor_token_t prev)
-{
-    SetCursor((HCURSOR)prev);
-}
-
-
-/* ------------------------------------------------------------------------ */
-/*
- *   F. Shell integration
- */
-
-int os_open_url(const char *url)
-{
-    /*
-     *   ShellExecute returns a value <= 32 on failure; that's the same
-     *   success test the call sites (process_command(), the Help > TADS on
-     *   the Web menu item) used inline.
-     */
-    return (INT_PTR)ShellExecute(0, "open", url, 0, 0, SW_SHOWNORMAL) > 32;
-}
 
 
 /* ------------------------------------------------------------------------ */

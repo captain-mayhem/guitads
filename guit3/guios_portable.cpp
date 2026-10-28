@@ -4,12 +4,10 @@
  *
  *   This is the cross-platform counterpart of guios_w32.cpp: same hooks, no
  *   <windows.h>.  CMake selects exactly one backend per build - guios_w32.cpp
- *   on WIN32, this file everywhere else (see htmltads/imgui/CMakeLists.txt).
+ *   on WIN32, this file everywhere else (see guit3/CMakeLists.txt).
  *
- *   Coverage as of M3 (see migration.md 5.4/B, D-F, K, 5.5):
- *     - D. wait cursor ...... no-op (see below)
+ *   Coverage (see migration.md 5.4/B, D-F, K, 5.5):
  *     - E. system colors .... fixed sensible values
- *     - F. shell ............ xdg-open / open via fork+exec
  *     - B. resources ........ string table (guios_common.cpp) + the embedded
  *                              runtbar.bmp / license.txt byte arrays
  *                              (guires_data.h)
@@ -17,12 +15,9 @@
  *                              a small codepage-number -> table-name map
  *                              (below)
  *
- *   D's tick clock is platform-independent (std::chrono) and lives in the
- *   shared guios_common.cpp, not here.
- *
- *   The build gate in CMakeLists.txt (if NOT WIN32 return()) is still
- *   closed, so nothing links this yet - that gate lifts in M4, which is also
- *   the first time any of this can actually be exercised.
+ *   The clipboard, the tick clock, the wait cursor and opening URLs (D, F)
+ *   go through the engine's platform services and live in the shared
+ *   guios_common.cpp, not here (migration.md 5.27).
  */
 
 #ifdef _WIN32
@@ -32,100 +27,11 @@
 #include <cstdio>
 #include <cstring>
 
-#include <unistd.h>
-#include <sys/types.h>
-#include <sys/wait.h>
-
 #include "tadshtml.h"     /* th_malloc / th_free */
 #include "guios.h"
 #include "htmlres.h"      /* IDS_* string ids */
 #include "charmap.h"      /* CCharmapToUni / CCharmapToLocal - item K */
 #include "resload.h"      /* CResLoader - finds charmap/<name>.tcm files */
-
-
-/* ------------------------------------------------------------------------ */
-/*
- *   D. Wait cursor
- *
- *   GLFW 3.5 has no busy/hourglass standard cursor (only arrow, I-beam,
- *   crosshair, hand, the resize shapes and not-allowed), and the operations
- *   that want a busy cursor block the frame loop, so there is nothing useful
- *   to set here yet.  guit3 already shows a "Working..." status-line message
- *   alongside every one of these, so the visual cue is not lost.  A real busy
- *   cursor would need a bundled image fed through glfwCreateCursor() - future
- *   work, tracked with item B's other embedded assets.
- */
-os_cursor_token_t os_set_wait_cursor(void)
-{
-    return NULL;
-}
-
-void os_restore_cursor(os_cursor_token_t /*prev*/)
-{
-}
-
-
-/* ------------------------------------------------------------------------ */
-/*
- *   F. Shell integration
- */
-int os_open_url(const char *url)
-{
-#if defined(__APPLE__)
-    const char *opener = "open";
-#else
-    const char *opener = "xdg-open";
-#endif
-
-    pid_t pid = fork();
-    if (pid < 0)
-        return 0;
-
-    if (pid == 0)
-    {
-        /*
-         *   First-generation child.  Detach from our process group/session
-         *   so the opener/browser outlives us, then fork *again* (the
-         *   classic "double fork" daemonizing idiom) before handing off to
-         *   the platform opener in the grandchild.
-         *
-         *   This second fork is what actually matters here: xdg-open isn't
-         *   guaranteed to background itself before its handler exits - on
-         *   at least one real system (WSLg, no desktop portal/session
-         *   bus), its shell script forks the browser as its own child and
-         *   then just sits there instead of exiting, so the browser stays
-         *   under xdg-open the whole time it's open. A single-fork parent
-         *   blocked in waitpid() on that xdg-open process would then hang
-         *   for as long as the browser stays open, not just for the
-         *   handoff - which is exactly what happened when this hung guit3
-         *   launching a Web UI game under WSL. Forking again means we only
-         *   ever wait on the first-generation child below, which exits
-         *   immediately regardless of how the opener chain behaves; the
-         *   grandchild (and whatever it execs) gets reparented to init.
-         */
-        setsid();
-        pid_t pid2 = fork();
-        if (pid2 == 0)
-        {
-            execlp(opener, opener, url, (char *)NULL);
-            _exit(127);
-        }
-        _exit(pid2 > 0 ? 0 : 1);
-    }
-
-    /*
-     *   Parent - wait only on the first-generation child, which exits
-     *   right away per the above, so this can no longer block on the
-     *   opener or the browser it launches.  Its exit status only tells us
-     *   whether the second fork() succeeded, not whether the opener itself
-     *   later found a working browser - that's the trade-off for never
-     *   hanging here.
-     */
-    int status = 0;
-    if (waitpid(pid, &status, 0) != pid)
-        return 0;
-    return WIFEXITED(status) && WEXITSTATUS(status) == 0;
-}
 
 
 /* ------------------------------------------------------------------------ */

@@ -79,7 +79,7 @@ void w32_webui_to_foreground()
  *   guit3.exe - see win32/osnet-connect.cpp's launch_tadsweb(), which looks
  *   for tadsweb.exe next to the running executable), so registering this
  *   hook (see guimain.cpp) replaces that lookup with os_open_url() (guios.h)
- *   - ShellExecute "open" on Windows, xdg-open/"open" elsewhere - which
+ *   - ShellExecute "open" on Windows, xdg-open on Linux - which
  *   works with whatever browser the user has set as their default.
  *
  *   This gives up a few things the tadsweb.exe/named-pipe protocol
@@ -95,8 +95,7 @@ int guit3_webui_launch_hook(const char *addr, int port, const char *path,
     /*
      *   Under Emscripten the "server" is the in-memory loopback transport
      *   (tads3/emscripten/osnetloop.h), not a real socket, so there's no
-     *   URL a browser could open - and os_open_url() can't work here
-     *   anyway (it fork()s, which always fails in wasm). Returning failure
+     *   URL a browser could open in another tab. Returning failure
      *   would make connectWebUI() throw and the game shut its HTTPServer
      *   straight back down. Instead, just hand the loopback port and start
      *   page path to JS: Module.webuiLaunch records them, a

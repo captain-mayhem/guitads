@@ -11230,8 +11230,7 @@ void CHtmlSys_mainwin::init_menu_popup(HMENU menuhdl, unsigned int pos,
 void CHtmlSys_mainwin::load_menu_with_profiles(HMENU menuhdl)
 {
     unsigned int pos;
-    HKEY key;
-    DWORD disposition;
+    tads_settings_key_t key;
     const textchar_t *active;
     const textchar_t *dflt;
     char base_key[256];
@@ -11248,19 +11247,14 @@ void CHtmlSys_mainwin::load_menu_with_profiles(HMENU menuhdl)
 
     /* enumerate the profiles, and add a menu item for each one */
     sprintf(base_key, "%s\\Profiles", w32_pref_key_name);
-    if (RegCreateKeyEx(HKEY_CURRENT_USER, base_key, 0, 0, 0, KEY_ALL_ACCESS,
-                       0, &key, &disposition) != ERROR_SUCCESS)
-        key = 0;
+    key = CTadsSettings::open_key(base_key, TRUE);
     for (key_idx = 0, pos = 0 ; ; ++key_idx, ++pos)
     {
         char subkey[128];
-        DWORD len;
-        FILETIME ft;
-        
-        /* get the next profile name from the registry */
-        len = sizeof(subkey);
-        if (RegEnumKeyEx(key, key_idx, subkey, &len, 0, 0, 0, &ft)
-            != ERROR_SUCCESS)
+
+        /* get the next profile name from the settings store */
+        if (CTadsSettings::enum_subkeys(key, key_idx, subkey, sizeof(subkey))
+            != TADS_SETTINGS_ENUM_OK)
             break;
         
         /* set up to insert a menu item for the menu */
@@ -11286,7 +11280,7 @@ void CHtmlSys_mainwin::load_menu_with_profiles(HMENU menuhdl)
 
     /* done with the key */
     if (key != 0)
-        RegCloseKey(key);
+        CTadsSettings::close_key(key);
 
     /* add a separator */
     info.cbSize = menuiteminfo_size_;

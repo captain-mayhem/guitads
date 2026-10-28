@@ -3,13 +3,15 @@
  *   hooks (guios.h)
  *
  *   Most guios.h hooks have a genuinely different implementation per platform
- *   and live in guios_w32.cpp / guios_portable.cpp.  A few are the same C++
- *   everywhere; those live here, and this file is compiled into every build
- *   alongside exactly one of the per-platform backends (see
- *   htmltads/imgui/CMakeLists.txt).
+ *   and live in guios_w32.cpp / guios_portable.cpp.  The ones that are the
+ *   same C++ everywhere, mostly because the engine's platform services
+ *   (CGE::Platform) do the per-platform work, live here: the clipboard, the
+ *   tick clock, the wait cursor and opening URLs.  This file is compiled
+ *   into every build alongside exactly one of the per-platform backends
+ *   (see guit3/CMakeLists.txt).
  */
 
-#include <chrono>
+#include <cstdint>
 #include <cstring>
 #include <string>
 
@@ -119,20 +121,57 @@ ImGuiKey gui_key_to_imgui(int key)
 /*
  *   D. Millisecond tick clock
  *
- *   std::chrono::steady_clock is monotonic and high-resolution on every
- *   target we care about (MSVC backs it with QueryPerformanceCounter), which
- *   makes it a strict upgrade over the old Win32 GetTickCount() - finer
- *   granularity, and callers only ever diff two readings anyway.  Measured
- *   from the first call; as an unsigned long the count wraps after ~49 days
- *   of process uptime where long is 32-bit (Windows) and effectively never
- *   where it is 64-bit.
+ *   The engine's steady clock (CGE::Platform::getTickMs()), measured from
+ *   its first call.  As an unsigned long the count wraps after ~49 days of
+ *   process uptime where long is 32-bit (Windows) and effectively never
+ *   where it is 64-bit; callers only ever diff two readings.
  */
 unsigned long os_get_tick_ms(void)
 {
-    using namespace std::chrono;
-    static const steady_clock::time_point start = steady_clock::now();
-    return (unsigned long)
-        duration_cast<milliseconds>(steady_clock::now() - start).count();
+    return (unsigned long)CGE::Platform::getTickMs();
+}
+
+
+/* ------------------------------------------------------------------------ */
+/*
+ *   D. Wait cursor
+ *
+ *   CGE::Platform::setCursor() takes effect at once, also while the
+ *   operation blocks the frame loop.  The token is the previous
+ *   CGE::Platform::Cursor.  The engine's ImGui backend sets ImGui's cursor
+ *   again in the next frame anyway.
+ */
+os_cursor_token_t os_set_wait_cursor(void)
+{
+    CGE::Platform::Cursor prev = CGE::Platform::getCursor();
+    CGE::Platform::setCursor(CGE::Platform::CURSOR_WAIT);
+    return (os_cursor_token_t)(intptr_t)prev;
+}
+
+void os_restore_cursor(os_cursor_token_t prev)
+{
+    CGE::Platform::setCursor((CGE::Platform::Cursor)(intptr_t)prev);
+}
+
+
+/* ------------------------------------------------------------------------ */
+/*
+ *   F. Shell integration
+ *
+ *   CGE::Platform::openUrl(): ShellExecute "open" on Windows, xdg-open
+ *   (detached) on Linux, a new browser tab on the web.  It takes UTF-8; the
+ *   URLs come from the game's text in the local code page, so they're
+ *   converted first (ASCII, which nearly every URL is, stays the same).
+ */
+int os_open_url(const char *url)
+{
+    char *utf8 = os_local_to_utf8(0 /* CP_ACP */, url, strlen(url), NULL);
+    if (utf8 == NULL)
+        return 0;
+
+    int ok = CGE::Platform::openUrl(utf8) ? 1 : 0;
+    th_free(utf8);
+    return ok;
 }
 
 /* ------------------------------------------------------------------------ */

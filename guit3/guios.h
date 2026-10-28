@@ -5,14 +5,13 @@
  *   guit3 GUI layer still needs but that the engine/ImGui/FreeType don't provide:
  *   shell integration, system colors, the clipboard, mouse cursors, the
  *   millisecond tick clock, character-set conversion and keyboard-layout
- *   queries.  Each hook is declared here once and implemented per platform
- *   in a companion file selected by CMake (today only the Win32 backend,
- *   guios_w32.cpp, exists); this mirrors the os_font_family_is_present()
- *   precedent in tadsfont.h / guifont.cpp.  See migration.md section 5.4
- *   (items D, E, F, K, L) and the "M2 / A2" note in section 5.5.
- *
- *   Introducing these hooks does not change behavior on Windows: every
- *   backend below is the current call-site code lifted verbatim.
+ *   queries.  Each hook is declared here once and implemented either once
+ *   for every platform (guios_common.cpp, mostly on the engine's platform
+ *   services, CGE::Platform) or per platform in a companion file selected
+ *   by CMake (guios_w32.cpp, guios_portable.cpp); this mirrors the
+ *   os_font_family_is_present() precedent in tadsfont.h / guifont.cpp.  See
+ *   migration.md section 5.4 (items D, E, F, K, L), the "M2 / A2" note in
+ *   section 5.5, and 5.27.
  */
 
 #ifndef GUIOS_H
@@ -30,7 +29,7 @@
  *   double-click timing, "Working..." throttling, elapsed play time, drag
  *   auto-scroll pacing).  Only the difference between two readings is
  *   meaningful.  Implemented once for every platform (guios_common.cpp) on
- *   std::chrono::steady_clock, measured from the first call.
+ *   the engine's steady clock, CGE::Platform::getTickMs().
  */
 unsigned long os_get_tick_ms(void);
 
@@ -76,7 +75,8 @@ char *os_clipboard_get_text(void);
  *   would never be applied.  os_set_wait_cursor() sets the OS-level busy
  *   cursor immediately and returns an opaque token for the previously-active
  *   cursor; os_restore_cursor() takes that token back once the operation
- *   completes.  Callers that don't restore just ignore the token.
+ *   completes.  Callers that don't restore just ignore the token.  Both use
+ *   CGE::Platform::setCursor(), on every platform.  (guios_common.cpp)
  */
 typedef void *os_cursor_token_t;
 
@@ -90,9 +90,11 @@ void os_restore_cursor(os_cursor_token_t prev);
  */
 
 /*
- *   Open a URL in the user's default web browser (Windows: ShellExecute
- *   "open"; later: xdg-open / "open").  Returns nonzero on success.  Callers
- *   that don't surface an error can ignore the result.
+ *   Open a URL, given in the local code page, in the user's default web
+ *   browser, through CGE::Platform::openUrl() (Windows: ShellExecute "open";
+ *   Linux: xdg-open; the web: a new tab).  Returns nonzero on success.
+ *   Callers that don't surface an error can ignore the result.
+ *   (guios_common.cpp)
  */
 int os_open_url(const char *url);
 

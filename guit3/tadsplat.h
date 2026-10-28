@@ -1380,23 +1380,6 @@ inline UINT IsDlgButtonChecked(HWND, int) { return 0; }
 #define BST_CHECKED   1
 #define BST_UNCHECKED 0
 
-/* registry API - dead, backs only the pre-M2 native registry preference
-   store (tadssettings_w32.cpp is the live Windows backend; guit3 off
-   Windows uses tadssettings_portable.cpp's INI file instead, migration.md
-   5.4/C) and a couple of vestigial direct RegEnumKeyEx call sites
-   (htmlpref.cpp/htmlgui.cpp) not yet routed through that interface. */
-typedef void *HKEY;
-#define HKEY_CURRENT_USER ((HKEY)1)
-#define KEY_ALL_ACCESS 0x000F003F
-#define ERROR_SUCCESS 0L
-inline long RegCloseKey(HKEY) { return ERROR_SUCCESS; }
-inline long RegCreateKeyEx(HKEY, LPCSTR, DWORD, LPSTR, DWORD, DWORD, void *,
-                           HKEY *out, DWORD *)
-    { if (out) *out = 0; return 1; }
-inline long RegEnumKeyEx(HKEY, DWORD, LPSTR buf, DWORD *n, DWORD *, LPSTR,
-                         DWORD *, void *)
-    { if (buf && n && *n > 0) buf[0] = 0; return 1; }
-
 /* process / crash-handler API - dead off Windows: exc_handler() (guimain.cpp)
    is real Win32 SEH and stays Windows-only regardless (migration.md 5.4/M). */
 inline HANDLE GetCurrentProcess() { return 0; }
