@@ -1,18 +1,21 @@
-## Licensing: an honest assessment
+## Licensing
+The license differs on a per-file basis.
+Parts are under GPL, parts are under HTML TADS freeware license.
 
-> This is an engineering assessment, not legal advice. It is based on a line-by-line comparison of
-> every guit3 file against the original HTML TADS import (htmltads commit
-> `b1a60cf`).
+The assessment is based on a line-by-line comparison of
+every guit3 file against the original HTML TADS import (htmltads commit `b1a60cf`).
 
 **guit3 is not GPL software today.**
 
-- Only about **10% of guit3** (≈7,200 of ≈75,000 lines) is newly written code.
+- Only about **10% of guit3** (≈7,700 of ≈76,000 lines) is newly written code.
   The rest is Michael J. Roberts' Win32 client code, adapted to varying
   degrees. That code is covered by the **HTML TADS Freeware Source Code
   License**.
 - **Freeware path.** The HTML TADS license explicitly permits *ports to new
   platforms*, and guit3 is one. Distribute guit3 under that license: free of
-  charge, with the license text and your contact details included.
+  charge, with the license text and your contact details included. guit3
+  embeds this file at build time and shows it in its License dialog, so
+  every copy of the program carries the license text.
 
 ## Which license covers which file
 
@@ -31,7 +34,12 @@ originals:
 `tadsplat.h`, `guios.h`, `guios_common.cpp`, `guios_portable.cpp`,
 `tadsfiledlg.*`, `tadsfinddlg.*`, `tadsfolderdlg.*`, `tadslicensedlg.*`,
 `tadssettings.h`, `tadssettings_portable.cpp`, `tadsaudiodev.*`, `fcfont.cpp`,
-`ctfont.cpp`, `emfont.cpp`, `emscripten/*`, `CMakeLists.txt`, `*.md`
+`ctfont.cpp`, `emfont.cpp`, `guiengine.*`, `guikeys.h`, `engine.ini`,
+`embed_file.cmake`, `emscripten/*` (except `emscripten/fonts/`, see below),
+`CMakeLists.txt`, `*.md`
+
+**Own artwork in `guit3/`**: `about3.jpg` (the About box background, a new
+image replacing the original HTML TADS one) and its source `about3.xcf`.
 
 **Still under the HTML TADS freeware license**
 
@@ -54,14 +62,24 @@ originals:
   `tadskb.*`, `tadssnd.*`, `tadsstat.*`, `tadswav.*`, `tadsvorb.cpp`,
   `tadsimg.*`, `tadsfont.*`, `tadspng.cpp`, `tadscsnd.*`, `guifont.cpp`,
   `guifont_w32.cpp`, `tadssettings_w32.cpp`
-- `guit3/`, assets: `about3.jpg`, and `guires_data.*` (embeds
-  `runtbar.bmp` and the license text)
+- `guit3/`, assets: `guires_data.*` (embeds the original toolbar bitmap
+  `runtbar.bmp`). The old HTML TADS license text (`notes3/license.txt`) is no
+  longer embedded; the License dialog shows this file instead.
 - `guit3/`, grey zone: `guios_w32.cpp`. It has only ~9% verbatim overlap, but
   by its own description it is Win32 call-site code moved unchanged. It is
   small enough to rewrite.
 
-**Third-party libraries**: zlib, libpng, IJG jpeg, libmng, GLFW, FreeType,
-Dear ImGui, libogg/libvorbis and miniaudio. All are GPLv3-compatible.
+**Third-party libraries**: libmng (in this repository); zlib, libpng, IJG
+jpeg, FreeType, Dear ImGui, libogg/libvorbis and miniaudio (brought in by
+Captain's Game Engine, which guit3 runs on and which is itself under the
+LGPL 2.1). All are GPLv3-compatible.
+
+**Fonts** (`guit3/emscripten/fonts/`, packaged only for the web build as
+separate data files, not compiled into guit3): Liberation, Gelasio, Comic
+Relief and Karla under the SIL Open Font License 1.1, DejaVu Sans under the
+Bitstream Vera / DejaVu license, Cousine, Droid Sans and Roboto under the
+Apache License 2.0, Proggy Clean/Tiny in the public domain. See
+`emscripten/fonts/README.txt` and `emscripten/fonts/licenses/`.
 
 -----------------------------------------------------------------------------
 
@@ -116,7 +134,7 @@ guit3 port
 The guit3 port is Copyright 2026 by Marco Staginski only concerning
 modifications of the original source code in accordance with the porting 
 permission of this license. The original copyrights remain on all
-parts that are nor specific to this port.
+parts that are not specific to this port.
 
 
 ---------------------------------------------------------------

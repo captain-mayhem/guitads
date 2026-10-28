@@ -1,12 +1,11 @@
 /*
  *   tadslicensedlg.cpp - ImGui-native "License Information" dialog (guit3)
  *
- *   See tadslicensedlg.h for the overall design.  The license text comes
- *   from the IDX_LICENSE_TEXT "TEXTFILE" resource (../notes3/license.txt,
- *   embedded via ../win32/htmlt3.rc) the old Win32 LicenseDlg loaded into its
- *   EDITTEXT control, now fetched through os_load_license_text() (migration.md
- *   5.4/B - the Win32 backend is still the same FindResource() lookup; a
- *   portable backend will supply an embedded byte array instead).
+ *   See tadslicensedlg.h for the overall design.  The old Win32 LicenseDlg
+ *   loaded the IDX_LICENSE_TEXT "TEXTFILE" resource (../notes3/license.txt)
+ *   into its EDITTEXT control; the text now comes from the repository's
+ *   LICENSE file, embedded at build time (guires_data.h, embed_file.cmake)
+ *   and fetched through os_load_license_text() (migration.md 5.4/B).
  */
 
 #include <string>
@@ -79,9 +78,25 @@ namespace
             ImVec2(vp->Pos.x + vp->Size.x * 0.5f, vp->Pos.y + vp->Size.y * 0.5f),
             ImGuiCond_Appearing, ImVec2(0.5f, 0.5f));
 
-        /* same design size as the old DLG_LICENSE resource (400x300) */
+        /*
+         *   The old DLG_LICENSE resource's height (300), but wide enough for
+         *   the text's longest line - the multiline text field only scrolls
+         *   vertically.  Never narrower than the old 400, never wider than
+         *   the main window.
+         */
         if (just_opened)
-            ImGui::SetNextWindowSize(ImVec2(400 * s, 300 * s), ImGuiCond_Appearing);
+        {
+            const ImGuiStyle &style = ImGui::GetStyle();
+            float wid = ImGui::CalcTextSize(s_dlg.text.c_str()).x
+                        + 2.0f * style.FramePadding.x
+                        + 2.0f * style.WindowPadding.x
+                        + style.ScrollbarSize;
+            if (wid < 400 * s)
+                wid = 400 * s;
+            if (wid > vp->Size.x)
+                wid = vp->Size.x;
+            ImGui::SetNextWindowSize(ImVec2(wid, 300 * s), ImGuiCond_Appearing);
+        }
 
         bool p_open = true;
         if (!ImGui::BeginPopupModal(popup_id, &p_open, ImGuiWindowFlags_NoResize))

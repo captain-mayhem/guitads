@@ -96,8 +96,9 @@ add_executable(guit3
 	# migration.md 5.4/D-F and 5.5.
 	guios.h
 	guios_common.cpp
-	# embedded runtbar.bmp / license.txt byte arrays, generated with
-	# `xxd -i` - the only source off Windows, and the fallback on Windows
+	# embedded runtbar.bmp byte array, generated with `xxd -i`, and the
+	# license text, generated at build time from ../LICENSE (see the end of
+	# this file) - the only source off Windows, and the fallback on Windows
 	# when the .exe has no resources.  See migration.md 5.4/B.
 	guires_data.h
 	guires_data.cpp
@@ -605,6 +606,26 @@ if (EMSCRIPTEN)
 endif()
 
 tads_source_group(guit3 ${HTMLTADS_DIR})
+
+# The License dialog's text (g_license_txt_data, guires_data.h): the
+# repository's LICENSE file as a byte array, regenerated whenever it changes.
+# Added after tads_source_group(), whose source_group(TREE) rejects files
+# outside the source tree.
+add_custom_command(
+	OUTPUT ${CMAKE_CURRENT_BINARY_DIR}/guires_license.cpp
+	COMMAND ${CMAKE_COMMAND}
+		-DINPUT=${CMAKE_CURRENT_SOURCE_DIR}/../LICENSE
+		-DOUTPUT=${CMAKE_CURRENT_BINARY_DIR}/guires_license.cpp
+		-DNAME=g_license_txt
+		-P ${CMAKE_CURRENT_SOURCE_DIR}/embed_file.cmake
+	DEPENDS
+		${CMAKE_CURRENT_SOURCE_DIR}/../LICENSE
+		${CMAKE_CURRENT_SOURCE_DIR}/embed_file.cmake
+	COMMENT "Embedding LICENSE into guit3"
+	VERBATIM
+)
+target_sources(guit3 PRIVATE ${CMAKE_CURRENT_BINARY_DIR}/guires_license.cpp)
+source_group(Generated FILES ${CMAKE_CURRENT_BINARY_DIR}/guires_license.cpp)
 
 install(TARGETS guit3
 	DESTINATION .

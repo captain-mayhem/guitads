@@ -181,7 +181,7 @@ unsigned char *os_load_toolbar_rgba(int *width, int *height);
 char *os_load_license_text(size_t *len);
 
 /*
- *   The embedded copies of runtbar.bmp and license.txt (guires_data.h)
+ *   The embedded copies of runtbar.bmp and LICENSE (guires_data.h)
  *   that the two hooks above use where there are no compiled resources.
  *   Same contracts.  (guios_common.cpp)
  */

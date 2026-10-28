@@ -6,9 +6,10 @@
  *   Windows pulls the toolbar icon strip and the license text out of the
  *   compiled-in .exe resources (IDB_TERP_TOOLBAR / IDX_LICENSE_TEXT -
  *   win32/runtbar.bmp and notes3/license.txt); there is no resource
- *   compiler off Windows, so this file embeds the same two source files
- *   directly as byte arrays, mechanically generated with `xxd -i` from the
- *   originals and never hand-edited.  See migration.md 5.4/B.
+ *   compiler off Windows, so this file embeds them directly as byte
+ *   arrays: the bitmap mechanically generated with `xxd -i` and never
+ *   hand-edited, the license text generated at build time from the
+ *   repository's LICENSE file (embed_file.cmake).  See migration.md 5.4/B.
  */
 
 #ifndef GUIRES_DATA_H
@@ -18,7 +19,8 @@
 extern const unsigned char g_runtbar_bmp_data[];
 extern const unsigned int g_runtbar_bmp_size;
 
-/* notes3/license.txt - the license text shown by the License dialog */
+/* ../LICENSE - the license text shown by the License dialog (defined in the
+   generated guires_license.cpp) */
 extern const unsigned char g_license_txt_data[];
 extern const unsigned int g_license_txt_size;
 
