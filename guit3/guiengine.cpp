@@ -16,6 +16,43 @@
 
 #include "guiengine.h"
 
+#if defined(_WIN32) && defined(T3_DEBUG)
+#include <cstdlib>
+#include <new>
+
+/*
+ *   The plain global new and delete, in place of the T3 debug heap's
+ *   (tads3/std_dbg.cpp, which the linker leaves out of t3htm once these
+ *   exist).  On Windows a replacement only applies to the module that
+ *   defines it, and the engine's DLLs hand guit3 memory they allocated
+ *   (a std::string's buffer from CGE::Platform::getClipboardText(), for
+ *   one) for guit3 to free: t3free() on such a block reads a header that
+ *   isn't there and crashes.  The T3 debug heap still serves t3malloc().
+ */
+void *operator new(size_t siz)
+{
+    void *p = malloc(siz != 0 ? siz : 1);
+    if (p == 0)
+        throw std::bad_alloc();
+    return p;
+}
+
+void *operator new[](size_t siz)
+{
+    return operator new(siz);
+}
+
+void operator delete(void *ptr) noexcept
+{
+    free(ptr);
+}
+
+void operator delete[](void *ptr) noexcept
+{
+    free(ptr);
+}
+#endif
+
 namespace {
 
 /* the function building the current frame's ImGui windows */
@@ -112,8 +149,8 @@ int gui_run_application(int argc, char **argv, int (*guimain)(int, char **))
      *   static: on the web, runApplication returns while the browser goes
      *   on running the engine's frames
      */
-    static CGuiT3App *app = nullptr;
-    app = new CGuiT3App(guimain);
+    static std::unique_ptr<CGuiT3App> app;
+    app.reset(new CGuiT3App(guimain));
     CGE::runApplication(argc, argv, *app);
     return app->get_result();
 }

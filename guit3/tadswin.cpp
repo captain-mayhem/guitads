@@ -1899,6 +1899,31 @@ void CTadsWin::do_destroy()
     /* our window handle is no longer valid */
     handle_ = 0;
 
+    /*
+     *   Destroy our child windows.  DestroyWindow() used to send each child
+     *   its own WM_DESTROY after ours; there are no real child windows any
+     *   more, so without this each child kept the reference its system
+     *   window has on it (and with it everything it holds) forever.  A
+     *   child that's deleted removes itself from m_children, and one that's
+     *   destroyed but still referenced has no handle_, so look for the
+     *   next live child afresh each time.
+     */
+    for (;;)
+    {
+        CTadsWin *live = nullptr;
+        for (CTadsWin *child : m_children)
+        {
+            if (child->handle_ != 0)
+            {
+                live = child;
+                break;
+            }
+        }
+        if (live == nullptr)
+            break;
+        live->destroy_now();
+    }
+
     /* release the reference the system window has on the object */
     Release();
 }

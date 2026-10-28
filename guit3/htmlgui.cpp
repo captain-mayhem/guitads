@@ -13223,6 +13223,17 @@ void CHtmlSys_mainwin::do_destroy()
     /* cancel any pending downloads */
     cancel_downloads();
 
+    /*
+     *   destroy the "about this game" box - it used to be our child window,
+     *   destroyed along with us, but it's parentless now (see
+     *   create_aboutbox_win())
+     */
+    if (aboutbox_ != 0)
+    {
+        aboutbox_->destroy_now();
+        aboutbox_ = 0;
+    }
+
     /* terminate the application */
     PostQuitMessage(0);
     
@@ -18553,7 +18564,7 @@ void CHtmlSys_aboutgamewin::create_html_subwin(CHtmlFormatter *formatter)
     {
         html_subwin_->on_destroy_parent();
         html_subwin_->forget_owner();
-        DestroyWindow(html_subwin_->get_handle());
+        html_subwin_->destroy_now();
     }
     
     /* create the HTML subpanel */
@@ -18579,7 +18590,7 @@ void CHtmlSys_aboutgamewin::delete_html_subwin()
         html_subwin_->forget_owner();
 
         /* destroy it */
-        DestroyWindow(html_subwin_->get_handle());
+        html_subwin_->destroy_now();
 
         /* forget it */
         html_subwin_ = 0;
@@ -18918,7 +18929,7 @@ void CHtmlSys_top_win::do_destroy()
          *   explicitly destroy the subwindow, to ensure it doesn't outlive
          *   its parser and formatter 
          */
-        DestroyWindow(html_subwin_->get_handle());
+        html_subwin_->destroy_now();
 
         /* forget the subwindow */
         html_subwin_ = 0;

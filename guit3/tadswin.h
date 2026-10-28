@@ -462,11 +462,14 @@ public:
      *   (which drives WM_DESTROY -> do_destroy() through the window proc); for
      *   a top-level window, whose handle_ is only a token and which has no
      *   window proc to deliver WM_DESTROY, call do_destroy() directly.  Use
-     *   this instead of DestroyWindow(get_handle()).
+     *   this instead of DestroyWindow(get_handle()).  Like DestroyWindow()
+     *   on a dead handle, this does nothing for a window that's already
+     *   destroyed (do_destroy() clears handle_).
      */
     void destroy_now()
     {
-        do_destroy();
+        if (handle_ != 0)
+            do_destroy();
     }
 
     /*
@@ -478,7 +481,7 @@ public:
     {
         if (!do_close())
             return false;
-        do_destroy();
+        destroy_now();
         return true;
     }
 

@@ -809,6 +809,13 @@ finish:
         delete dbgprs;
         delete dbgfmt;
     }
+
+    /*
+     *   delete the memory the TADS run-time still has from the last game,
+     *   as the loop above does before each new game (os0main2() itself
+     *   leaves its argument vector for this)
+     */
+    oss_win_free_all();
 }
 
 
