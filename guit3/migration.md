@@ -3554,6 +3554,46 @@ identical to the old `fcfont.cpp`'s, compiled from the history next to the engin
 the text in Liberation Serif, the lists from the bundled fonts, e.g. Typewriter: Cousine, Liberation Mono,
 ProggyCleanTT, ProggyTinyTT).
 
+### 5.29 Moving onto Captain's Game Engine — the sound
+
+The digitized sounds (WAV, MPEG audio, Ogg Vorbis) are decoded by the engine and played through its mixer.
+guit3's decoders are deleted: `tadswav.*` (its own RIFF parser), `tadsvorb.*` (vorbisfile), `mpegamp_w32.*`
+and `getbits.cpp` (the amp driver), and guitads' copy of amp (`mpegamp/`; the legacy htmltads repository
+keeps its own for `htmlt3`). guit3 no longer links libvorbis or miniaudio itself. MIDI (`tadsmidi.cpp`,
+Windows' `midiStream`) is unchanged.
+- **One player:** `CTadsCompressedAudio` ([tadscsnd.cpp](tadscsnd.cpp)) is no longer a base class. Its
+  worker thread reads the sound's bytes from its slice of the file (osfile, as before) and decodes them with
+  the engine's `CGE::AudioDecoder` (new, `audio/audiodecoder.h`: miniaudio's decoders and libvorbis, the
+  same ones the engine's own players use). The decoder tells the format by the contents. The thread writes
+  32-bit float PCM to the playback buffer in chunks of 2048 frames. `get_track_len_ms()` (for end-of-track
+  fades) opens a second decoder and asks it for the length; an MP3 is read through for it, as amp did. The
+  three `create_player()`s in `guisnd.cpp` all create this class.
+- **The output:** `CTadsAudioDevice` ([tadsaudiodev.cpp](tadsaudiodev.cpp)) is the engine's
+  `CGE::AudioStream`, which was modelled on it. Each sound used to open a miniaudio device of its own; now
+  it's a node of the engine's mixer, under the engine's master and Sound volumes. `run_on_audio_thread()`
+  (5.23) is gone: the stream makes no device calls, so the decoder threads can use it on the web too, and
+  the web page has one Web Audio device instead of one per sound. `is_available()` asks the engine's audio
+  (open, and not miniaudio's Null backend). The 'done' queue is unchanged.
+- **Formats:** whatever miniaudio decodes: WAV in PCM (8 to 32 bits), float, MS and IMA ADPCM, A-law and
+  mu-law; MPEG audio layers I, II and III; Ogg Vorbis. The old WAV code passed the header's bits per sample
+  straight to the device, so an MS ADPCM WAV (4 bits) crashed guit3 (a frame size of 0 bytes), and a float
+  WAV would have been played as 16-bit. amp went silent, hung or crashed on an MPEG-1 layer II file made by
+  ffmpeg, even when it was the only sound.
+- **Lost:** a chained Ogg whose later part has another sample rate. `CVorbisW32` reopened the device at the
+  new rate; the engine's Vorbis decoder keeps the first part's rate (it maps the channels). This is rare.
+- The about box credits miniaudio instead of amp, and `LICENSE` and `README.md` no longer list amp.
+
+**How it was verified:** a test game (`soundtest.t3`, built with `t3make -res`, so the sounds are embedded
+resources) gives every sound its own frequency. Background: Ogg, 300 Hz, `repeat=loop fadein=2`. Ambient:
+an MP3 with an ID3v2 tag, 660 Hz, `repeat=3 fadeout=0.5`. Foreground, one after another: a 16-bit WAV, an
+8-bit WAV, an MS ADPCM WAV, MPEG-1 layer II, a float WAV. Enter cancels the background with `fadeout=2`. The
+output was recorded and measured per frequency (jewelhunter's `tools/loopback` and `audio_levels.py` on
+Windows and for WSLg; an `AnalyserNode` on the engine's Web Audio device in headless Chrome). On Windows,
+Linux and the web every sound plays in order and for its length, and the fade-in, the end-of-track fades
+and the fade-out are heard. A variant with only the formats the previous guit3 could play was recorded with
+both builds; the levels agree within 0.5 dB in every half second, including the fades and the dip where the
+background loop restarts. The previous guit3 crashed on the full test game.
+
 ## 6. Working notes for a fresh session
 
 ### Building and running
@@ -3730,7 +3770,8 @@ DirectSound calls, each with its own `imgui/`-local fork per §3.7/§5.4-I above
 `win32/mpegamp/`. Both `htmltads/CMakeLists.txt` (the legacy `htmlt3`/`htmltdb3` targets) and
 `imgui/CMakeLists.txt` (`guit3`) were updated for the new paths and include directories; the old vendored
 `win32/mpegamp/makefile.vc5` (a standalone VC5 test-harness makefile for the amp library, not part of any
-CMake build or CI) was left as-is when its files moved, since it was never wired into this repo's build.
+CMake build or CI) was left as-is when its files moved, since it was never wired into this repo's build. Since 5.29 guit3 doesn't use amp at all, and guitads' `mpegamp/` is
+deleted (the legacy htmltads repository still has its copy for `htmlt3`).
 
 ### Finally
 

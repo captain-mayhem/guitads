@@ -11326,12 +11326,12 @@ void CHtmlSys_mainwin::load_menu_with_profiles(HMENU menuhdl)
  *
  *   This used to create a real Win32 DirectSound interface object, purely
  *   to probe for DirectX availability - audio playback itself has used
- *   miniaudio, not DirectSound, since the guit3 port (see migration.md
- *   3.7).  The two callers of this function only ever compare the result
- *   against 0, so we keep the same IDirectSound* signature and cache a
- *   non-null sentinel (never dereferenced) for "available", but the probe
- *   itself now just asks miniaudio whether it can find a playback backend
- *   (migration.md 5.4/I).
+ *   miniaudio, not DirectSound, since the guit3 port (see migration.md 3.7),
+ *   and the engine's audio since 5.29.  The two callers of this function
+ *   only ever compare the result against 0, so we keep the same
+ *   IDirectSound* signature and cache a non-null sentinel (never
+ *   dereferenced) for "available", but the probe itself now just asks the
+ *   engine whether its audio found a playback backend (migration.md 5.4/I).
  */
 IDirectSound *CHtmlSys_mainwin::get_directsound()
 {
@@ -11346,7 +11346,7 @@ IDirectSound *CHtmlSys_mainwin::get_directsound()
     if (directsound_init_err_ != HTMLW32_DIRECTX_OK)
         return 0;
 
-    /* probe miniaudio for a working playback backend */
+    /* ask the engine's audio for a working playback backend */
     if (CTadsAudioDevice::is_available())
     {
         /* success - cache a non-null sentinel */
@@ -19262,9 +19262,9 @@ void CHtmlSys_creditswin::build_contents(CHtmlTextBuffer *txtbuf)
         "<i>The libvorbis SDK</i><br>"
         "by Xiphophorus<br><br>"
 
-        "<b>MPEG Audio Implementation</b><br>"
-        "<i>The amp MPEG Audio Decoder</i><br>"
-        "by Tomislav Uzelac<br><br>"
+        "<b>Audio Playback, WAV and MPEG Audio Decoding</b><br>"
+        "<i>miniaudio</i><br>"
+        "by David Reid<br><br>"
 
         "<b>Mr. Roberts's Text Editor</b><br>"
         "<i>Epsilon</i><br>by Lugaru<br><br>"
@@ -19314,8 +19314,8 @@ void CHtmlSys_creditswin::build_contents(CHtmlTextBuffer *txtbuf)
         "This software includes the libvorbis Ogg Vorbis decoder, "
         "copyright 2001, Xiphophorus.<br><br>"
 
-        "This software includes portions of the amp MPEG audio decoder, "
-        "copyright 1996, 1997 by Tomislav Uzelac."
+        "This software includes miniaudio by David Reid, which plays the "
+        "sound and decodes WAV and MPEG audio."
         "</font><br><br>"
 
         "<br><br>"

@@ -6,13 +6,13 @@
  */
 /*
 Name
-  tadscsnd.cpp - TADS Compressed Sound base class
+  tadscsnd.cpp - TADS Compressed Sound class
 Function
-  Streams decoded PCM from a decoder subclass to the sound card.  The output
-  path is CTadsAudioDevice (miniaudio); the DirectSound triple-buffer that
-  this file used to carry from the Win32 htmlt3 client is gone.  See
-  htmltads/imgui/migration.md section 3.7.  The input file is read through
-  the portable TADS osfile API (section 5.4/I) - no Win32 file HANDLE.
+  Decodes a WAV, MPEG audio or Ogg Vorbis sound with the engine's decoder
+  (CGE::AudioDecoder) and streams the PCM to the sound card through
+  CTadsAudioDevice (the engine's audio stream).  See guit3/migration.md
+  sections 3.7 and 5.29.  The input file is read through the portable TADS
+  osfile API (htmltads/imgui/migration.md section 5.4/I).
 Notes
 
 Modified
@@ -31,6 +31,8 @@ Modified
 #include "tadsapp.h"
 #include "tadssnd.h"
 #include "tadscsnd.h"
+
+#include <audio/audiodecoder.h>
 
 
 /* ------------------------------------------------------------------------ */
@@ -61,10 +63,8 @@ CTadsCompressedAudio::CTadsCompressedAudio(
     init_vol_ = 10000;
     cur_vol_ = 10000;
 
-    /* no format yet */
-    freq_ = 0;
-    bits_per_sample_ = 0;
-    num_channels_ = 0;
+    /* not stopping */
+    stop_flag_ = false;
 
     /* remember and place a reference on the audio controller */
     audio_control_ = ctl;
@@ -128,11 +128,6 @@ CTadsCompressedAudio::~CTadsCompressedAudio()
 int CTadsCompressedAudio::open_playback_buffer(int freq, int bits_per_sample,
                                                int num_channels)
 {
-    /* remember the format */
-    freq_ = freq;
-    bits_per_sample_ = bits_per_sample;
-    num_channels_ = num_channels;
-
     /* open the output stream */
     if (dev_ == 0 || dev_->open(freq, bits_per_sample, num_channels) != 0)
         return 2;
@@ -183,7 +178,7 @@ void CTadsCompressedAudio::close_playback_buffer()
      *   If we cancelled playback prematurely, drop whatever is still queued;
      *   otherwise let the queued audio finish playing out.
      */
-    if (get_decoder_stopping())
+    if (stop_flag_)
         dev_->halt();
     else
         dev_->drain();
@@ -205,10 +200,10 @@ void CTadsCompressedAudio::close_playback_buffer()
  *   call this frequently to ensure that we keep the buffer prepared with
  *   data to play back while we're decoding.
  */
-void CTadsCompressedAudio::write_playback_buffer(char *buf, int bytes)
+void CTadsCompressedAudio::write_playback_buffer(const char *buf, int bytes)
 {
     /* if the decoder is stopping, don't bother */
-    if (get_decoder_stopping())
+    if (stop_flag_)
         return;
 
     if (dev_ != 0)
@@ -241,7 +236,7 @@ int CTadsCompressedAudio::play(const textchar_t *url)
     is_done_ = FALSE;
 
     /* not stopping yet */
-    set_decoder_stopping(FALSE);
+    stop_flag_ = false;
 
     /* set a reference on behalf of the thread */
     AddRef();
@@ -325,7 +320,7 @@ void CTadsCompressedAudio::do_play_thread()
     do_decoding(in_file_, in_file_size_);
 
     /* if playback was cancelled, drop anything still queued */
-    if (get_decoder_stopping())
+    if (stop_flag_)
         halt_playback_buffer();
 
     /* close the audio device */
@@ -339,12 +334,92 @@ void CTadsCompressedAudio::do_play_thread()
 }
 
 /*
+ *   Read the sound's bytes from the file
+ */
+bool CTadsCompressedAudio::read_sound(osfildef *fp, DWORD file_size,
+                                      std::vector<uint8_t> &data)
+{
+    data.resize(file_size);
+    return file_size != 0 && osfrb(fp, data.data(), file_size) == 0;
+}
+
+/*
+ *   Decode the file
+ */
+void CTadsCompressedAudio::do_decoding(osfildef *fp, DWORD file_size)
+{
+    /* the engine's decoder reads the sound from memory */
+    std::vector<uint8_t> data;
+    if (fp == 0 || !read_sound(fp, file_size, data))
+        return;
+
+    /* open the decoder - it tells WAV, MPEG and Ogg Vorbis by the contents */
+    std::unique_ptr<CGE::AudioDecoder> dec =
+        CGE::AudioDecoder::open(std::move(data));
+    if (dec == 0)
+    {
+        oshtml_dbg_printf("audio: %s can't be decoded\n",
+                          url_ != 0 ? url_ : fname_.get());
+        return;
+    }
+
+    /* open the playback buffer for the decoder's 32-bit float samples */
+    int channels = dec->getChannels();
+    if (open_playback_buffer(dec->getSampleRate(), 32, channels) != 0)
+        return;
+
+    /* decode in small chunks, so that decoding stays ahead of playback */
+    const size_t frames = 2048;
+    std::vector<float> pcm(frames * channels);
+    while (!stop_flag_)
+    {
+        size_t got = dec->read(pcm.data(), frames);
+        if (got == 0)
+            break;
+        write_playback_buffer((const char *)pcm.data(),
+                              (int)(got * channels * sizeof(float)));
+    }
+}
+
+/*
+ *   Get the track length
+ */
+long CTadsCompressedAudio::get_track_len_ms()
+{
+    /*
+     *   open a separate handle to the file, to avoid interfering with the
+     *   playback thread
+     */
+    osfildef *fp = osfoprb(fname_.get(), OSFTBIN);
+    if (fp == 0)
+        return 0;
+
+    /* read the sound from its start, in case it's an embedded resource */
+    std::vector<uint8_t> data;
+    bool ok = osfseek(fp, in_file_start_, OSFSK_SET) == 0
+              && read_sound(fp, in_file_size_, data);
+    osfcls(fp);
+    if (!ok)
+        return 0;
+
+    /*
+     *   the length in sample frames (an MP3 is read through for it) gives
+     *   the time
+     */
+    std::unique_ptr<CGE::AudioDecoder> dec =
+        CGE::AudioDecoder::open(std::move(data));
+    if (dec == 0)
+        return 0;
+    return (long)(dec->getLength() * 1000 / dec->getSampleRate());
+}
+
+/*
  *   Stop playback
  */
 void CTadsCompressedAudio::stop(int sync)
 {
     /* set the flag to indicate that we shouldn't do any more decoding */
-    set_decoder_stopping(TRUE);
+    stop_flag_ = true;
 
     /* make the output stop right away so 'sync' callers don't wait it out */
     halt_playback_buffer();

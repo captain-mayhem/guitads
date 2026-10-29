@@ -47,19 +47,17 @@ image replacing the original HTML TADS one) and its source `about3.xcf`.
   `htmljpeg.*`, `htmlmng.*`, `htmlplst.*`, `htmlpng.*`, `pngext.*`,
   `tadshtml3.cpp`, `win32/hos_w32.h`. These came from the htmltads repo, not
   from QTads.
-- `mpegamp/`: amp (© Tomislav Uzelac, amp license) with Roberts' changes.
 - `guit3/`, essentially unmodified (≈85–100% original code):
   `foldsel.h`, `foldsel2.cpp`, `foldselr.h`, `htmlres.h`, `res2.h`,
   `resource.h`, `oem_w32.c`, `t3main.*`, `tadsapp.*`, `tadscar.*`,
   `tadschest.cpp`, `tadscom.*`, `tadsdlg.*`, `tadsdlg2.cpp`, `tadsistr.h`,
   `tadsjpeg.*`, `tadsmidi.*`, `tadsmng.*`, `tadsole.*`, `tadspng.h`,
-  `tadstab.*`, `tadsvorb.h`, `tadswebctl.*`, `guiimg.*`, `guimain.h`,
-  `guinogch.cpp`, `guisnd.*`, `guifont.h`, `guiwebui.h`, `htmlgui.h`,
-  `mpegamp_w32.cpp`, `getbits.cpp`
+  `tadstab.*`, `tadswebctl.*`, `guiimg.*`, `guimain.h`,
+  `guinogch.cpp`, `guisnd.*`, `guifont.h`, `guiwebui.h`, `htmlgui.h`
 - `guit3/`, substantially modified but still clearly derived:
   `htmlgui.cpp`, `hos_gui.cpp`, `tadswin.*`, `guimain.cpp`, `htmlpref.*`,
-  `guit3.cpp`, `guitr.cpp`, `guitrt3.cpp`, `guiver.h`, `mpegamp_w32.h`,
-  `tadskb.*`, `tadssnd.*`, `tadsstat.*`, `tadswav.*`, `tadsvorb.cpp`,
+  `guit3.cpp`, `guitr.cpp`, `guitrt3.cpp`, `guiver.h`,
+  `tadskb.*`, `tadssnd.*`, `tadsstat.*`,
   `tadsimg.*`, `tadsfont.*`, `tadspng.cpp`, `tadscsnd.*`, `guifont.cpp`,
   `tadssettings_w32.cpp`
 - `guit3/`, assets: `guires_data.*` (embeds the original toolbar bitmap

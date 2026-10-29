@@ -34,9 +34,6 @@ Modified
 #ifndef TADSMIDI_H
 #include "tadsmidi.h"
 #endif
-#ifndef TADSWAV_H
-#include "tadswav.h"
-#endif
 #ifndef HTMLRF_H
 #include "htmlrf.h"
 #endif
@@ -51,12 +48,6 @@ Modified
 #endif
 #ifndef HTMLGUI_H
 #include "htmlgui.h"
-#endif
-#ifndef MPEGAMP_W32_H
-#include "mpegamp_w32.h"
-#endif
-#ifndef TADSVORB_H
-#include "tadsvorb.h"
 #endif
 #ifndef TADSCSND_H
 #include "tadscsnd.h"
@@ -546,9 +537,9 @@ CTadsCompressedAudio *CHtmlSysSoundWav_win32::create_player(
     class CTadsAudioControl *ctl,
     void (*done_func)(void *, int), void *done_func_ctx)
 {
-    /* return a new CWaveW32 object */
-    return new CWavW32(fname, file_start_ofs, file_size, ctl,
-                       done_func, done_func_ctx);
+    /* the engine's decoder plays all three formats */
+    return new CTadsCompressedAudio(fname, file_start_ofs, file_size, ctl,
+                                    done_func, done_func_ctx);
 }
 
 /* ------------------------------------------------------------------------ */
@@ -608,9 +599,9 @@ CTadsCompressedAudio *CHtmlSysSoundMpeg_win32::create_player(
     class CTadsAudioControl *ctl,
     void (*done_func)(void *, int), void *done_func_ctx)
 {
-    /* return a new CMpegAmpW32 object */
-    return new CMpegAmpW32(fname, file_start_ofs, file_size, ctl,
-                           done_func, done_func_ctx);
+    /* the engine's decoder plays all three formats */
+    return new CTadsCompressedAudio(fname, file_start_ofs, file_size, ctl,
+                                    done_func, done_func_ctx);
 }
 
 /* ------------------------------------------------------------------------ */
@@ -670,8 +661,8 @@ CTadsCompressedAudio *CHtmlSysSoundOgg_win32::create_player(
     class CTadsAudioControl *ctl,
     void (*done_func)(void *, int), void *done_func_ctx)
 {
-    /* return a new CVorbisW32 object */
-    return new CVorbisW32(fname, file_start_ofs, file_size, ctl,
-                          done_func, done_func_ctx);
+    /* the engine's decoder plays all three formats */
+    return new CTadsCompressedAudio(fname, file_start_ofs, file_size, ctl,
+                                    done_func, done_func_ctx);
 }
 

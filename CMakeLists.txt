@@ -18,8 +18,8 @@
 
 # Captain's Game Engine is a third sibling checkout. guit3 runs on it (the
 # window, the graphics, the main loop, Dear ImGui), and it brings the shared
-# 3rdparty libraries (zlib, libpng, libjpeg, FreeType, Dear ImGui, miniaudio,
-# libogg, libvorbis) as targets; libmng and mpegamp stay here. It is added
+# 3rdparty libraries (zlib, libpng, libjpeg, FreeType, Dear ImGui) as
+# targets, and decodes and plays guit3's sounds; libmng stays here. It is added
 # once, before anything here uses those targets.
 if (NOT TARGET CGE::Engine)
 	set(CGE_DIR "${CMAKE_CURRENT_SOURCE_DIR}/../captainsengine" CACHE PATH "Path to Captain's Game Engine")

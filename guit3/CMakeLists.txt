@@ -52,22 +52,6 @@ add_executable(guit3
 
 	../htmltads/tadshtml3.cpp
 
-	../mpegamp/misc2.cpp
-	../mpegamp/layer3.cpp
-	../mpegamp/layer2.cpp
-	../mpegamp/getdata.cpp
-	../mpegamp/huffman.cpp
-	../mpegamp/transform.cpp
-	# guit3-local forks of the amp MPEG driver.  mpegamp_w32.cpp/.h drop the
-	# DirectSound/HWND ctor params (miniaudio output path, migration.md 3.7);
-	# getbits.cpp routes its two file-I/O functions through the portable TADS
-	# osfile API instead of ReadFile/SetFilePointer (migration.md 5.4/I).
-	# The rest of ../mpegamp/* is platform-independent and shared with htmlt3;
-	# these three Win32-specific files stay forked in win32/mpegamp/ instead.
-	getbits.cpp
-	mpegamp_w32.cpp
-	mpegamp_w32.h
-
 	# guit3 on Captain's Game Engine: the application, the frame pump and
 	# guit3's key codes (see guiengine.h)
 	guiengine.cpp
@@ -151,13 +135,9 @@ add_executable(guit3
 	tadscsnd.h
 	tadsaudiodev.cpp
 	tadsaudiodev.h
-	tadsvorb.cpp
-	tadsvorb.h
 	tadsmidi.cpp
 	tadsmidi.h
 	tadsistr.h
-	tadswav.cpp
-	tadswav.h
 	oem_w32.c
 
 	tadsapp.h
@@ -275,13 +255,6 @@ target_link_libraries(guit3 PRIVATE
 
 target_include_directories(guit3 PRIVATE
 	.
-	../mpegamp
-)
-
-# miniaudio is the audio output backend (migration.md 3.7)
-target_link_libraries(guit3 PRIVATE
-	Vorbis::vorbisfile
-	miniaudio
 )
 
 if (WIN32)

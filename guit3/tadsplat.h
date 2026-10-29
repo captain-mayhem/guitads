@@ -53,7 +53,7 @@ Modified
  *
  *   INCOMPLETE BY DESIGN.  M2/A1 only needs the seam to exist; the first
  *   real off-Windows compile (M4) is what surfaces the exact remaining
- *   gaps, and they get filled in then.  Audio/MIDI (tadswav.h, tadscsnd.h,
+ *   gaps, and they get filled in then.  Audio/MIDI (tadscsnd.h,
  *   tadsmidi.h) and COM/OLE (tadscom.h, tadsole.h, tadswebctl.h) types are
  *   deliberately only stubbed to "parses as a pointer" here - those
  *   subsystems are gated Windows-only well past M2 (migration.md items I,
@@ -303,9 +303,9 @@ typedef struct tagBITMAPINFO
     { BITMAPINFOHEADER bmiHeader; RGBQUAD bmiColors[1]; } BITMAPINFO, *LPBITMAPINFO;
 
 /*
- *   Audio / MIDI - stubs only.  tadswav.cpp, tadscsnd.cpp and tadsmidi.cpp
- *   are Windows-only until migration.md item I / phase two replaces the
- *   Win32 decoder file I/O and the midiStream* sequencer.
+ *   Audio / MIDI - stubs only.  tadsmidi.cpp is Windows-only until
+ *   migration.md phase two replaces the midiStream* sequencer; the
+ *   digitized sounds (tadscsnd.cpp) are portable since migration.md 5.29.
  */
 typedef UINT MMRESULT;
 typedef struct tWAVEFORMATEX

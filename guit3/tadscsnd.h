@@ -6,23 +6,20 @@
  */
 /*
 Name
-  tadscsnd.h - TADS Compressed Sound base class
+  tadscsnd.h - TADS Compressed Sound class
 Function
-  This is a base class for compressed audio datatypes, such as WAV, MPEG and
-  Ogg Vorbis.  It provides the framework for playing back audio by streaming
-  it from disk, through the decoder, and into the sound card.
+  Plays a digitized sound - WAV, MPEG audio or Ogg Vorbis - by streaming it
+  from disk, through the decoder, and into the sound card.
 
-  The output path used to be a DirectSound streaming buffer; it now goes
-  through CTadsAudioDevice (tadsaudiodev.h), a small backend-neutral
-  interface currently implemented on miniaudio.  The decoders themselves
-  (CWavW32, CMpegAmpW32, CVorbisW32) were not changed - they still call
-  open_playback_buffer() / write_playback_buffer() / close_playback_buffer()
-  / halt_playback_buffer() exactly as before.  See
-  htmltads/imgui/migration.md section 3.7.
+  The decoding is the engine's (CGE::AudioDecoder: miniaudio's WAV and MP3
+  decoders and libvorbis), and the output is CTadsAudioDevice
+  (tadsaudiodev.h) on the engine's audio stream.  guit3 used to have a
+  decoder class for each format (CWavW32, CMpegAmpW32 on the amp decoder,
+  CVorbisW32); see guit3/migration.md section 5.29.
 Notes
-  The file-reading layer streams from disk through the portable TADS osfile
-  API (osfoprb / osfrbc / osfseek / osfcls) - there is no Win32 file HANDLE
-  anywhere in the digitized-audio path any more.  See
+  The sound is read through the portable TADS osfile API (osfoprb / osfrb /
+  osfseek / osfcls), from the stream's slice of its file - an embedded
+  resource starts somewhere inside a .gam/.t3 or resource file.  See
   htmltads/imgui/migration.md section 5.4/I.
 Modified
   04/26/02 MJRoberts  - Creation
@@ -36,6 +33,8 @@ Modified
 
 #include <atomic>
 #include <mutex>
+#include <vector>
+#include <stdint.h>
 
 #include "tadsplat.h"
 
@@ -49,8 +48,8 @@ Modified
 
 /* ------------------------------------------------------------------------ */
 /*
- *   TADS Compressed Audio class.  This is designed as a mix-in class that
- *   can be multiply inherited into a class implementing a specific decoder.
+ *   TADS Compressed Audio class.  It plays WAV, MPEG audio and Ogg Vorbis
+ *   alike: the engine's decoder tells them apart by their contents.
  */
 class CTadsCompressedAudio: public CTadsAudioPlayer
 {
@@ -103,56 +102,21 @@ public:
     /* turn muting on or off */
     void on_mute_change(int mute);
 
-protected:
-    /* destroy - only accessible via Release() */
-    virtual ~CTadsCompressedAudio();
-
-    /* -------------------------------------------------------------------- */
-    /*
-     *   Decoder overrides.  This is the interface the decoder subclass must
-     *   implement.
-     */
+    /* get the track time in milliseconds (0 if it can't be determined) */
+    long get_track_len_ms();
 
     /*
-     *   Decode the file.  This should simply decode the entire file; it
-     *   should open the audio buffer once it knows the playback format,
-     *   then decode the data and write it to the playback buffer as it
-     *   does.  Data should be written in small chunks to ensure that
-     *   decoding stays ahead of playback.  'fp' is our open input file,
-     *   already positioned at the start of the audio stream.
+     *   create a player for the sound stored at 'file_start_ofs' in the
+     *   file 'fname', 'file_size' bytes long
      */
-    virtual void do_decoding(osfildef *fp, DWORD file_size) = 0;
-
-    /*
-     *   Get/set the decoder 'stop' flag.  This flag tells us we should stop
-     *   playback as soon as possible.
-     */
-    virtual int get_decoder_stopping() = 0;
-    virtual void set_decoder_stopping(int f) = 0;
-
-    /* -------------------------------------------------------------------- */
-    /*
-     *   Decoder interface - this is for the decoder subclass's use
-     */
-
-    /* initialize */
     CTadsCompressedAudio(
-        const textchar_t *fname, DWORD file_startofs, DWORD file_size,
+        const textchar_t *fname, DWORD file_start_ofs, DWORD file_size,
         class CTadsAudioControl *ctl,
         void (*done_func)(void *, int), void *done_func_ctx);
 
-    /* open the output audio buffer */
-    int open_playback_buffer(int freq, int bits_per_sample,
-                             int number_of_channels);
-
-    /* close the output audio buffer */
-    void close_playback_buffer();
-
-    /* write decoded PCM data to the playback buffer */
-    void write_playback_buffer(char *buf, int bytes);
-
-    /* halt playback of the output stream */
-    void halt_playback_buffer();
+protected:
+    /* destroy - only accessible via Release() */
+    virtual ~CTadsCompressedAudio();
 
 private:
     /* -------------------------------------------------------------------- */
@@ -163,8 +127,33 @@ private:
     /* main playback thread entrypoint */
     void do_play_thread();
 
-protected:
-    /* -------------------------------------------------------------------- */
+    /*
+     *   Decode the file, writing the PCM to the playback buffer as it goes.
+     *   'fp' is our open input file, already positioned at the start of the
+     *   audio stream.
+     */
+    void do_decoding(osfildef *fp, DWORD file_size);
+
+    /*
+     *   read the sound's bytes from 'fp', which is positioned at its start;
+     *   returns false if the file is shorter than the sound
+     */
+    static bool read_sound(osfildef *fp, DWORD file_size,
+                           std::vector<uint8_t> &data);
+
+    /* open the output audio buffer */
+    int open_playback_buffer(int freq, int bits_per_sample,
+                             int number_of_channels);
+
+    /* close the output audio buffer */
+    void close_playback_buffer();
+
+    /* write decoded PCM data to the playback buffer */
+    void write_playback_buffer(const char *buf, int bytes);
+
+    /* halt playback of the output stream */
+    void halt_playback_buffer();
+
     /*
      *   member variables
      */
@@ -187,11 +176,6 @@ protected:
     /* true once we've registered with the audio controller */
     int registered_;
 
-    /* current PCM format */
-    int freq_;
-    int bits_per_sample_;
-    int num_channels_;
-
     /*
      *   volume level, 0..10000.  init_vol_ is applied when the device is
      *   opened; cur_vol_ tracks the last non-muted level so we can restore
@@ -202,6 +186,9 @@ protected:
 
     /* flag: we're finished with playback */
     int is_done_;
+
+    /* flag: stop decoding as soon as possible */
+    std::atomic<bool> stop_flag_;
 
     /* protects call_done_callback() against concurrent invocation */
     std::mutex cb_mutex_;

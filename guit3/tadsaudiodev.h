@@ -9,17 +9,16 @@ Name
   tadsaudiodev.h - abstract PCM playback device for guit3
 Function
   Defines a small, backend-neutral interface that CTadsCompressedAudio (the
-  base class shared by the WAV, MPEG and Ogg Vorbis decoders) uses to stream
-  decoded PCM to the sound card.  It replaces the DirectSound triple-buffer
-  that the code carried from the original Win32 htmlt3 client.
+  player of WAV, MPEG and Ogg Vorbis sounds) uses to stream decoded PCM to
+  the sound card.  It replaces the DirectSound triple-buffer that the code
+  carried from the original Win32 htmlt3 client.
 
-  The only implementation today is a miniaudio backend (tadsaudiodev.cpp),
-  which is cross-platform (Windows/macOS/Linux/BSD and, later, WASM).  The
-  interface is deliberately shaped like the old DirectSound streaming buffer -
-  open a PCM stream, block-write interleaved samples as they are decoded,
-  drain or halt at the end - so the decoders did not have to change.
+  The implementation (tadsaudiodev.cpp) is the engine's audio stream
+  (CGE::AudioStream), which was modelled on this interface: open a PCM
+  stream, block-write interleaved samples as they are decoded, drain or
+  halt at the end.
 
-  See htmltads/imgui/migration.md section 3.7 for the migration rationale.
+  See guit3/migration.md sections 3.7 and 5.29.
 Notes
 
 Modified
@@ -32,17 +31,17 @@ Modified
 /*
  *   Abstract streaming PCM playback device.
  *
- *   All of the calls except set_volume() are made from a single decoder
- *   thread, in this order: open() once, then write() repeatedly as the
- *   decoder produces PCM, then either drain() (natural end - let queued audio
- *   finish) or halt() (cancelled - drop queued audio immediately), then
- *   close().  Ogg Vorbis may loop back to open() again mid-stream when the
- *   sample rate changes between logical bitstreams, so open()/close() must be
- *   safe to call more than once on the same object.
+ *   All of the calls except set_volume() and halt() are made from a single
+ *   decoder thread, in this order: open() once, then write() repeatedly as
+ *   the decoder produces PCM, then either drain() (natural end - let queued
+ *   audio finish) or halt() (cancelled - drop queued audio immediately),
+ *   then close().  open()/close() must be safe to call more than once on
+ *   the same object.
  *
  *   set_volume() may be called from any thread (the fader threads and the
- *   application-wide mute broadcast both use it), so implementations must
- *   guard it against a concurrent close().
+ *   application-wide mute broadcast both use it), and halt() from the thread
+ *   that stops the sound while the decoder thread is blocked in write(), so
+ *   implementations must guard them against a concurrent close().
  */
 class CTadsAudioDevice
 {
@@ -50,9 +49,9 @@ public:
     virtual ~CTadsAudioDevice() { }
 
     /*
-     *   Open a PCM playback stream.  'bits_per_sample' is 8 or 16; samples
-     *   are native-endian, interleaved by channel.  Returns 0 on success,
-     *   non-zero on failure.
+     *   Open a PCM playback stream.  'bits_per_sample' is 8 (unsigned), 16
+     *   (signed) or 32 (float); samples are native-endian, interleaved by
+     *   channel.  Returns 0 on success, non-zero on failure.
      */
     virtual int open(int freq, int bits_per_sample, int num_channels) = 0;
 
@@ -90,9 +89,10 @@ public:
     virtual int is_open() const = 0;
 
     /*
-     *   Create the platform's playback device.  Returns a new object the
-     *   caller owns (delete when done), or null if no audio backend could be
-     *   initialised.
+     *   Create a playback device on the engine's audio.  Returns a new
+     *   object the caller owns (delete when done, before the engine shuts
+     *   down), or null if the engine's audio isn't open.  Call it on the
+     *   engine's thread.
      */
     static CTadsAudioDevice *create();
 
