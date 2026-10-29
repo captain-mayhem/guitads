@@ -81,11 +81,9 @@ add_executable(guit3
 	guimain.h
 	guiwebui.h
 
-	# CTadsFont/CHtmlSysFont_win32 (portable - FreeType/ImGui only) + the
-	# os_font_family_is_present()/os_font_data_for_name() platform hooks
-	# tadsfont.h declares, one backend per platform selected below (Win32:
-	# guifont_w32.cpp; Linux: fcfont.cpp/fontconfig; macOS: ctfont.cpp/
-	# CoreText).  See migration.md 5.4/G.
+	# CHtmlSysFont_win32 (portable - FreeType/ImGui only); CTadsFont and the
+	# font platform hooks tadsfont.h declares are in tadsfont.cpp, on the
+	# engine's system font lookup.  See migration.md 5.4/G and 5.28.
 	guifont.cpp
 	guifont.h
 
@@ -256,36 +254,6 @@ if (WIN32)
 	target_sources(guit3 PRIVATE guios_w32.cpp)
 else()
 	target_sources(guit3 PRIVATE guios_portable.cpp)
-endif()
-
-# tadsfont.h's os_font_family_is_present()/os_font_data_for_name()/
-# os_enum_font_families() backend: GDI, fontconfig, CoreText, or
-# (Emscripten) a small bundled font set - there is no real system font store
-# to enumerate inside a browser sandbox, so emfont.cpp instead scans a
-# handful of font files (the standard Dear ImGui sample fonts - see
-# emscripten/fonts/README.txt) packaged into the Emscripten build's
-# virtual filesystem below, at the "fonts" virtual path emfont.cpp reads
-# from. CTadsFont falls back to the ImGui atlas default font for any name
-# that isn't among them, same as it would for a real system with no
-# matching font installed.
-if (WIN32)
-	target_sources(guit3 PRIVATE guifont_w32.cpp)
-elseif (APPLE)
-	target_sources(guit3 PRIVATE ctfont.cpp)
-	target_link_libraries(guit3 PRIVATE
-		"-framework CoreText"
-		"-framework CoreFoundation"
-	)
-elseif (EMSCRIPTEN)
-	# emfont.cpp reads the font files' names with FreeType
-	target_sources(guit3 PRIVATE emfont.cpp)
-	target_link_libraries(guit3 PRIVATE freetype)
-else()
-	# fcfont.cpp reads the fonts' names with FreeType too (the engine
-	# library keeps its own copy private)
-	find_package(Fontconfig REQUIRED)
-	target_sources(guit3 PRIVATE fcfont.cpp)
-	target_link_libraries(guit3 PRIVATE Fontconfig::Fontconfig freetype)
 endif()
 
 target_compile_definitions(guit3 PRIVATE
@@ -486,20 +454,20 @@ if (EMSCRIPTEN)
 		em_package(guit3extragame ${GUIT3_EXTRA_TEST_GAME}@extra.t3)
 	endif()
 
-	# Packages the standard Dear ImGui sample fonts (emscripten/fonts -
-	# see that directory's README.txt for the list and licenses) into their
-	# own virtual filesystem entry, mapped to the "fonts" virtual directory
-	# emfont.cpp's os_font_family_is_present()/os_font_data_for_name()/
-	# os_enum_font_families() scan at runtime (see the font-backend selection
-	# above and emfont.cpp itself). A separate em_package() call, same
-	# reasoning as ditch3game above - distinct target name, own .data/.js
-	# pair guit3.html loads alongside ditch3game's.
+	# Packages the bundled fonts (emscripten/fonts - see that directory's
+	# README.txt for the list and licenses) into their own virtual
+	# filesystem entry, mapped to the "fonts" virtual directory: the page
+	# has no system fonts, so the engine's system font lookup
+	# (CGE::SystemFonts, behind tadsfont.h's font hooks) indexes the asset
+	# folder fonts/ instead. A separate em_package() call, same reasoning as
+	# ditch3game above - distinct target name, own .data/.js pair
+	# guit3.html loads alongside ditch3game's.
 	em_package(guit3fonts ${CMAKE_CURRENT_SOURCE_DIR}/emscripten/fonts@fonts
 		COMPONENT GuiT3)
 
 	# Unlike ditch3game above (a test-only asset nobody minds having to
 	# build separately), the font package is load-bearing for guit3 itself
-	# (emfont.cpp has nothing to enumerate without it) - em_package()'s
+	# (the page has no other fonts) - em_package()'s
 	# custom target is only added to the default "all" target, not to
 	# guit3's own dependency graph, so make that explicit.
 	add_dependencies(guit3 build_guit3fonts.data)

@@ -33,8 +33,8 @@ originals:
 
 `tadsplat.h`, `guios.h`, `guios_common.cpp`, `guios_portable.cpp`,
 `tadsfiledlg.*`, `tadsfinddlg.*`, `tadsfolderdlg.*`, `tadslicensedlg.*`,
-`tadssettings.h`, `tadssettings_portable.cpp`, `tadsaudiodev.*`, `fcfont.cpp`,
-`ctfont.cpp`, `emfont.cpp`, `guiengine.*`, `guikeys.h`, `engine.ini`,
+`tadssettings.h`, `tadssettings_portable.cpp`, `tadsaudiodev.*`,
+`guiengine.*`, `guikeys.h`, `engine.ini`,
 `embed_file.cmake`, `emscripten/*` (except `emscripten/fonts/`, see below),
 `CMakeLists.txt`, `*.md`
 
@@ -61,7 +61,7 @@ image replacing the original HTML TADS one) and its source `about3.xcf`.
   `guit3.cpp`, `guitr.cpp`, `guitrt3.cpp`, `guiver.h`, `mpegamp_w32.h`,
   `tadskb.*`, `tadssnd.*`, `tadsstat.*`, `tadswav.*`, `tadsvorb.cpp`,
   `tadsimg.*`, `tadsfont.*`, `tadspng.cpp`, `tadscsnd.*`, `guifont.cpp`,
-  `guifont_w32.cpp`, `tadssettings_w32.cpp`
+  `tadssettings_w32.cpp`
 - `guit3/`, assets: `guires_data.*` (embeds the original toolbar bitmap
   `runtbar.bmp`). The old HTML TADS license text (`notes3/license.txt`) is no
   longer embedded; the License dialog shows this file instead.

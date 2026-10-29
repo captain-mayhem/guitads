@@ -1,9 +1,10 @@
 Sample fonts vendored from the upstream Dear ImGui project's own misc/fonts/
 directory (https://github.com/ocornut/imgui), added here as the packaged
-font set for guit3's Emscripten build - see htmltads/imgui/CMakeLists.txt's
-em_package(guit3fonts ...) call and emfont.cpp. Not used by the native
-Win32/Linux/macOS builds, which read fonts from the real OS font store
-instead (guifont_w32.cpp/fcfont.cpp/ctfont.cpp).
+font set for guit3's Emscripten build - see guit3/CMakeLists.txt's
+em_package(guit3fonts ...) call. The engine's system font lookup
+(CGE::SystemFonts) indexes them as the page's "system fonts". Not used by
+the native Windows/Linux builds, which read fonts from the real OS font
+store instead (also through the engine).
 
 Licenses, per Dear ImGui's own misc/fonts/README.txt:
 
@@ -17,7 +18,7 @@ Licenses, per Dear ImGui's own misc/fonts/README.txt:
   Roboto-Medium.ttf     by Google, Apache License 2.0
 
 Fonts added to match the Windows fonts the guit3 themes ask for
-(htmlpref.cpp's set_theme_defaults()); emfont.cpp's alias table maps the
+(htmlpref.cpp's set_theme_defaults()); the engine's alias table maps the
 Windows names to these.  Full license texts are in licenses/.
 
   Liberation Sans / Serif / Mono   (Regular, Bold, Italic, BoldItalic)

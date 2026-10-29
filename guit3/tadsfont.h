@@ -27,16 +27,13 @@ Modified
  *   Platform hook: determine whether a font family with the given name is
  *   installed on the system.  This is the one piece of font handling that
  *   can't be done through FreeType/ImGui - system font enumeration is
- *   inherently OS-specific (GDI on Windows, fontconfig on Linux, CoreText
- *   on macOS) - so it's factored out behind this narrow interface instead
- *   of being inlined into CTadsFont.  One implementation per OS/GUI backend,
- *   selected by CMake: guifont_w32.cpp (Win32, EnumFontFamiliesEx),
- *   fcfont.cpp (Linux, fontconfig's FcFontList), ctfont.cpp (macOS,
- *   CTFontManagerCopyAvailableFontFamilyNames) - see migration.md 5.4/G; the
- *   non-Windows backends are landed but unverified until there's a real
- *   non-Windows build to run them on (M4).  CTadsFont::font_is_present() is
- *   the stable, OS-agnostic entry point callers should use - it just
- *   forwards here.
+ *   inherently OS-specific - so it's factored out behind this narrow
+ *   interface.  The three hooks here are implemented in tadsfont.cpp on the
+ *   engine's system font lookup (CGE::SystemFonts: GDI on Windows,
+ *   fontconfig on Linux, the bundled fonts/ folder on the web); see
+ *   migration.md 5.28.  Only the exact name counts, no substitutes.
+ *   CTadsFont::font_is_present() is the stable entry point callers should
+ *   use - it just forwards here.
  */
 int os_font_family_is_present(const char *fontname, size_t len);
 
@@ -44,25 +41,24 @@ int os_font_family_is_present(const char *fontname, size_t len);
  *   Platform hook: resolve a font family name (with the given weight, italic
  *   flag and character set) to the raw bytes of the TrueType/OpenType file
  *   the system's font matcher picks for it.  FreeType can rasterize a font
- *   file but has no way to *find* one from a name, and neither does ImGui -
- *   that matching is inherently OS-specific (GDI's CreateFontIndirect() +
- *   GetFontData() on Windows, fontconfig's FcFontMatch on Linux, CoreText's
- *   font URL on macOS) - so, like os_font_family_is_present(), it is
- *   factored out behind this narrow interface.  One implementation per
- *   OS/GUI backend, same three files as os_font_family_is_present() above.
+ *   file but has no way to *find* one from a name, and neither does ImGui.
+ *   Like the system's matching for other applications, a missing family
+ *   gives a substitute (on the web, through the engine's alias table, e.g.
+ *   "Times New Roman" -> Liberation Serif).  The character set isn't used.
  *   It is called once from CTadsFont's constructor.
  *
  *   On success, returns a newly allocated buffer holding the complete font
- *   file and stores its length in *data_size.  The buffer is allocated with
- *   ImGui::MemAlloc(): hand it straight to ImFontAtlas::AddFontFromMemoryTTF()
- *   (which takes ownership and frees it with the atlas) or, if it is not
- *   used, release it with ImGui::MemFree().  Returns null if the face has no
- *   scalable outline data (e.g. the legacy "System" bitmap pseudo-font) or
- *   cannot be resolved at all - the caller then leaves the font unbaked and
- *   falls back to the atlas default.
+ *   file, stores its length in *data_size and the face to use in
+ *   *face_index (non-zero for a face in a font collection, .ttc).  The
+ *   buffer is allocated with ImGui::MemAlloc(): hand it straight to
+ *   ImFontAtlas::AddFontFromMemoryTTF() (which takes ownership and frees it
+ *   with the atlas) or, if it is not used, release it with ImGui::MemFree().
+ *   Returns null if no font with scalable outlines is found - the caller
+ *   then leaves the font unbaked and falls back to the atlas default.
  */
 unsigned char *os_font_data_for_name(const char *name, int weight, int italic,
-                                     int charset, size_t *data_size);
+                                     int charset, size_t *data_size,
+                                     int *face_index);
 
 /*
  *   Platform hook: enumerate every installed font family, once per family,
@@ -72,24 +68,16 @@ unsigned char *os_font_data_for_name(const char *name, int weight, int italic,
  *   (CHtmlPreferences::cust_refresh_font_lists(), htmlpref.cpp), which sort
  *   entries into serif/sans/script/typewriter buckets by inspecting
  *   elfLogFont.lfPitchAndFamily's family nibble (FF_ROMAN/FF_SWISS/
- *   FF_SCRIPT/FF_MODERN) and tmPitchAndFamily's TMPF_FIXED_PITCH bit -
- *   exactly the fields GDI itself fills in, so that dialog code stays
- *   platform-agnostic.  One implementation per OS/GUI backend, same files as
- *   the two hooks above: guifont_w32.cpp forwards straight to
- *   EnumFontFamiliesEx(); fcfont.cpp derives the family nibble from
- *   fontconfig's FC_SPACING (monospace -> FF_MODERN) and, for the rest, the
- *   installed font file's OS/2 table (PANOSE, falling back to the older
- *   sFamilyClass field), read via FreeType (already linked into guit3 - see
- *   the comment above its os_enum_font_families() for the class-to-FF_*
- *   mapping and the real-world testing behind preferring PANOSE); ctfont.cpp
- *   uses CoreText's own equivalent stylistic-class/monospace traits;
- *   emfont.cpp enumerates a small set of font files bundled into the
- *   Emscripten build's virtual filesystem (there being no real OS font store
- *   inside a browser sandbox), classified with the same FreeType-based
- *   algorithm as fcfont.cpp.  'charset_id' is a Win32 xxx_CHARSET value,
- *   honored only on Windows (matching os_font_data_for_name()'s charset
- *   caveat above) - the other backends enumerate every family regardless of
- *   charset.
+ *   FF_SCRIPT/FF_MODERN/FF_DECORATIVE), tmPitchAndFamily's TMPF_FIXED_PITCH
+ *   bit (set for a proportional font) and tmCharSet (SYMBOL_CHARSET for
+ *   symbol fonts) - exactly the fields GDI itself fills in, so that dialog
+ *   code stays platform-agnostic.  They come from the engine's
+ *   SystemFonts::getFamilyDetails(): GDI's own classification on Windows;
+ *   on Linux and the web the font file's OS/2 table (PANOSE, falling back
+ *   to the older sFamilyClass field), with fontconfig's spacing on Linux.
+ *   'charset_id' (a Win32 xxx_CHARSET value) is reported as every
+ *   non-symbol family's character set; every family is listed whatever its
+ *   character sets.  Names that don't fit into lfFaceName are left out.
  */
 void os_enum_font_families(unsigned int charset_id, FONTENUMPROC callback,
                            LPARAM lparam);

@@ -3512,6 +3512,48 @@ clicking an `http:` link starts `xdg-open` in its own session with the decoded U
 responsive while it hangs). Web (a link click calls `window.open(url, "_blank")`; a theme picked for the game
 is still applied after reloading the page).
 
+### 5.28 Moving onto Captain's Game Engine — the font lookup
+
+The three font hooks of `tadsfont.h` (`os_font_family_is_present()`, `os_font_data_for_name()`,
+`os_enum_font_families()`) are now in `tadsfont.cpp`, on the engine's system font lookup
+(`CGE::SystemFonts`, `platform/systemfonts.h`), which was adapted from guit3's backends in the first place.
+The backends `guifont_w32.cpp` (GDI), `fcfont.cpp` (fontconfig), `emfont.cpp` (the bundled fonts on the web)
+and `ctfont.cpp` (CoreText) are deleted, and guit3 no longer links fontconfig or FreeType itself.
+- **Lookup:** `os_font_data_for_name()` is `SystemFonts::find()`: GDI's matching on Windows, fontconfig's on
+  Linux (both give the system's substitute for a missing family), and on the web the engine's index of the
+  asset folder `fonts/` (still the `guit3fonts` package) with its alias table. The engine's table got the
+  Windows names `emfont.cpp` had and it lacked (Cambria, Garamond, Palatino, Calibri, Segoe UI, Lucida
+  Console, Fixedsys, `cursive`, ...). One difference on the web: a name with no alias now gets a sans-serif
+  font (as on the desktop) instead of no font (ImGui's default).
+- **Collections:** the hook has a new `face_index` out parameter, which CTadsFont passes to ImGui
+  (`ImFontConfig::FontNo`). Before, a `.ttc` was always read as face 0 (on Windows `GetFontData(0)` even
+  gave only one face's tables with offsets into the collection).
+- **The charset** argument isn't used any more. GDI took it into account when it matched a font on Windows;
+  the other backends never did. FreeType draws the text in Unicode either way.
+- **Enumeration:** the engine has a new `SystemFonts::getFamilyDetails()`: each family with its style
+  (serif, sans-serif, monospace, script, decorative), whether it's fixed pitch, and whether it's a symbol font.
+  On Windows these are GDI's own fields; on Linux and the web the font file's OS/2 table, PANOSE first, then
+  `sFamilyClass` (the algorithm of `fcfont.cpp`/`emfont.cpp`), with fontconfig's spacing on Linux and a
+  symbol font being one with a Microsoft symbol character map and no Unicode one. The hook turns them back
+  into the `ENUMLOGFONTEX`/`NEWTEXTMETRIC` fields the Customize Theme dialog reads (`FF_*`,
+  `TMPF_FIXED_PITCH`, `SYMBOL_CHARSET`). Names that don't fit into `lfFaceName` are left out.
+- **Encoding:** the engine's names are UTF-8. On Windows guit3's face names are ANSI (what the old `...A`
+  GDI calls took), so they are converted with `os_local_to_utf8()`/`os_utf8_to_local()` (`CP_ACP`); elsewhere
+  they pass through as before.
+- **Differences in the dialog's lists on Windows** (compared with the old GDI enumeration for the window's
+  character set, `ANSI_CHARSET`, all six lists): GDI's `@` names (the vertical variants of East Asian fonts)
+  are gone, and five old GDI fonts without the ANSI character set are listed now (8514oem, Modern, Roman,
+  Script, Terminal): the engine lists every family whatever its character sets. Everything else is the same.
+- macOS: the engine has no macOS backend, so guit3 (which links the engine) doesn't build there anyway;
+  `ctfont.cpp` is in the history for when it does.
+
+**How it was verified:** Windows (`ditch3.t3`: the game text in Times New Roman, the title bold; the
+Typewriter list holds only fixed-pitch families; a small program printed the six lists both ways, with the
+differences above). Linux (WSLg, X11: the text in fontconfig's substitute DejaVu Serif; the six lists are
+identical to the old `fcfont.cpp`'s, compiled from the history next to the engine). Web (headless Chrome:
+the text in Liberation Serif, the lists from the bundled fonts, e.g. Typewriter: Cousine, Liberation Mono,
+ProggyCleanTT, ProggyTinyTT).
+
 ## 6. Working notes for a fresh session
 
 ### Building and running

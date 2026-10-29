@@ -19,9 +19,8 @@ Notes
   here is FreeType/ImGui calls plus the portable LOGFONT-shaped types
   tadsplat.h defines off Windows.  The genuinely OS-specific half of font
   handling - os_font_family_is_present() / os_font_data_for_name(),
-  declared in tadsfont.h - lives in one per-platform backend file instead
-  (guifont_w32.cpp / fcfont.cpp / ctfont.cpp; see migration.md 5.4/G),
-  selected by CMake.
+  declared in tadsfont.h - is the engine's system font lookup, behind the
+  hooks in tadsfont.cpp (see migration.md 5.4/G and 5.28).
 Modified
   01/31/98 MJRoberts  - Creation
 */

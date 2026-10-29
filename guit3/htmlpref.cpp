@@ -1511,7 +1511,7 @@ static int CALLBACK cust_font_enum_cb(ENUMLOGFONTEX *elf, NEWTEXTMETRIC *tm,
  *   os_enum_font_families() hook (tadsfont.h) rather than calling
  *   EnumFontFamiliesEx() directly, so this code - and the selector
  *   callbacks above - run unchanged on every platform; only the
- *   enumeration backend (guifont_w32.cpp/fcfont.cpp/ctfont.cpp) differs.
+ *   enumeration (the engine's, per platform) differs.
  */
 void CHtmlPreferences::cust_refresh_font_lists(unsigned int charset_id)
 {
