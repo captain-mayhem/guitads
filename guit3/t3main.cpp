@@ -47,6 +47,7 @@ Modified
 #include "htmlpref.h"
 #include "tadsapp.h"
 #include "guiver.h"
+#include "guios.h"
 
 
 /* ------------------------------------------------------------------------ */
@@ -418,9 +419,11 @@ int t3main(int argc, char **argv, struct appctxdef *appctx, char *)
     char exe_file[OSFNMAX];
     int stat;
 
-    /* get the name of the executable file */
-    GetModuleFileName(CTadsApp::get_app()->get_instance(),
-                      exe_file, sizeof(exe_file));
+    /*
+     *   get the name of the executable file - the system resource loader
+     *   (the charmap library) looks in its directory
+     */
+    gui_get_exe_path(exe_file, sizeof(exe_file));
 
     /* set up the host context */
     hostifc = t3main_create_hostifc(exe_file, appctx);

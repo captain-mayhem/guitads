@@ -26,12 +26,34 @@
 
 #include <cstdio>
 #include <cstring>
+#ifdef __linux__
+#include <unistd.h>       /* readlink() for the executable's path */
+#endif
 
 #include "tadshtml.h"     /* th_malloc / th_free */
 #include "guios.h"
 #include "htmlres.h"      /* IDS_* string ids */
 #include "charmap.h"      /* CCharmapToUni / CCharmapToLocal - item K */
 #include "resload.h"      /* CResLoader - finds charmap/<name>.tcm files */
+
+
+/* ------------------------------------------------------------------------ */
+/*
+ *   The executable's path
+ */
+
+void gui_get_exe_path(char *buf, size_t buflen)
+{
+#ifdef __linux__
+    ssize_t len = readlink("/proc/self/exe", buf, buflen - 1);
+    if (len > 0)
+    {
+        buf[len] = '\0';
+        return;
+    }
+#endif
+    snprintf(buf, buflen, "guit3");
+}
 
 
 /* ------------------------------------------------------------------------ */
@@ -114,14 +136,10 @@ char *os_load_license_text(size_t *len)
  *   rather than failing the conversion outright, so a missing/corrupt
  *   cmaplib.t3r degrades gracefully instead of losing all GUI text.
  *
- *   This mirrors guimain.cpp not yet existing off Windows (M4): there is no
- *   portable "directory the executable lives in" query wired up yet, so the
- *   CResLoader used here has no root directory and therefore searches the
- *   current working directory, same as CResLoader's other bare-constructor
- *   callers (e.g. msgcomp.cpp).  That's fine for the common case of running
- *   guit3 from its own install/build directory; if that proves too fragile
- *   once there's a real M4 Linux build to test against, give this its own
- *   exe-relative CResLoader the way t3main.cpp's MyHostIfc does.
+ *   The CResLoader looks in the executable's directory (gui_get_exe_path()),
+ *   as t3main.cpp's MyHostIfc does, because guit3 is usually started from a
+ *   game's folder.  On the web that path has no directory, so it searches
+ *   the current working directory, where the charmap library is packaged.
  */
 
 namespace {
@@ -138,7 +156,15 @@ void codepage_table_name(unsigned int codepage, char *buf, size_t buflen)
 
 CResLoader *cmap_res_loader()
 {
-    static CResLoader *loader = new CResLoader();
+    static CResLoader *loader = 0;
+    if (loader == 0)
+    {
+        char exe[OSFNMAX];
+        char dir[OSFNMAX];
+        gui_get_exe_path(exe, sizeof(exe));
+        os_get_path_name(dir, sizeof(dir), exe);
+        loader = (dir[0] != '\0' ? new CResLoader(dir) : new CResLoader());
+    }
     return loader;
 }
 

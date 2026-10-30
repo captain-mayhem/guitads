@@ -25,6 +25,17 @@
 
 /* ------------------------------------------------------------------------ */
 /*
+ *   The executable's path
+ */
+
+void gui_get_exe_path(char *buf, size_t buflen)
+{
+    GetModuleFileNameA(0, buf, (DWORD)buflen);
+}
+
+
+/* ------------------------------------------------------------------------ */
+/*
  *   E. System colors
  */
 

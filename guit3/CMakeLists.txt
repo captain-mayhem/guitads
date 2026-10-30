@@ -517,6 +517,14 @@ add_custom_command(
 # reference into a win32/ tree - see the WIN32 NOTE above).
 make_t3r(guit3 about3.jpg=about.jpg)
 add_dependencies(guit3 build_guit3.t3r)
+# A multi-config generator (Visual Studio) puts guit3.exe into a Release/
+# or Debug/ folder below the .t3r's, so copy it next to the exe (the
+# install step does the same).
+if (NOT EMSCRIPTEN)
+	add_custom_command(
+			TARGET guit3 POST_BUILD
+			COMMAND ${CMAKE_COMMAND} -E copy_if_different ${CMAKE_CURRENT_BINARY_DIR}/guit3.t3r $<TARGET_FILE_DIR:guit3>/)
+endif()
 
 if (EMSCRIPTEN)
 	# Packages the private-resources .t3r built just above (the About box's

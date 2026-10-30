@@ -160,9 +160,15 @@ static int askfile_hook(const char *prompt, const char *filter,
     char initial_path[OSFNMAX];
     size_t len;
 
-    /* combine the initial directory and default filename into one path */
+    /*
+     *   Combine the initial directory and default filename into one path.
+     *   The default save name comes from the game's name, which is a full
+     *   path when the game was opened by one (as from Explorer); then it
+     *   replaces the directory, as it does in the native common dialog.
+     */
     initial_path[0] = '\0';
-    if (initial_dir != 0 && initial_dir[0] != '\0')
+    if (initial_dir != 0 && initial_dir[0] != '\0'
+        && !os_is_file_absolute(fname_buf))
     {
         strncpy(initial_path, initial_dir, sizeof(initial_path) - 1);
         initial_path[sizeof(initial_path) - 1] = '\0';
@@ -463,30 +469,20 @@ static void run_game(int argc, char** argv,
 #endif
 
     /*
-     *   Get the executable's filename and use it as argv[0].  Off Windows,
-     *   tadsplat.h's GetModuleFileName() stub always returns an empty
-     *   string (there's no portable equivalent wired up), which broke more
-     *   than just argv[0]: CHtmlSys_mainwin::load_exe_resources() (below)
-     *   derives its loose ".t3r" resource-file name from this same string
-     *   by stripping the extension and appending "t3r" - fed an empty
-     *   string, that produces ".t3r" instead of "guit3.t3r", so the About
-     *   box's background image (packaged via CMakeLists.txt's
-     *   make_t3r(guit3 ...)/em_package(guit3about ...)) silently failed to
-     *   load on every non-Windows build. The three other GetModuleFileName()
-     *   call sites in this port (htmlgui.cpp x2, t3main.cpp) only feed the
-     *   Windows-specific "self-running compiled executable" resource/
-     *   GameInfo lookup, which doesn't apply off Windows by design (see
-     *   CMakeLists.txt's comment on why guit3 never binds resources into
-     *   its own binary off Windows) - fixing this locally rather than in
-     *   the shared stub avoids feeding a fabricated exe path into that
-     *   unrelated logic.
+     *   Get the executable's filename and use it as argv[0].
+     *   CHtmlSys_mainwin::load_exe_resources() (below) derives its loose
+     *   "guit3.t3r" resource-file name (the About box, packaged via
+     *   CMakeLists.txt's make_t3r(guit3 ...)/em_package(guit3about ...))
+     *   from it.  Off Windows, tadsplat.h's GetModuleFileName() stub always
+     *   returns an empty string, so this uses gui_get_exe_path() (guios.h),
+     *   as t3main.cpp does for the VM's resource loader (the charmap
+     *   library).  The two GetModuleFileName() call sites in htmlgui.cpp
+     *   only feed the Windows-specific "self-running compiled executable"
+     *   resource/GameInfo lookup, which doesn't apply off Windows by design
+     *   (see CMakeLists.txt's comment on why guit3 never binds resources
+     *   into its own binary off Windows), so they keep the stub.
      */
-#ifdef _WIN32
-    GetModuleFileName(CTadsApp::get_app()->get_instance(),
-                      exefile, sizeof(exefile));
-#else
-    strcpy(exefile, "guit3");
-#endif
+    gui_get_exe_path(exefile, sizeof(exefile));
     new_argv[0] = exefile;
 
     /* 

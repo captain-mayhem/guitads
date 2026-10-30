@@ -36,6 +36,20 @@ unsigned long os_get_tick_ms(void);
 
 /* ------------------------------------------------------------------------ */
 /*
+ *   The executable's path
+ *
+ *   The full path of guit3's executable, next to which guit3.t3r and the
+ *   charmap library are (guit3 usually runs in a game's folder): Windows'
+ *   GetModuleFileName(), Linux's /proc/self/exe.  On the web it is the bare
+ *   name "guit3", so these files are found in the working directory of the
+ *   virtual file system, where they are packaged.  Implemented in
+ *   guios_w32.cpp and guios_portable.cpp.
+ */
+void gui_get_exe_path(char *buf, size_t buflen);
+
+
+/* ------------------------------------------------------------------------ */
+/*
  *   D. Clipboard (plain text, UTF-8)
  *
  *   set/get move UTF-8 bytes to/from the system clipboard through the

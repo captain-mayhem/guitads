@@ -15866,7 +15866,26 @@ int CHtmlSys_mainwin::event_loop(int* flag) {
         {
             for (int i = 0; i < io.InputQueueCharacters.size(); ++i) {
                 ImWchar ch = io.InputQueueCharacters[i];
-                do_char(ch, 0);
+                if (ch < 0x80) {
+                    do_char((TCHAR)ch, 0);
+                    continue;
+                }
+
+                /*
+                 *   do_char() takes local code page bytes (TCHAR is char),
+                 *   so convert the character through CP_ACP as the paste
+                 *   path does; casting it to a byte turned everything
+                 *   outside Latin-1 into another character (the euro sign
+                 *   U+20AC into U+00AC).
+                 */
+                char u8[5];
+                ImTextCharToUtf8(u8, ch);
+                char *local = os_utf8_to_local(CP_ACP, u8, 0);
+                if (local != 0) {
+                    for (const char *p = local; *p != '\0'; ++p)
+                        do_char(*p, 0);
+                    th_free(local);
+                }
             }
             if (ImGui::IsKeyPressed(ImGuiKey_Enter)) {
                 do_char('\r', 0);

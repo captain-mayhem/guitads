@@ -3594,23 +3594,102 @@ and the fade-out are heard. A variant with only the formats the previous guit3 c
 both builds; the levels agree within 0.5 dB in every half second, including the fades and the dip where the
 background loop restarts. The previous guit3 crashed on the full test game.
 
+### 5.30 Moving onto Captain's Game Engine — the web re-check, the regression pass and three fixes
+
+The last steps of the move (jewelhunter's `PLAN.md`, Phase 5): the web fixes of 5.10-5.24 re-checked on the
+engine's threaded web build, and the manual checks of section 6 on Windows, Linux and the web. guit3 runs on
+the engine with the behaviour it had before, apart from the fixes below, which are older than the move.
+- **About box blank on Windows** (Visual Studio build): the about box and its picture come from `guit3.t3r`,
+  which `load_exe_resources()` looks for next to `guit3.exe`. A multi-config generator builds the `.t3r` one
+  folder above the exe (`Release/`), so the box showed only its links. `CMakeLists.txt` now copies the `.t3r`
+  next to the exe after the build (the install step already did).
+- **Linux looked in the working directory for its own files:** `guimain.cpp` used the bare name `guit3` off
+  Windows (5.20), so `guit3.t3r` and the charmap library (t3main's resource loader) were only found when guit3
+  ran from its own folder. Started from a game's folder, the about box was blank and `©` showed as `�`. On
+  Linux the exe path now comes from `/proc/self/exe`, and `guios_portable.cpp`'s charmap loader (item K) uses
+  that folder too. The web is unchanged: its files are in the virtual file system's working directory.
+- **Saving failed on Windows** when the game was opened by a full path (as from Explorer or a shortcut):
+  "Failed; your computer might be running low on disk space...". `os_askfile()` (`oswin.c`) passes the game's
+  full path with the save extension as the default file name, which the native common dialog accepts as is.
+  `askfile_hook()` put the initial directory in front of it, so `CTadsFileDialog` opened a folder that doesn't
+  exist (`...\game\C:\...\game`; the list was empty) and returned that path. An absolute default name now
+  replaces the directory. Found with `cdb` (a breakpoint on `os_build_full_path`). Started by a relative game
+  name, saving always worked, which is why earlier checks missed it.
+
+- **Non-ASCII input off Windows** (two bugs):
+  - `os_get_charmap()` in tads-runner's `tads2/unix/osunixt.c` returned the 7-bit `asc7dflt` for every
+    character set, so on Linux and the web a typed `ä` or `©` reached the game as `?`, and Edit > Copy gave
+    ASCII approximations (`Kase (c) a o u ss`). The output wasn't affected: in HTML mode the VM writes
+    unmappable characters as entities. The HTML builds (`USE_HTML`: guit3, and `htmlt3` on the web) now get
+    `cp1252` for the display, the code page guit3 and `htmlt3` convert their text with (as `CP<GetACP()>` on
+    Windows), and `utf-8` for file names, the command line and text files. `t3run` and the tools compile
+    `osunixt.c` without `USE_HTML` and keep `asc7dflt`.
+  - The VM then needs `charmap/cmaplib.t3r` (cp1252 is a table, ASCII was built in). t3main.cpp took the exe
+    path from the `GetModuleFileName()` stub, which is empty off Windows, so its resource loader searched the
+    working directory. guios.h's new `gui_get_exe_path()` (guios_w32.cpp: `GetModuleFileNameA`;
+    guios_portable.cpp: `/proc/self/exe` on Linux, `guit3` on the web) is now used by t3main.cpp,
+    guimain.cpp and the charmap loader of item K.
+  - **On every platform,** `event_loop()` passed each typed ImGui character to `do_char()`, which takes a
+    `TCHAR` (a `char` here), so characters outside Latin-1 lost their high byte: `€` (U+20AC) became `¬`
+    (U+00AC), and the curly quotes, dashes and `™` of cp1252's 0x80-0x9F turned into control codes. Typed
+    characters now go through `os_utf8_to_local(CP_ACP)` like pasted text; one outside the code page becomes
+    `?`.
+
+**Known gaps, older than the move and not changed** (the GLFW build of 2026-09-06 behaves the same where
+it was compared):
+- **The web has no scrollbar and no `*** MORE ***` prompt;** long output scrolls to its end. In the UI test
+  below, the upper lines were also drawn about 8 pixels too far left on the web; that wasn't compared with
+  the old build.
+- Escape doesn't close Options, Manage Themes or the about box (it closes Find, the file and folder
+  dialogs, the License and the message boxes). The web file dialog shows `//tmp` for `/tmp`.
+- `Webtest.t3`'s WebUI library sometimes throws in its own focus handler (`cmdwin.js:313`, a null rectangle,
+  then an undefined `logError` in `util.js`); the game still answers.
+
+**How it was verified** (`ditch3.t3`, the WebUI game `Webtest.t3`, and a small UI test game: non-ASCII
+output, 80 lines, five `inputLine()`s that echo the line and its length, run with `-debugwin`):
+- **Web** (headless Chrome, jewelhunter's `tools/webtest.mjs --isolate`): `©` and the status timer show
+  (5.13, 5.19); one click on ABOUT runs it (5.11); Enter submits commands (5.10); Save opens `CTadsFileDialog`
+  with the game's filter, saving to `/tmp` works and Restore brings the position back (5.12); Ctrl+V pastes
+  what the real clipboard holds, and Ctrl+A, Ctrl+C give the window's text to `navigator.clipboard` (5.24);
+  F5, F11, F12 and Ctrl+C/V/X keep the browser's default, while F1, F3, Ctrl+R and Ctrl+S don't; the about box
+  shows its picture (5.20); the WebUI game runs in its overlay, answers a command, and closing the overlay
+  ends it (5.22); every menu, Options with the folder picker, Customize Theme, Manage Themes, Find and the
+  License open.
+- **Windows** (display scale 200%, SendInput, screen captures): the same, plus the debug log window and its
+  menu, the mouse wheel, the scrollbar and the MORE prompt, `äb` reaching the game as 2 characters, and the
+  close button ending guit3 without `tadscrsh.txt`.
+- **Linux** (WSLg, X11, xdotool, `XGetImage` captures): the same as Windows, started from the game's folder,
+  plus pasting text from the Windows clipboard through WSLg, reading guit3's copy with a small X11 clipboard
+  client, and closing with `WM_DELETE_WINDOW` (exit code 0). The Help menu, which didn't open in 5.27's
+  checks, opens.
+- **The character fixes:** typing `äb ©€“–™` (CDP on the web, xdotool on Linux, `SendInput` with
+  `KEYEVENTF_UNICODE` on Windows) gives the game exactly those characters (the test game echoes the line and
+  its length); pasting `€ä©` from the Windows clipboard on Linux gives 3; Ctrl+A, Ctrl+C copy `Käse © ä ö ü ß
+  €` unchanged on Linux and the web; there is no charmap warning on Linux with guit3 started from the game's
+  folder.
+
 ## 6. Working notes for a fresh session
 
 ### Building and running
 
-`guit3`'s source lives in the `htmltads` repo, but it is **built from the `tads-runner` superproject**, which
-auto-detects `../htmltads`. Iterate with:
+`guit3`'s source lives in the `guitads` repo, but it is **built from the `tads-runner` superproject**, which
+auto-detects `../guitads` (and guitads adds the engine from `../captainsengine`). Iterate with:
 
 ```
-cmake --build tads-runner/build/default --target guit3
+cmake --build tads-runner/build/vs --config Release --target guit3     (Windows, the windows-vs preset)
+cmake --build tads-runner/build/default --target guit3                 (Linux; the emscripten preset likewise)
 ```
 
 A handful of `.cpp`s, seconds to a couple of minutes — no need to rebuild tads2/tads3/curl. Output:
-`tads-runner/build/default/htmltads/htmltads/imgui/guit3.exe`.
+`build/vs/guitads/guit3/Release/guit3.exe` (with `CGE.dll`, `CGE_GL.dll`, `engine.ini`, `fonts/`,
+`charmap/` and `guit3.t3r` next to it), `build/default/guitads/guit3/guit3`, and
+`build/emscripten/guitads/guit3/guit3.html`.
 
-Run it with a test game from `tads-runner/tests/`, with the working directory set there (that's where
-`imgui.ini` and save files land). The charmap warning is fixed at the source (§2) — if it reappears, the
-`POST_BUILD` copy step was removed or the build dir is stale.
+Run it with a test game, with the working directory set to the game's folder (that's where `imgui.ini` and
+save files land; running guit3 from `tads-runner/tests/` changes the tracked `tests/imgui.ini`, so prefer a
+copy of the game elsewhere). Start it with a full path to the game too: a relative one hid the save bug of
+5.30. `-debugwin` opens the debug log window. The charmap warning is fixed at the source (§2) — if it
+reappears, the `POST_BUILD` copy step was removed or the build dir is stale.
 
 ### Verifying UI changes — there is no automated test coverage
 
@@ -3684,9 +3763,9 @@ Run it with a test game from `tads-runner/tests/`, with the working directory se
 ### Verifying the Emscripten build (guit3.html) in a browser — real keyboard events, not just screenshots
 
 `guit3`'s Emscripten build (`cmake --preset emscripten`, emsdk activated first, then `cmake --build
-build/emscripten --target guit3`) produces `guit3.js`/`.wasm` plus the test page `imgui/emscripten/guit3.html`
+build/emscripten --target guit3`) produces `guit3.js`/`.wasm` plus the test page `guit3/emscripten/guit3.html`
 (copied next to them by a `POST_BUILD` step) and a packaged `tests/ditch3.t3` (`em_package(ditch3game ...)` in
-`imgui/CMakeLists.txt` — a distinct name from `tests/CMakeLists.txt`'s own `em_package(ditch3 ...)` for classic
+`guit3/CMakeLists.txt` — a distinct name from `tests/CMakeLists.txt`'s own `em_package(ditch3 ...)` for classic
 `t3run`, since `em_package()`'s `add_custom_target()` name must be unique project-wide).
 
 - **This build needs `Cross-Origin-Opener-Policy: same-origin` / `Cross-Origin-Embedder-Policy: require-corp`
@@ -3718,6 +3797,34 @@ build/emscripten --target guit3`) produces `guit3.js`/`.wasm` plus the test page
   until `EndOfMessage` is true before `ConvertFrom-Json`, or large responses silently fail to parse.
 - This exact recipe (type text, press a real Enter via CDP, screenshot before/after, diff by eye) is what
   isolated 5.10's bug to Enter specifically (Backspace, driven the same way, worked) and then confirmed the fix.
+- **Since 5.26 the recipe is a script:** jewelhunter's `tools/webtest.mjs` (Node, no packages; emsdk's Node
+  works) serves the folder (`--isolate` adds COOP/COEP), opens the page in headless Chrome, prints every
+  thread's console and runs a JSON file of steps (mouse, keys, typing, `eval`, screenshots); its header lists
+  the steps. E.g. `node webtest.mjs build/emscripten/guitads/guit3 "guit3.html?game=webtest" steps.json out
+  --isolate`. Gotchas from 5.30:
+  - Within one step the key runs before the screenshot, so `{"shot": ..., "key": "Escape"}` closes a menu
+    before it is captured. Put them in separate steps.
+  - CDP's click has no time between the move, the press and the release. Menus and links work with it, an
+    ImGui tab didn't; a `move`, a wait, then `down` and `up` did (a real mouse on Windows works either way).
+  - A named key without text sends no `keypress`. A WebUI page's command line needs `{"key": "Enter",
+    "text": "\r"}`; guit3 itself doesn't.
+  - Headless Chrome's clipboard is empty, and Ctrl+V's paste event brings that. Write the real clipboard first
+    (`navigator.clipboard.writeText(...)` in an `eval`), then press Ctrl+V.
+  - `?game=extra` runs any game packaged by hand as `guit3extragame` (`file_packager.py guit3extragame.data
+    --preload game.t3@extra.t3 --js-output=guit3extragame.js`); keep a copy of the package that was there.
+
+### Verifying on Linux (WSLg)
+
+- Start guit3 with `WAYLAND_DISPLAY=` unset, so it is an X11 window, and do everything in one `wsl` call: a
+  process started in the background ends when that call returns.
+- `xdotool search --pid` finds the window; `mousemove --window W x y` then `click 1` clicks (coordinates are
+  logical pixels, 1426×746 by default); `xdotool key --window W` reaches guit3 after a first click into it;
+  `xdotool click 4` scrolls up.
+- `xdotool windowclose` destroys the window without asking guit3. A ten-line Xlib client that sends
+  `WM_PROTOCOLS`/`WM_DELETE_WINDOW` closes it the way a window manager does; another that converts the
+  `CLIPBOARD` selection to `UTF8_STRING` reads what guit3 copied. WSLg shares the clipboard with Windows, so
+  `Set-Clipboard` in PowerShell provides text to paste.
+- Screen captures: an Xlib `XGetImage` client writing a PPM (screenshots of the desktop don't see WSLg windows).
 
 ### Debugging techniques that actually worked
 
