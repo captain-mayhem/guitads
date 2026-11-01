@@ -853,6 +853,15 @@ touched them:
   `MoveWindow(handle_)` path — a no-op in guit3 — and isn't covered here. The License dialog was a native
   resource dialog too, but has since been ported to a plain popup, not a scaled `get_dlg_size()` window — see
   §3.3d. See §5.4 for `CHtmlSys_aboutgamewin`.)
+  - *Title bar ate the top of the box:* that design size is the **client** area (the About picture,
+    `about3.jpg`, is exactly 478×279), but the floating branch of `CTadsWin::do_render_content_begin()` used
+    it as the outer ImGui window size, title bar included, and placed the HTML panel at the window's outer top
+    edge. ImGui clipped the panel's top under the title bar, cutting off the top of "GUI TADS" on the picture
+    (and of Credits' first line). Now a floating window's `m_pos`/`m_size` describe the client area below the
+    title bar (the ImGui window is `GetFrameHeight()` taller and starts that much higher), and the child branch
+    adds the parent's `TitleBarHeight` to its origin. The client-area `m_pos` keeps `get_screen_pos()`, and with
+    it the links' mouse hit-testing, in step with the drawing. `TitleBarHeight` is 0 for every window without a
+    title bar (the main window, banners, the `NoTitleBar` popup menu), so they're unchanged.
   - *Unrelated pre-existing bug fixed in passing:* `CHtmlSys_top_win::do_create()` subtracted
     `SM_CXVSCROLL`/`SM_CYHSCROLL` from the sub-window rect for a scrolling panel (in practice only Credits,
     `panel_has_vscroll() == TRUE`). `CHtmlSysWin_win32` reserves its own scrollbar strip internally now
@@ -933,13 +942,13 @@ What was done:
 6. **MIDI gated to `#ifdef _WIN32`** — `tadsmidi.cpp`'s whole body and `guisnd.cpp`'s MIDI section; the
    `#else` gives a stub `create_midi()` returning null (a game requesting MIDI plays silent). Windows
    behavior unchanged. The dead `#ifdef HAVE_DXMUSIC` block still references removed members but
-   `HAVE_DXMUSIC` is defined nowhere.
+   `HAVE_DXMUSIC` is defined nowhere. **Replaced in 5.33:** MIDI is a portable software synth now.
 
 Builds and runs clean. **Actual audio playback is not yet runtime-verified** — neither test game has any
 sound, so a sound-bearing `.t3`/`.gam` needs sourcing to exercise the WAV/OGG/MP3 path by ear.
 
 Deferred: decoder file I/O (§5.4), the vestigial DirectSound probe (§5.4), a portable MIDI synth (phase two —
-TinySoundFont + a bundled GM soundfont through `CTadsAudioDevice`), and the volume curve
+TinySoundFont + a bundled GM soundfont through `CTadsAudioDevice`; **done in 5.33**), and the volume curve
 (`update_level()` applies a `log10` curve and hands 0..10000 to `set_volume`, which maps *linearly* to
 miniaudio's 0..1; the old code applied a second dB mapping on top — revisit once there's a test game). **Done in 5.32.**
 
@@ -1080,7 +1089,7 @@ Also in `guit3`'s CMakeLists:
 - **Win32-only link libraries**, each marking a dependency to resolve or drop: `Comctl32.lib` (native
   controls — the last property-page dialog classes that needed it are gone as of the M1 revisit, §5.3, so
   this is now a candidate for removal — verify no other `commctrl` user remains first), `Winmm.lib` (MIDI
-  only, already `_WIN32`-gated), `Ws2_32.lib`/`Wininet.lib`/`Mpr.lib` (networking — the superproject already
+  only, already `_WIN32`-gated; dropped in 5.33), `Ws2_32.lib`/`Wininet.lib`/`Mpr.lib` (networking — the superproject already
   vendors `curl/`), `Shlwapi.lib` (`PathMatchSpecA`, §5.4/J), `Version.lib`, `dxguid.lib` (only the
   vestigial DirectSound probe, §5.4/I), `Opengl32.lib` (already `if (WIN32)`-guarded).
   (`Htmlhelp.lib` was here too — **dropped** in the M1 revisit along with the `.chm` help path, §5.4/F.) (**5.32:** `Comctl32.lib` is linked only with `TADS_WEBUI_ENABLED` on Windows now.)
@@ -1109,7 +1118,7 @@ across the files `guit3` actually compiles, largest first:
 | `tadsapp.cpp`/`.h` | 25/17 | 2000 | `MSG` pump, accelerators, modeless list, MDI — mostly dead — §5.4/L. |
 | `tadsreg.cpp` | 21 | 419 | Registry — §5.4/C. |
 | `guimain.cpp` | 21 | 956 | Startup/shutdown — §5.4/M. |
-| `tadsmidi.cpp` | 20 | 2219 | Already `#ifdef _WIN32`. Phase two. |
+| `tadsmidi.cpp` | 20 | 2219 | **Win32-free now (5.33).** Rewritten on TinySoundFont, about 450 lines. |
 | `foldsel2.cpp`/`guifndlg.cpp`/`iconmenu.cpp` | 20/16/12 | 2351 | Dead — §5.3. |
 | `tadsimg.cpp`/`.h` | 15/8 | 700 | **Win32-free now (M2/A2/H).** `alloc_dib()` is a plain `os_alloc_huge()`; the `AlphaBlend` dynamic-link gate is gone (alpha always on). Dead `<windows.h>`/`tadsapp.h` includes remain per the A1 convention. |
 | `tadsvorb.cpp`/`tadswav.cpp`/`mpegamp_w32.cpp`/`tadscsnd.cpp` | 10/8/9/2 | — | **Win32-file-API-free now (M2/A2/I).** Decoder file I/O is on the portable `osfile` API; the packed WAV struct parse is explicit LE field reads. `getbits.cpp` forked into `imgui/` for the same reason. Dead `<Windows.h>` includes remain (A1 convention). |
@@ -2341,7 +2350,7 @@ added to a *shared* file (as opposed to a per-platform file the CMakeLists selec
 "obviously" has no Windows implementation - it might.
 
 **M5 — phase two.** The four unported windows (N, if not done earlier), a portable MIDI synth (TinySoundFont
-+ a bundled GM soundfont through `CTadsAudioDevice`, §3.7), the real cross-platform embedded Web UI behind
++ a bundled GM soundfont through `CTadsAudioDevice`, §3.7 — done in 5.33), the real cross-platform embedded Web UI behind
 the flag from O, and the Emscripten target as its own effort (§4).
 
 ### 5.6 M5/Emscripten kickoff — CMake plumbing wired up, first real compile errors found
@@ -3788,6 +3797,69 @@ web. Windows (Web UI off): `ditch3.t3` starts with the ImGui toolbar. Web: with 
 does nothing; after Escape closes it, Ctrl+O shows the new-game prompt. Not checked: the sound warning (no
 machine here without audio output), the documents folder on a Linux desktop with `user-dirs.dirs`, and the
 volume curve by ear or recording (no test game with sound here).
+
+### 5.33 MIDI on a software synthesizer (TinySoundFont)
+
+MIDI music plays on every platform now. guit3 played it only on Windows, through the Win32 client's player
+on Windows' `midiStream` sequencer (`tadsmidi.cpp`, 2200 lines: its own MIDI file parser, double-buffered
+`MIDIHDR`s, `MM_MOM_DONE` window messages, a DirectMusic path compiled out); elsewhere `create_midi()`
+returned null and the game was silent.
+- **The player:** `CTadsMidiFilePlayer` ([tadsmidi.cpp](tadsmidi.cpp)) is rewritten (about 450 lines,
+  new code — `LICENSE` lists it so now) in the shape of `CTadsCompressedAudio` (5.29). The constructor reads
+  the sound's slice of its file through osfile and parses it with TinyMidiLoader (`tml_load_memory()`), which
+  gives the track length too (`get_track_len_ms()`, for the end-of-track fade). `play()` starts a worker
+  thread that renders with TinySoundFont into a `CTadsAudioDevice` (the engine's audio stream) at 44.1 kHz,
+  stereo float, in chunks of 2048 frames; within a chunk the MIDI messages are applied every 64 frames
+  (`TSF_RENDER_EFFECTSAMPLEBLOCK`), so they're at most 1.5 ms late. Channel 10 is set to the drum kit (bank
+  128). After the last message the notes still on are released and ring out until they're silent, for 3 s at
+  most. Stop, volume, mute, the 'done' queue and the faders work as for the digitized sounds.
+- **The soundfont:** `soundfont/TimGM6mb.sf2` (6 MB, GPL-2, `soundfont/README.txt`) is copied next to the
+  executable (`POST_BUILD`, and installed to `soundfont/`), and packaged on the web as
+  `guit3soundfont.data` at the same path, which `guit3.html` loads. It is loaded on the first MIDI sound
+  (`open_synth()`, `gui_get_exe_path()`'s folder) and read once; each player plays on a `tsf_copy()` that
+  shares the samples. TinySoundFont's copy count isn't atomic, so copying and closing are done under a
+  mutex. A missing soundfont is logged (`oshtml_dbg_printf`) and the music is silent, as before.
+  `CTadsMidiFilePlayer::class_terminate()` (the app's destructor, in place of `CTadsDirectMusic`'s) frees it.
+- **The gain:** TinySoundFont at 0 dB already clipped (peak 1.13) with one organ note and a kick drum, so the
+  synth renders at -6 dB. Not compared by ear against htmlt3's MIDI (Windows' GS synth) — retune if the
+  music sounds too quiet next to the digitized sounds.
+- **TinySoundFont** (`tsf.h`, `tml.h`, v0.9, MIT) is vendored unmodified in `../tinysoundfont/` (a header-
+  only library; `tadsmidi.cpp` compiles both implementations). The about box credits it and the soundfont.
+- **Removed:** the old player with its buffer, file reader and track reader classes and `CTadsDirectMusic`;
+  `CTadsWin::do_midi_event()` and the `MM_MOM_*` cases in its message handler; `tadsistr.h` (an `IStream` only
+  the DirectMusic path used, already outside the build); `tadsplat.h`'s audio/MIDI stubs (`WAVEFORMATEX`,
+  `MIDIHDR`, `HMIDISTRM`, ...), its `Interlocked*`/`CRITICAL_SECTION` shims and `MM_MOM_*` (nothing else used
+  them); `Winmm.lib` and `<mmsystem.h>` (the engine links `winmm` itself). `CHtmlSysSoundMidi_win32`
+  (`guisnd.cpp`) no longer keeps the file open: the player reads it. Its `create_midi()` returned an
+  uninitialized pointer when the MIDI header couldn't be read; it returns null now.
+
+**How it was verified:** a generated MIDI file (format 1, 120 bpm: a church organ holding A4, C5 and A5 for
+2 s each, a kick drum every 0.5 s), embedded with `t3make -res` so the seek offset is used, played with
+`<sound layer=background>`; recorded with jewelhunter's `tools/loopback` and measured with
+`audio_levels.py` (Goertzel at 440/523.25 Hz) on Windows, and with an `AnalyserNode` (webtest.mjs
+`--isolate`, `?game=extra`) on the web. Both: the notes in order and on time; a second game
+(`repeat=2 fadein=2`, a `RealTimeFuse` that cancels with `fadeout=1` at 9 s) shows the fade-in (440 Hz
+rising 24 dB over 2 s), the repeat starting on its own after the first pass (the 'done' callback) without a
+fade-in, and the cancel fading to silence within a second. The same loop rendered offline (a scratch
+program on `tsf.h` writing a WAV) agrees with the recording, and with a piano (program 0) gives exact
+440 → 523 → 880 Hz. Builds without warnings on Windows, Linux and the web. **Not checked:** the
+end-of-track fade-out (`fadeout` with `repeat=1`, which uses `get_track_len_ms()`), a real game's MIDI
+music by ear, and Linux at run time (see below).
+
+Gotchas:
+- **TimGM6mb's church organ has a strong sub-octave**: its A5 measures loudest at 440 Hz, not 880. Measure
+  pitches with the piano, or expect it.
+- **The loopback recording takes whatever the machine plays** — here something at about -26 dB RMS was
+  playing throughout. Measure narrow bands (Goertzel), not the overall level, and record a second before
+  guit3 starts to see the floor.
+- **Emscripten warns "Blocking on the main thread is very dangerous" at a repeat:** the main thread releases
+  the finished player, whose destructor joins the worker thread (already finished). `CTadsCompressedAudio`
+  does the same.
+- **guit3 on WSL (the Debug `build/linux-wsl`) crashes at startup** (`munmap_chunk(): invalid pointer`)
+  inside libLLVM's static initialization, when Mesa's `libEGL_mesa.so.0` is loaded by the engine's
+  `EGLX11Context::initDisplay()`, with any game. The build from before this change crashes the same way, so
+  it's not MIDI; Mesa in WSL was updated on 2026-10-01. Not investigated. A lead: that Debug guit3 exports
+  about 100 out-of-line `std::string` members in its dynamic symbol table, which libLLVM would bind to.
 
 ## 6. Working notes for a fresh session
 

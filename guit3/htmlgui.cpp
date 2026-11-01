@@ -19109,6 +19109,12 @@ void CHtmlSys_creditswin::build_contents(CHtmlTextBuffer *txtbuf)
         "<i>miniaudio</i><br>"
         "by David Reid<br><br>"
 
+        "<b>MIDI Synthesizer</b><br>"
+        "<i>TinySoundFont</i><br>"
+        "by Bernhard Schelling<br>"
+        "<i>TimGM6mb</i> soundfont<br>"
+        "by Tim Brechbill<br><br>"
+
         "<b>Mr. Roberts's Text Editor</b><br>"
         "<i>Epsilon</i><br>by Lugaru<br><br>"
 
@@ -19158,7 +19164,11 @@ void CHtmlSys_creditswin::build_contents(CHtmlTextBuffer *txtbuf)
         "copyright 2001, Xiphophorus.<br><br>"
 
         "This software includes miniaudio by David Reid, which plays the "
-        "sound and decodes WAV and MPEG audio."
+        "sound and decodes WAV and MPEG audio.<br><br>"
+
+        "This software includes TinySoundFont by Bernhard Schelling, which "
+        "plays MIDI music with the TimGM6mb soundfont by Tim Brechbill "
+        "(GNU General Public License version 2)."
         "</font><br><br>"
 
         "<br><br>"

@@ -23,7 +23,6 @@ Modified
 
 #ifdef _WIN32
 #include <Windows.h>
-#include <mmsystem.h>
 #include <commctrl.h>
 #else
 #include "tadsplat.h"
@@ -46,9 +45,6 @@ Modified
 #endif
 #ifndef TADSAPP_H
 #include "tadsapp.h"
-#endif
-#ifndef TADSMIDI_H
-#include "tadsmidi.h"
 #endif
 #ifndef TADSFONT_H
 #include "tadsfont.h"
@@ -1016,12 +1012,6 @@ LRESULT CTadsWin::common_msg_handler(HWND hwnd, UINT msg,
             return 0;
         break;
 
-    case MM_MOM_DONE:
-    case MM_MOM_CLOSE:
-    case MM_MOM_OPEN:
-        /* handle the MIDI event */
-        return do_midi_event(msg, wpar, lpar);
-
     default:
         /* check for a user message */
         if ((msg >= WM_USER && msg <= 0x7FFF)
@@ -1151,16 +1141,6 @@ void CTadsWin::update_toolbar_buttons()
             }
         }
     }
-}
-
-/*
- *   Handle a MIDI event.  By default, we'll just let the MIDI player
- *   handle it for us.  
- */
-int CTadsWin::do_midi_event(UINT msg, WPARAM wpar, LPARAM lpar)
-{
-    /* let the MIDI player handle it */
-    return CTadsMidiFilePlayer::handle_mm_message(msg, wpar, lpar);
 }
 
 
@@ -1620,8 +1600,14 @@ void CTadsWin::do_render_content_begin()
          *   following its parent - invisible while the parent always sat at
          *   screen (0,0), but visible as soon as chrome above the parent
          *   (menu bar, toolbar) pushes it down the screen.
+         *
+         *   Our coordinates are relative to the parent's client area, which
+         *   starts below its title bar if it has one (a floating dialog like
+         *   the About box; TitleBarHeight is 0 for everything else).  Without
+         *   that offset ImGui clips our top under the title bar.
          */
         ImVec2 parent_pos = ImGui::GetWindowPos();
+        parent_pos.y += ImGui::GetCurrentWindow()->TitleBarHeight;
         ImGui::SetNextWindowPos(ImVec2(parent_pos.x + m_pos.x, parent_pos.y + m_pos.y));
         ImGui::SetNextWindowSize(m_size);
         ImGui::BeginChild(m_title.c_str(), ImVec2(0, 0),
@@ -1641,17 +1627,31 @@ void CTadsWin::do_render_content_begin()
          *   so get_screen_pos() (used to translate absolute mouse coordinates
          *   for our children's hit-testing) stays correct after the window
          *   has been moved.
+         *
+         *   m_pos and m_size are the client area below the title bar, as
+         *   get_client_rect() reports it to our subwindows and as the parent
+         *   branch above places them, so the ImGui window starts higher and
+         *   is taller by the title bar.  Otherwise the About box's HTML panel,
+         *   laid out at the full m_size, overflowed the space under the title
+         *   bar, and the top of its background picture was cut off.
          */
-        ImGui::SetNextWindowPos(m_pos, ImGuiCond_FirstUseEver);
-        ImGui::SetNextWindowSize(m_size, ImGuiCond_FirstUseEver);
+        ImGuiWindowFlags flags =
+            ImGuiWindowFlags_NoResize | get_floating_window_flags();
+        float title_ht = (flags & ImGuiWindowFlags_NoTitleBar) != 0
+            ? 0.0f : ImGui::GetFrameHeight();
+        ImGui::SetNextWindowPos(ImVec2(m_pos.x, m_pos.y - title_ht),
+            ImGuiCond_FirstUseEver);
+        ImGui::SetNextWindowSize(ImVec2(m_size.x, m_size.y + title_ht),
+            ImGuiCond_FirstUseEver);
         ImGui::PushStyleVar(ImGuiStyleVar_WindowPadding, ImVec2(0.0f, 0.0f));
         bool *p_open = get_titlebar_open_flag();
-        ImGui::Begin(m_title.c_str(), p_open,
-            ImGuiWindowFlags_NoResize | get_floating_window_flags());
+        ImGui::Begin(m_title.c_str(), p_open, flags);
         if (p_open != nullptr && !*p_open)
             on_titlebar_close();
         m_pos = ImGui::GetWindowPos();
+        m_pos.y += title_ht;
         m_size = ImGui::GetWindowSize();
+        m_size.y -= title_ht;
     }
 }
 

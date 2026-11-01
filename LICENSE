@@ -33,7 +33,7 @@ originals:
 
 `tadsplat.h`, `guios.h`, `guios_common.cpp`, `guios_portable.cpp`,
 `tadsfiledlg.*`, `tadsfinddlg.*`, `tadsfolderdlg.*`, `tadslicensedlg.*`,
-`tadssettings.h`, `tadssettings_portable.cpp`, `tadsaudiodev.*`,
+`tadssettings.h`, `tadssettings_portable.cpp`, `tadsaudiodev.*`, `tadsmidi.*`,
 `guiengine.*`, `guikeys.h`, `engine.ini`,
 `embed_file.cmake`, `emscripten/*` (except `emscripten/fonts/`, see below),
 `CMakeLists.txt`, `*.md`
@@ -50,8 +50,8 @@ image replacing the original HTML TADS one) and its source `about3.xcf`.
 - `guit3/`, essentially unmodified (≈85–100% original code):
   `foldsel.h`, `foldsel2.cpp`, `foldselr.h`, `htmlres.h`, `res2.h`,
   `resource.h`, `oem_w32.c`, `t3main.*`, `tadsapp.*`, `tadscar.*`,
-  `tadschest.cpp`, `tadscom.*`, `tadsdlg.*`, `tadsdlg2.cpp`, `tadsistr.h`,
-  `tadsjpeg.*`, `tadsmidi.*`, `tadsmng.*`, `tadsole.*`, `tadspng.h`,
+  `tadschest.cpp`, `tadscom.*`, `tadsdlg.*`, `tadsdlg2.cpp`,
+  `tadsjpeg.*`, `tadsmng.*`, `tadsole.*`, `tadspng.h`,
   `tadstab.*`, `tadswebctl.*`, `guiimg.*`, `guimain.h`,
   `guinogch.cpp`, `guisnd.*`, `guifont.h`, `guiwebui.h`, `htmlgui.h`
 - `guit3/`, substantially modified but still clearly derived:
@@ -67,10 +67,16 @@ image replacing the original HTML TADS one) and its source `about3.xcf`.
   by its own description it is Win32 call-site code moved unchanged. It is
   small enough to rewrite.
 
-**Third-party libraries**: libmng (in this repository); zlib, libpng, IJG
+**Third-party libraries**: libmng and TinySoundFont (MIT license,
+`tinysoundfont/`) in this repository; zlib, libpng, IJG
 jpeg, FreeType, Dear ImGui, libogg/libvorbis and miniaudio (brought in by
 Captain's Game Engine, which guit3 runs on and which is itself under the
 LGPL 2.1). All are GPLv3-compatible.
+
+**Soundfont** (`guit3/soundfont/`, a separate data file that guit3 reads at
+run time to play MIDI music, not compiled into guit3): TimGM6mb by Tim
+Brechbill, under the GNU General Public License version 2. See
+`guit3/soundfont/README.txt` and `guit3/soundfont/licenses/GPL-2.0.txt`.
 
 **Fonts** (`guit3/emscripten/fonts/`, packaged only for the web build as
 separate data files, not compiled into guit3): Liberation, Gelasio, Comic

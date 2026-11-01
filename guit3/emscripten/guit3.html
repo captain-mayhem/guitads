@@ -164,7 +164,10 @@
     // packaging engine.ini (Captain's Game Engine's configuration, which
     // guit3 runs on), and guit3about.data/
     // .js, packaging the private-resources guit3.t3r (the About box's
-    // background image) to the virtual path "guit3.t3r". It also loads
+    // background image) to the virtual path "guit3.t3r", and
+    // guit3soundfont.data/.js, packaging the General MIDI soundfont the MIDI
+    // player renders with (tadsmidi.cpp) to "soundfont/TimGM6mb.sf2" (about
+    // 6 MB; without it MIDI music is silent). It also loads
     // guit3-webui-bridge.js, the page half of the WebUI transport (see the
     // comment above that script tag).
     //
@@ -306,6 +309,7 @@
   <script src="guit3charmap.js"></script>
   <script src="guit3engine.js"></script>
   <script src="guit3about.js"></script>
+  <script src="guit3soundfont.js"></script>
   <script async src="guit3.js"></script>
 </body>
 

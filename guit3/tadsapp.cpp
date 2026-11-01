@@ -220,7 +220,7 @@ CTadsApp::~CTadsApp()
     /* perform static termination */
     CTadsWin::class_terminate();
     CTadsWinScroll::class_terminate();
-    CTadsDirectMusic::class_terminate();
+    CTadsMidiFilePlayer::class_terminate();
 
     /* done with our keyboard utilities object */
     delete kb_;

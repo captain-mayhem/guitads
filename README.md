@@ -4,8 +4,9 @@
 
 guitads holds `guit3`, a cross-platform (Dear ImGui) HTML TADS 3
 interpreter ported from the Win32 `htmlt3` client of HTML TADS. It also holds
-the HTML TADS core (sourced from GPL3 licensed QTads) and the third-party library only guit3 needs
-(libmng).
+the HTML TADS core (sourced from GPL3 licensed QTads) and the third-party libraries only guit3 needs
+(libmng, and TinySoundFont for MIDI music, which guit3 plays with the bundled General MIDI soundfont
+TimGM6mb in `guit3/soundfont/`).
 It is not built
 on its own: tads-runner picks it up as a sibling checkout via
 `add_subdirectory()`: [tads-runner](https://github.com/captain-mayhem/tads-runner), which is licensed under GPL-2.0

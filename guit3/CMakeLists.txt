@@ -133,9 +133,10 @@ add_executable(guit3
 	tadscsnd.h
 	tadsaudiodev.cpp
 	tadsaudiodev.h
+	# MIDI: TinySoundFont (../tinysoundfont) with the General MIDI
+	# soundfont (soundfont/, copied next to the executable below)
 	tadsmidi.cpp
 	tadsmidi.h
-	tadsistr.h
 	oem_w32.c
 
 	tadsapp.h
@@ -255,13 +256,11 @@ target_link_libraries(guit3 PRIVATE
 
 target_include_directories(guit3 PRIVATE
 	.
+	${CMAKE_CURRENT_SOURCE_DIR}/../tinysoundfont
 )
 
 if (WIN32)
 	target_link_libraries(guit3 PRIVATE
-		# Winmm.lib is still needed for tadsmidi.cpp's midiStream* MIDI sequencer,
-		# which is gated to _WIN32 until a portable software synth replaces it.
-		Winmm.lib
 		Ws2_32.lib
 		Wininet.lib
 		Mpr.lib
@@ -294,6 +293,10 @@ if (NOT EMSCRIPTEN)
 			${CMAKE_CURRENT_SOURCE_DIR}/engine.ini $<TARGET_FILE_DIR:guit3>/engine.ini
 		COMMAND ${CMAKE_COMMAND} -E copy_directory
 			${CGE_FONTS_DIR} $<TARGET_FILE_DIR:guit3>/fonts
+		# the MIDI player's soundfont (tadsmidi.cpp)
+		COMMAND ${CMAKE_COMMAND} -E make_directory $<TARGET_FILE_DIR:guit3>/soundfont
+		COMMAND ${CMAKE_COMMAND} -E copy_if_different
+			${CMAKE_CURRENT_SOURCE_DIR}/soundfont/TimGM6mb.sf2 $<TARGET_FILE_DIR:guit3>/soundfont/
 	)
 endif()
 
@@ -470,6 +473,14 @@ if (EMSCRIPTEN)
 		COMPONENT GuiT3)
 	add_dependencies(guit3 build_guit3engine.data)
 
+	# The MIDI player's soundfont (tadsmidi.cpp), at soundfont/TimGM6mb.sf2
+	# in the virtual file system - the path a native build has next to its
+	# executable. Its own package (about 6 MB), so a page that doesn't need
+	# MIDI music can leave it out; without it, MIDI music is silent.
+	em_package(guit3soundfont ${CMAKE_CURRENT_SOURCE_DIR}/soundfont/TimGM6mb.sf2@soundfont/TimGM6mb.sf2
+		COMPONENT GuiT3)
+	add_dependencies(guit3 build_guit3soundfont.data)
+
 	install(FILES
 		"$<TARGET_FILE_DIR:guit3>/guit3.wasm"
 		${CMAKE_CURRENT_SOURCE_DIR}/emscripten/guit3.html
@@ -588,6 +599,20 @@ install(FILES
 	DESTINATION charmap
 	COMPONENT GuiT3
 )
+
+if (NOT EMSCRIPTEN)
+	install(FILES
+		soundfont/TimGM6mb.sf2
+		soundfont/README.txt
+		DESTINATION soundfont
+		COMPONENT GuiT3
+	)
+	install(FILES
+		soundfont/licenses/GPL-2.0.txt
+		DESTINATION soundfont/licenses
+		COMPONENT GuiT3
+	)
+endif()
 
 install(FILES
 	${CMAKE_CURRENT_BINARY_DIR}/guit3.t3r

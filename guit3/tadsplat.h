@@ -53,11 +53,11 @@ Modified
  *
  *   INCOMPLETE BY DESIGN.  M2/A1 only needs the seam to exist; the first
  *   real off-Windows compile (M4) is what surfaces the exact remaining
- *   gaps, and they get filled in then.  Audio/MIDI (tadscsnd.h,
- *   tadsmidi.h) and COM/OLE (tadscom.h, tadsole.h, tadswebctl.h) types are
- *   deliberately only stubbed to "parses as a pointer" here - those
- *   subsystems are gated Windows-only well past M2 (migration.md items I,
- *   O and phase two).
+ *   gaps, and they get filled in then.  COM/OLE (tadscom.h, tadsole.h,
+ *   tadswebctl.h) types are deliberately only stubbed to "parses as a
+ *   pointer" here - that subsystem is gated Windows-only well past M2
+ *   (migration.md item O and phase two).  The audio and MIDI stubs are gone:
+ *   the players are portable (migration.md 5.29 and 5.33).
  */
 
 #include <stddef.h>
@@ -155,9 +155,6 @@ typedef void   *HRSRC;
 typedef void   *HDROP;
 typedef void   *HIMAGELIST;
 typedef void   *HTREEITEM;
-typedef void   *HWAVEOUT;
-typedef void   *HMIDISTRM;
-typedef void   *HMMIO;
 
 typedef LRESULT (CALLBACK *WNDPROC)(HWND, UINT, WPARAM, LPARAM);
 typedef int (CALLBACK *FARPROC)();
@@ -301,49 +298,6 @@ typedef struct tagBITMAPINFOHEADER
 } BITMAPINFOHEADER, *LPBITMAPINFOHEADER;
 typedef struct tagBITMAPINFO
     { BITMAPINFOHEADER bmiHeader; RGBQUAD bmiColors[1]; } BITMAPINFO, *LPBITMAPINFO;
-
-/*
- *   Audio / MIDI - stubs only.  tadsmidi.cpp is Windows-only until
- *   migration.md phase two replaces the midiStream* sequencer; the
- *   digitized sounds (tadscsnd.cpp) are portable since migration.md 5.29.
- */
-typedef UINT MMRESULT;
-typedef struct tWAVEFORMATEX
-{
-    WORD wFormatTag;
-    WORD nChannels;
-    DWORD nSamplesPerSec;
-    DWORD nAvgBytesPerSec;
-    WORD nBlockAlign;
-    WORD wBitsPerSample;
-    WORD cbSize;
-} WAVEFORMATEX, *LPWAVEFORMATEX;
-typedef struct pcmwaveformat_tag
-{
-    struct { WORD wf_tag, nChannels; DWORD nSamplesPerSec, nAvgBytesPerSec;
-             WORD nBlockAlign; } wf;
-    WORD wBitsPerSample;
-} PCMWAVEFORMAT;
-typedef struct wavehdr_tag
-{
-    LPSTR lpData;
-    DWORD dwBufferLength, dwBytesRecorded;
-    DWORD_PTR dwUser;
-    DWORD dwFlags, dwLoops;
-    struct wavehdr_tag *lpNext;
-    DWORD_PTR reserved;
-} WAVEHDR;
-typedef struct midihdr_tag
-{
-    LPSTR lpData;
-    DWORD dwBufferLength, dwBytesRecorded;
-    DWORD_PTR dwUser;
-    DWORD dwFlags;
-    struct midihdr_tag *lpNext;
-    DWORD_PTR reserved;
-    DWORD dwOffset;
-    DWORD_PTR dwReserved[8];
-} MIDIHDR, *LPMIDIHDR;
 
 /*
  *   COM / OLE.  IDataObject, IStream and IDispatch are forward declarations
@@ -928,28 +882,6 @@ inline BOOL GetSaveFileName(OPENFILENAME *) { return 0; }
    Windows - see CTadsApp::CTadsApp(), tadsapp.cpp) */
 #define VER_PLATFORM_WIN32_WINDOWS 1
 #define VER_PLATFORM_WIN32_NT      2
-
-/* interlocked increment/decrement + a critical section, backed for real by
-   GCC atomics / pthreads - tadsmidi.h's CTadsMidiFilePlayer double-buffer
-   refcounting/locking (the file implementing it, tadsmidi.cpp, is itself
-   Windows-only pending a portable MIDI synth - migration.md 3.7 - but the
-   header's class declaration is included unconditionally). */
-inline LONG InterlockedIncrement(LONG *v) { return __sync_add_and_fetch(v, 1); }
-inline LONG InterlockedDecrement(LONG *v) { return __sync_sub_and_fetch(v, 1); }
-#include <pthread.h>
-typedef pthread_mutex_t CRITICAL_SECTION;
-inline void InitializeCriticalSection(CRITICAL_SECTION *cs)
-    { pthread_mutex_init(cs, 0); }
-inline void DeleteCriticalSection(CRITICAL_SECTION *cs)
-    { pthread_mutex_destroy(cs); }
-inline void EnterCriticalSection(CRITICAL_SECTION *cs)
-    { pthread_mutex_lock(cs); }
-inline void LeaveCriticalSection(CRITICAL_SECTION *cs)
-    { pthread_mutex_unlock(cs); }
-#define MM_MOM_OPEN  (0x3C0 + 1)
-#define MM_MOM_CLOSE (0x3C0 + 2)
-#define MM_MOM_DONE  (0x3C0 + 3)
-#define MOM_DONE     MM_MOM_DONE
 
 /* native window/menu/GDI API - dead no-op stand-ins */
 inline BOOL DestroyWindow(HWND) { return 0; }

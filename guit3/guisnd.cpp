@@ -56,17 +56,10 @@ Modified
 
 /* ------------------------------------------------------------------------ */
 /*
- *   System MIDI object implementation
- *
- *   MIDI playback still relies on the Windows Multimedia streaming
- *   sequencer (midiStreamOpen/Out, see tadsmidi.cpp), which has no
- *   cross-platform equivalent - a software synth (e.g. TinySoundFont plus a
- *   bundled soundfont) is the intended long-term replacement.  For now this
- *   whole subsystem is gated to Windows; on other platforms create_midi()
- *   returns null, so a game that requests MIDI music simply plays silent.
- *   See htmltads/imgui/migration.md section 3.7.
+ *   System MIDI object implementation.  The music is rendered by a software
+ *   synthesizer (CTadsMidiFilePlayer, tadsmidi.cpp - TinySoundFont with a
+ *   General MIDI soundfont); see guit3/migration.md section 5.33.
  */
-#ifdef _WIN32
 
 CHtmlSysSoundMidi_win32::CHtmlSysSoundMidi_win32(CTadsAudioControl *ctl)
 {
@@ -76,9 +69,6 @@ CHtmlSysSoundMidi_win32::CHtmlSysSoundMidi_win32(CTadsAudioControl *ctl)
 
     /* no player yet */
     player_ = 0;
-
-    /* no file yet */
-    fp_ = 0;
 }
 
 CHtmlSysSoundMidi_win32::~CHtmlSysSoundMidi_win32()
@@ -90,10 +80,6 @@ CHtmlSysSoundMidi_win32::~CHtmlSysSoundMidi_win32()
     /* done with the MIDI player */
     if (player_ != 0)
         player_->Release();
-
-    /* close our file */
-    if (fp_ != 0)
-        osfcls(fp_);
 }
 
 CHtmlSysResource *CHtmlSysSoundMidi::
@@ -104,7 +90,7 @@ CHtmlSysResource *CHtmlSysSoundMidi::
     int err;
     CHtmlMidi *midi;
     CHtmlSysWin_win32 *win = (CHtmlSysWin_win32 *)win0;
-    CHtmlSysSoundMidi_win32 *snd;
+    CHtmlSysSoundMidi_win32 *snd = 0;
 
     /* create the generic loader object */
     midi = new CHtmlMidi();
@@ -167,24 +153,6 @@ int CHtmlSysSoundMidi_win32::play_sound(class CHtmlSysWin *win0,
     if (!win->get_prefs()->get_music_on())
         return 1;
 
-    /* 
-     *   open the file, if it's not open already (we might have already
-     *   opened the file on a previous repetition, in which case we don't
-     *   need to re-open it now) 
-     */
-    if (fp_ == 0)
-    {
-        /* open the file */
-        fp_ = osfoprb(fname_.get(), OSFTBIN);
-
-        /* make sure we succeeded */
-        if (fp_ == 0)
-        {
-            oshtml_dbg_printf("midi player: unable to open file: %s\n", url);
-            return 2;
-        }
-    }
-
     /* discard any previous player and volume control */
     if (player_ != 0)
     {
@@ -197,17 +165,14 @@ int CHtmlSysSoundMidi_win32::play_sound(class CHtmlSysWin *win0,
         volctl_ = 0;
     }
 
-    /* create a new player */
+    /* create a new player - it reads the MIDI file */
     player_ = new CTadsMidiFilePlayer(
-        ctl_, fname_.get(), fp_, seek_pos_, data_size_,
-        win->get_handle(), done_func, done_func_ctx);
+        ctl_, fname_.get(), seek_pos_, data_size_,
+        done_func, done_func_ctx);
 
     /* create a new volume control */
     volctl_ = new CTadsAudioVolumeControl(
         player_, vol, fade_in != 0, ctl_->get_mute_sound());
-
-    /* seek to the proper point in the file */
-    osfseek(fp_, seek_pos_, OSFSK_SET);
 
     /* 
      *   Create faders, if needed.  The faders run in separate threads, and
@@ -291,8 +256,8 @@ int CHtmlSysSoundMidi_win32::maybe_suspend(CHtmlSysSound *new_sound)
      *   If at some point in the future the GUI TADS model changes to
      *   allow multiple layers of MIDI sounds, this part of this routine
      *   will have to have a real implementation.  (The bulk of the code
-     *   would be in CTadsMidiFilePlayer, since that's what handles the
-     *   details of the Windows MIDI API.)  
+     *   would be in CTadsMidiFilePlayer, since that's what drives the
+     *   synthesizer.)
      */
     // $$$ ignore for now
     return FALSE;
@@ -309,21 +274,6 @@ void CHtmlSysSoundMidi_win32::resume()
      */
     // $$$ ignore for now
 }
-
-#else /* !_WIN32 */
-
-/*
- *   Non-Windows stub: MIDI music is not supported until a cross-platform
- *   synth is wired in, so report that we can't create a MIDI resource.
- */
-CHtmlSysResource *CHtmlSysSoundMidi::
-   create_midi(const CHtmlUrl *, const textchar_t *,
-               unsigned long, unsigned long, CHtmlSysWin *)
-{
-    return 0;
-}
-
-#endif /* _WIN32 */
 
 /* ------------------------------------------------------------------------ */
 /*

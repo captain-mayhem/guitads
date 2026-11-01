@@ -1133,13 +1133,6 @@ protected:
         { return FALSE; }
 
     /*
-     *   Handle a MIDI event.  By default, we'll coordinate with the basic
-     *   MIDI file player class to handle the message; most subclasses
-     *   shouldn't need to do anything with this. 
-     */
-    virtual int do_midi_event(UINT msg, WPARAM wpar, LPARAM lpar);
-
-    /*
      *   Process a set-cursor event.  Returns true if the message was
      *   handled.  
      */

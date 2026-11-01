@@ -80,9 +80,6 @@ private:
 
     /* our MIDI player object */
     class CTadsMidiFilePlayer *player_;
-
-    /* our file pointer */
-    osfildef *fp_;
 };
 
 
