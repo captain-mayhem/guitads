@@ -1043,6 +1043,7 @@ private:
      */
     bool opt_dlg_open_ = false;
     bool opt_dlg_want_open_ = false;
+    bool opt_dlg_had_focus_ = false;
     HWND opt_owner_hwnd_ = 0;
 
     /*
@@ -1056,6 +1057,7 @@ private:
      */
     bool mt_dlg_open_ = false;
     bool mt_dlg_want_open_ = false;
+    bool mt_dlg_had_focus_ = false;
 
     /* Appearance tab */
     char opt_desc_[128] = "";
@@ -1125,6 +1127,7 @@ private:
      */
     bool cust_dlg_open_ = false;
     bool cust_dlg_want_open_ = false;
+    bool cust_dlg_had_focus_ = false;
     HWND cust_owner_hwnd_ = 0;
 
     /* cached font name lists, gathered fresh each time the dialog opens */

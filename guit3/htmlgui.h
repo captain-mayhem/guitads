@@ -2992,6 +2992,17 @@ public:
      */
     void create_aboutbox_win();
 
+    /*
+     *   Run frames until the main panel has its size.  The panels are sized
+     *   by do_render(), from the viewport's work area below the menu bar
+     *   and toolbar; until then they are 0x0, and text the game shows before
+     *   its first input would be formatted for a window with no height, so
+     *   its first page got no MORE prompt (and the panel scrolled sideways
+     *   to fit it).  On the web the canvas gets its size a few frames in.
+     *   Called from guimain.cpp before the game starts.
+     */
+    void wait_for_layout();
+
     /* remove a banner subwindow */
     virtual void remove_banner_window(class CHtmlSysWin *subwin) override;
 

@@ -985,7 +985,6 @@ inline BOOL MapWindowPoints(HWND, HWND, POINT *, UINT) { return 0; }
 inline BOOL InvalidateRect(HWND, const RECT *, BOOL) { return 0; }
 inline BOOL IsIconic(HWND) { return 0; }
 inline int MessageBox(HWND, LPCSTR, LPCSTR, UINT) { return 0; }
-inline int GetSystemMetrics(int) { return 0; }
 inline UINT GetDoubleClickTime() { return 500; }
 inline int LoadString(HINSTANCE, UINT, LPSTR buf, int n)
     { if (buf && n > 0) buf[0] = 0; return 0; }
@@ -1095,6 +1094,17 @@ inline BOOL SystemParametersInfo(UINT, UINT, void *pv, UINT)
 #define WM_MBUTTONUP 0x0208
 #define SM_CXVSCROLL 2
 #define SM_CYHSCROLL 3
+
+/*
+ *   The scrollbar sizes are Windows' defaults at 100%: get_scroll_area()
+ *   reserves that margin, and CTadsWinScroll::render_vscrollbar_imgui()
+ *   draws its track in it - with 0 the track sat just outside the panel and
+ *   was clipped away.  Everything else reads as 0.
+ */
+inline int GetSystemMetrics(int idx)
+{
+    return (idx == SM_CXVSCROLL || idx == SM_CYHSCROLL) ? 17 : 0;
+}
 #define SIZE_RESTORED  0
 #define SIZE_MINIMIZED 1
 #define SIZE_MAXIMIZED 2

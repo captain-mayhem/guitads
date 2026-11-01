@@ -47,6 +47,9 @@ namespace
         /* the dialog is currently showing (OpenPopup has been issued) */
         bool is_open = false;
 
+        /* put the keyboard in the file name field on the next frame */
+        bool focus_name = false;
+
         TadsFileDlgMode mode = TADSFILEDLG_OPEN;
         bool must_exist = true;
         std::string title;
@@ -220,6 +223,29 @@ namespace
         else
             s_dlg.cur_dir = dir;
 
+        /*
+         *   Collapse doubled separators, which realpath() keeps as they are
+         *   (Emscripten's does, for one): "//tmp" is "/tmp".  On Windows a
+         *   leading pair starts a UNC name, so it stays.
+         */
+        std::string &cur = s_dlg.cur_dir;
+#ifdef _WIN32
+        size_t keep = 2;
+#else
+        size_t keep = 1;
+#endif
+        for (size_t i = keep; i < cur.size(); )
+        {
+            bool sep = cur[i] == OSPATHCHAR
+                       || strchr(OSPATHALT, cur[i]) != 0;
+            bool prev_sep = cur[i - 1] == OSPATHCHAR
+                            || strchr(OSPATHALT, cur[i - 1]) != 0;
+            if (sep && prev_sep)
+                cur.erase(i, 1);
+            else
+                ++i;
+        }
+
         /* strip a trailing separator, except for a bare root ("C:\" or "/") */
         if (s_dlg.cur_dir.size() > 3
             && s_dlg.cur_dir.back() == OSPATHCHAR)
@@ -280,6 +306,10 @@ namespace
     /* build the full path from the current directory + name field */
     std::string full_selected_path()
     {
+        /* a typed absolute path stands on its own ("/" + "/tmp" is "//tmp") */
+        if (os_is_file_absolute(s_dlg.name_buf))
+            return s_dlg.name_buf;
+
         char buf[OSFNMAX];
         os_build_full_path(buf, sizeof(buf),
                            s_dlg.cur_dir.c_str(), s_dlg.name_buf);
@@ -313,8 +343,13 @@ namespace
 
         if (is_dir)
         {
-            /* typed/selected a directory - browse into it instead */
+            /*
+             *   typed/selected a directory - browse into it instead, and
+             *   leave the name field empty and ready for the file's name
+             */
             navigate_to(full);
+            s_dlg.name_buf[0] = '\0';
+            s_dlg.focus_name = true;
             return;
         }
 
@@ -364,6 +399,7 @@ namespace
             ImGui::OpenPopup(popup_id.c_str());
             s_dlg.pending = false;
             s_dlg.is_open = true;
+            s_dlg.focus_name = true;
             refresh_listing();
         }
 
@@ -462,6 +498,12 @@ namespace
         ImGui::TextUnformatted("File name:");
         ImGui::SameLine();
         ImGui::SetNextItemWidth(-1);
+        if (s_dlg.focus_name)
+        {
+            /* as in the native dialog, typing goes to the name at once */
+            ImGui::SetKeyboardFocusHere();
+            s_dlg.focus_name = false;
+        }
         if (ImGui::InputText("##TadsFileDlgName", s_dlg.name_buf,
             sizeof(s_dlg.name_buf), ImGuiInputTextFlags_EnterReturnsTrue))
         {

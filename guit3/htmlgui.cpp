@@ -11181,6 +11181,30 @@ void CHtmlSys_mainwin::create_aboutbox_win()
 }
 
 /*
+ *   Run frames until the main panel has a size (see htmlgui.h)
+ */
+void CHtmlSys_mainwin::wait_for_layout()
+{
+    /*
+     *   Wait for a size that holds for a frame: the menu bar and the toolbar
+     *   reserve their space in the viewport's work area for the frame after
+     *   they're drawn, so the first frame's size is the whole window.
+     *   Give up after about two seconds at 60 frames per second.
+     */
+    ImVec2 prev(0, 0);
+    for (int i = 0 ; i < 120 && main_panel_ != 0 ; ++i)
+    {
+        if (!gui_pump_frame([this]() { do_render(); }))
+            return;
+
+        ImVec2 cur = main_panel_->m_size;
+        if (cur.x > 0 && cur.y > 0 && cur.x == prev.x && cur.y == prev.y)
+            return;
+        prev = cur;
+    }
+}
+
+/*
  *   initialize a pop-up menu
  */
 void CHtmlSys_mainwin::init_menu_popup(HMENU menuhdl, unsigned int pos,
@@ -15862,6 +15886,27 @@ int CHtmlSys_mainwin::event_loop(int* flag) {
          */
         bool game_wants_keys = !io.WantTextInput
             && !ImGui::IsPopupOpen((const char *)0, ImGuiPopupFlags_AnyPopup);
+
+        /*
+         *   While a floating dialog (About, Credits, About This Game - see
+         *   push_active_dialog()) is open, it's modal for the keyboard too:
+         *   Escape and Enter go to the topmost one's do_char(), which closes
+         *   it (those cases were there from the Win32 WM_CHAR days, but
+         *   ImGui delivers neither key as a character, so nothing reached
+         *   them), and nothing goes to the game underneath.  A popup on top
+         *   of the dialog (License) handles its own keys.
+         */
+        if (game_wants_keys && !active_dialogs_.empty())
+        {
+            CTadsWin *keydlg = active_dialogs_.back();
+            if (ImGui::IsKeyPressed(ImGuiKey_Escape, false))
+                keydlg->do_char(27, 0);
+            else if (ImGui::IsKeyPressed(ImGuiKey_Enter, false)
+                     || ImGui::IsKeyPressed(ImGuiKey_KeypadEnter, false))
+                keydlg->do_char('\r', 0);
+            game_wants_keys = false;
+        }
+
         if (game_wants_keys)
         {
             for (int i = 0; i < io.InputQueueCharacters.size(); ++i) {

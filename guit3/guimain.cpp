@@ -646,6 +646,9 @@ static void run_game(int argc, char** argv,
      */
     win->create_aboutbox_win();
 
+    /* lay the window out before the game shows anything */
+    win->wait_for_layout();
+
     /* try loading the .exe resources */
     win->load_exe_resources(exefile);
 

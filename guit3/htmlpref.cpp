@@ -72,6 +72,29 @@ Modified
  */
 static inline float uisc() { return CTadsFont::get_dpi_scale(); }
 
+/*
+ *   Should Escape close the dialog whose BeginPopupModal() block we're in?
+ *   Call at the top of the block, before any of its widgets.  Only when the
+ *   dialog itself had the keyboard at the end of the previous frame:
+ *   ImGui's NewFrame() closes an open combo or color picker on Escape and
+ *   hands the focus back to the dialog, an active text field reverts on
+ *   Escape, and a sub-dialog (New Theme, Delete Theme?, the folder picker)
+ *   closes itself - none of those should take the dialog down with them.
+ *   dlg_note_focus() at the end of the block records the focus for the
+ *   next frame.
+ */
+static bool dlg_escape_pressed(bool had_focus)
+{
+    return had_focus && ImGui::IsWindowFocused()
+        && !ImGui::IsAnyItemActive()
+        && ImGui::IsKeyPressed(ImGuiKey_Escape, false);
+}
+
+static void dlg_note_focus(bool *had_focus)
+{
+    *had_focus = ImGui::IsWindowFocused() && !ImGui::IsAnyItemActive();
+}
+
 
 /* ------------------------------------------------------------------------ */
 /*
@@ -690,6 +713,8 @@ void CHtmlPreferences::render_options_dialog()
     if (ImGui::BeginPopupModal("Options", &opt_dlg_open_,
                                ImGuiWindowFlags_NoSavedSettings))
     {
+        bool esc = dlg_escape_pressed(opt_dlg_had_focus_);
+
         if (ImGui::BeginTabBar("OptionsTabs"))
         {
             if (ImGui::BeginTabItem("Appearance"))
@@ -737,7 +762,7 @@ void CHtmlPreferences::render_options_dialog()
         }
 
         ImGui::Separator();
-        if (ImGui::Button("Close", ImVec2(80 * uisc(), 0)))
+        if (ImGui::Button("Close", ImVec2(80 * uisc(), 0)) || esc)
         {
             opt_dlg_open_ = false;
             ImGui::CloseCurrentPopup();
@@ -752,6 +777,7 @@ void CHtmlPreferences::render_options_dialog()
          */
         CTadsFolderDialog::render();
 
+        dlg_note_focus(&opt_dlg_had_focus_);
         ImGui::EndPopup();
     }
 }
@@ -807,16 +833,19 @@ void CHtmlPreferences::render_manage_themes_dialog()
     if (ImGui::BeginPopupModal("Manage Themes", &mt_dlg_open_,
                                ImGuiWindowFlags_NoSavedSettings))
     {
+        bool esc = dlg_escape_pressed(mt_dlg_had_focus_);
+
         /* the body is exactly the Options dialog's Appearance tab */
         opt_render_appearance_tab();
 
         ImGui::Separator();
-        if (ImGui::Button("Close", ImVec2(80 * uisc(), 0)))
+        if (ImGui::Button("Close", ImVec2(80 * uisc(), 0)) || esc)
         {
             mt_dlg_open_ = false;
             ImGui::CloseCurrentPopup();
         }
 
+        dlg_note_focus(&mt_dlg_had_focus_);
         ImGui::EndPopup();
     }
 }
@@ -1653,6 +1682,8 @@ void CHtmlPreferences::render_customize_theme_dialog()
     if (ImGui::BeginPopupModal(title, &cust_dlg_open_,
                                ImGuiWindowFlags_NoSavedSettings))
     {
+        bool esc = dlg_escape_pressed(cust_dlg_had_focus_);
+
         if (ImGui::BeginTabBar("CustomizeThemeTabs"))
         {
             if (ImGui::BeginTabItem("Font"))
@@ -1679,12 +1710,13 @@ void CHtmlPreferences::render_customize_theme_dialog()
         }
 
         ImGui::Separator();
-        if (ImGui::Button("Close", ImVec2(80 * uisc(), 0)))
+        if (ImGui::Button("Close", ImVec2(80 * uisc(), 0)) || esc)
         {
             cust_dlg_open_ = false;
             ImGui::CloseCurrentPopup();
         }
 
+        dlg_note_focus(&cust_dlg_had_focus_);
         ImGui::EndPopup();
     }
 }

@@ -3579,8 +3579,9 @@ Windows' `midiStream`) is unchanged.
   straight to the device, so an MS ADPCM WAV (4 bits) crashed guit3 (a frame size of 0 bytes), and a float
   WAV would have been played as 16-bit. amp went silent, hung or crashed on an MPEG-1 layer II file made by
   ffmpeg, even when it was the only sound.
-- **Lost:** a chained Ogg whose later part has another sample rate. `CVorbisW32` reopened the device at the
-  new rate; the engine's Vorbis decoder keeps the first part's rate (it maps the channels). This is rare.
+- **Lost, then fixed in 5.31:** a chained Ogg whose later part has another sample rate. `CVorbisW32` reopened
+  the device at the new rate; the engine's Vorbis decoder kept the first part's rate (it maps the channels), so
+  such a part played too fast or too slow. It is resampled now.
 - The about box credits miniaudio instead of amp, and `LICENSE` and `README.md` no longer list amp.
 
 **How it was verified:** a test game (`soundtest.t3`, built with `t3make -res`, so the sounds are embedded
@@ -3636,7 +3637,7 @@ the engine with the behaviour it had before, apart from the fixes below, which a
     `?`.
 
 **Known gaps, older than the move and not changed** (the GLFW build of 2026-09-06 behaves the same where
-it was compared):
+it was compared), **all fixed in 5.31**:
 - **The web has no scrollbar and no `*** MORE ***` prompt;** long output scrolls to its end. In the UI test
   below, the upper lines were also drawn about 8 pixels too far left on the web; that wasn't compared with
   the old build.
@@ -3667,6 +3668,72 @@ output, 80 lines, five `inputLine()`s that echo the line and its length, run wit
   its length); pasting `€ä©` from the Windows clipboard on Linux gives 3; Ctrl+A, Ctrl+C copy `Käse © ä ö ü ß
   €` unchanged on Linux and the web; there is no charmap warning on Linux with guit3 started from the game's
   folder.
+
+### 5.31 The known gaps of 5.30, fixed
+
+- **No scrollbar off Windows.** `tadsplat.h`'s `GetSystemMetrics()` returned 0 for everything, so
+  `CTadsWinScroll::get_scroll_area()` reserved no margin for the scrollbar and
+  `render_vscrollbar_imgui()` drew the track just right of the panel, where it was clipped away. Off Windows it
+  now reports Windows' default scrollbar size (17) for `SM_CXVSCROLL`/`SM_CYHSCROLL`; everything else is
+  still 0. The wheel worked before; the thumb now shows and drags. (5.30's Linux check missed this.)
+- **No MORE prompt for the first page, and the text shifted left** (every platform, most visible on the
+  web). The panels get their size only from `do_render()` (the viewport's work area below the menu bar and
+  the toolbar), and the game showed its first text before any frame had run: the panel was 0x0, so
+  `fmt_adjust_vscroll()` skipped the MORE check (`winht < 10`) and the panel scrolled sideways to fit the
+  text. `CHtmlSys_mainwin::wait_for_layout()`, called from `guimain.cpp` right after the window is created,
+  runs frames until the main panel has a size that holds for a frame (at most 120). One frame isn't enough:
+  ImGui moves the work area for the menu bar and the toolbar only on the frame after they're drawn, so the
+  first frame's panel is the whole window, and the shrink on the second frame reformatted the text and lost
+  the MORE state.
+- **Escape.** Options, Manage Themes and Customize Theme (`htmlpref.cpp`) close on Escape like their Close
+  button, but only when the dialog itself had the keyboard at the end of the previous frame and no item is
+  active: ImGui's `NewFrame()` closes an open combo or color picker on Escape and gives the focus back to the
+  dialog in the same frame, a text field reverts on Escape, and a sub-dialog (New Theme, Delete Theme?, the
+  folder picker) closes itself. None of those take the dialog with them (`dlg_escape_pressed()`/
+  `dlg_note_focus()`). The about box, Credits and About This Game already closed on Escape in `do_char()`
+  (27), from the WM_CHAR days, but ImGui delivers Escape and Enter as keys, not characters, so nothing reached
+  them. `event_loop()` now sends both to the topmost floating dialog (`active_dialogs_`), and while one is open
+  no keys go to the game (the mouse was already kept from it).
+- **`//tmp` in the file dialog.** A name typed into the File name field was joined to the folder with
+  `os_build_full_path()`, so `/tmp` in `/` became `//tmp`, and `realpath()` keeps that (Emscripten's does).
+  An absolute name now stands on its own, and `navigate_to()` collapses doubled separators (on Windows not
+  the leading pair of a UNC name). Found along the way:
+  - tads-runner's Unix `os_get_root_name()` (`tads2/unix/osunixt.c`) didn't skip a separator at the start, so
+    the default save name of a game at the root of the web's file system, `/ditch3.t3v`, stayed absolute,
+    and the dialog showed it with its slash.
+  - The dialog opens with the keyboard in the File name field, as the native one does, and after the field
+    took the dialog into a folder it is empty and keeps the keyboard. Before, typing went nowhere until the
+    field was clicked.
+- **The WebUI library's focus handler** (tads-runner's `tads3/lib/webuires`): `setDefaultFocusChild()`
+  (`cmdwin.js`) moves the keyboard to the command line in a zero timeout; when the command line was replaced
+  before the timeout ran (a command entered), `getObjectRect()` of the old field's missing parent was null.
+  It now returns early, leaving buffered keys for the new command line. The `window.onerror` handler that
+  reports such errors (`util.js`) called `logError()`, which only the top window's `main.js` defines, so in a
+  child frame the report threw too; it calls `$win().logError()` now, as the rest of `util.js` does. A game
+  carries these files inside its `.t3`, so only games compiled with this library get the fix:
+  `tests/Webtest.t3` is rebuilt from its source (`C:\Projects\tads\webtest`, `t3make -f Webtest.t3m -a` with
+  tads-runner's `tads3/lib` and `tads3/include`).
+- **Chained Ogg at another rate** (5.29, in the engine: `Engine/audio/decoder.cpp`). A later part at another
+  rate is read into a buffer and resampled to the first part's rate with miniaudio's linear resampler; the
+  length counts every part at that rate. A seek's frame is still counted in the parts' own rates. New engine
+  test: `AudioDecoder.ResamplesAChainedOggPartAtAnotherRate` (the tests' `ogg()` helper takes a stream serial
+  for this). Worth knowing: with a short first part (two seconds or less in that test), vorbisfile itself
+  skips the first part and starts with the second, also when opened directly; the test uses five seconds.
+
+**How it was verified:**
+- **Web** (headless Chrome, `tools/webtest.mjs --isolate`): a test game printing 80 lines, then 60 per
+  command, packaged as the extra game: the first page stops at a MORE prompt with the scrollbar showing and
+  the text at its margin; Space goes on; the wheel scrolls and the thumb drags. Escape closes Options, Manage
+  Themes, Customize Theme and the about box, and typing reaches the game after the about box. With the Options
+  dialog's Theme combo open, the first Escape closes only the combo and the second the dialog. ditch3: SAVE
+  opens with `ditch3.t3v` in the focused name field; `/tmp` and Enter go to `/tmp` (not `//tmp`) with an empty
+  name; `x.t3v` saves; RESTORE opens in `/tmp` with `x.t3v` listed; Escape cancels. `Webtest.t3`: forcing the
+  race (in the command line's frame: focus elsewhere, `setDefaultFocusChild()`, then the field taken out of
+  the page before the timeout) throws both errors with the old `Webtest.t3` and nothing with the rebuilt one;
+  calling the frame's `onerror` shows the WebUI's own error bar; commands still work.
+- **Windows:** the test game's first page with the MORE prompt and the scrollbar (screenshot).
+- **Engine:** the new test fails without the fix (7.5 seconds instead of 10) and passes with it; all 189
+  tests pass on Windows.
 
 ## 6. Working notes for a fresh session
 
@@ -3806,8 +3873,9 @@ build/emscripten --target guit3`) produces `guit3.js`/`.wasm` plus the test page
     before it is captured. Put them in separate steps.
   - CDP's click has no time between the move, the press and the release. Menus and links work with it, an
     ImGui tab didn't; a `move`, a wait, then `down` and `up` did (a real mouse on Windows works either way).
-  - A named key without text sends no `keypress`. A WebUI page's command line needs `{"key": "Enter",
-    "text": "\r"}`; guit3 itself doesn't.
+  - A named key without text sends no `keypress`, and the script ignores a `text` field on a named key. A
+    WebUI page's command line needs `{"key": "\r"}` (key code 13 with the text `\r`); guit3 itself takes
+    `{"key": "Enter"}`. Space at a MORE prompt is a character: `{"type": " "}`, not `{"key": "Space"}`.
   - Headless Chrome's clipboard is empty, and Ctrl+V's paste event brings that. Write the real clipboard first
     (`navigator.clipboard.writeText(...)` in an `eval`), then press Ctrl+V.
   - `?game=extra` runs any game packaged by hand as `guit3extragame` (`file_packager.py guit3extragame.data
