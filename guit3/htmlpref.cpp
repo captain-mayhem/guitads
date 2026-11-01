@@ -41,7 +41,6 @@ Modified
 #include "htmlpref.h"
 #endif
 #ifndef TADSDLG_H
-#include "tadsdlg.h"
 #endif
 #ifndef HTMLGUI_H
 #include "htmlgui.h"
@@ -473,8 +472,8 @@ void CHtmlPreferences::init_standard_profiles()
     {
         /* build the full filename */
         char dir[OSFNMAX];
-        strcpy(dir, fname);
-        os_build_full_path(fname, sizeof(fname), dir, "TADS\\GameChest.txt");
+        os_build_full_path(dir, sizeof(dir), fname, "TADS");
+        os_build_full_path(fname, sizeof(fname), dir, "GameChest.txt");
     }
     else
     {
@@ -1371,9 +1370,8 @@ void CHtmlPreferences::opt_render_gamechest_tab()
         if (CTadsApp::get_my_docs_path(fname, sizeof(fname)))
         {
             char dir[OSFNMAX];
-            strcpy(dir, fname);
-            os_build_full_path(fname, sizeof(fname), dir,
-                               "TADS\\GameChest.txt");
+            os_build_full_path(dir, sizeof(dir), fname, "TADS");
+            os_build_full_path(fname, sizeof(fname), dir, "GameChest.txt");
         }
         else
         {

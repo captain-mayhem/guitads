@@ -572,7 +572,6 @@ inline HGLOBAL GlobalFree(HGLOBAL h) { free(h); return 0; }
 #define WS_EX_TOOLWINDOW    0x00000080L
 #define WS_EX_WINDOWEDGE    0x00000100L
 #define WS_EX_CLIENTEDGE    0x00000200L
-#define WS_EX_MDICHILD      0x00000040L
 
 /* class styles */
 #define CS_VREDRAW   0x0001
@@ -723,11 +722,8 @@ inline HGLOBAL GlobalFree(HGLOBAL h) { free(h); return 0; }
 #define WM_MOUSEWHEEL        0x020A
 #define WM_CHILDACTIVATE     0x0022
 #define WM_SHOW              WM_SHOWWINDOW
-#define WM_MDIACTIVATE       0x0222
-#define WM_MDIDESTROY        0x0221
 #define WM_NCCREATE          0x0081
 #define WM_NCDESTROY         0x0082
-#define WM_MDIREFRESHMENU    0x0234
 #define WM_CONTEXTMENU       0x007B
 #define WM_ERASEBKGND        0x0014
 #define WM_QUERYDRAGICON     0x0037
@@ -863,15 +859,6 @@ typedef struct tagCREATESTRUCTA
     LPCSTR lpszClass;
     DWORD dwExStyle;
 } CREATESTRUCTA, CREATESTRUCT, *LPCREATESTRUCT;
-typedef struct tagMDICREATESTRUCTA
-{
-    LPCSTR szClass;
-    LPCSTR szTitle;
-    HANDLE hOwner;
-    int x, y, cx, cy;
-    DWORD style;
-    LPARAM lParam;
-} MDICREATESTRUCTA, MDICREATESTRUCT;
 typedef struct tagMEASUREITEMSTRUCT
 {
     UINT CtlType, CtlID, itemID;
@@ -971,8 +958,6 @@ inline LONG GetWindowLong(HWND, int) { return 0; }
 inline LONG_PTR SetWindowLongPtr(HWND, int, LONG_PTR) { return 0; }
 inline LONG_PTR GetWindowLongPtr(HWND, int) { return 0; }
 inline LRESULT DefWindowProc(HWND, UINT, WPARAM, LPARAM) { return 0; }
-inline LRESULT DefFrameProc(HWND, HWND, UINT, WPARAM, LPARAM) { return 0; }
-inline LRESULT DefMDIChildProc(HWND, UINT, WPARAM, LPARAM) { return 0; }
 inline BOOL SetProp(HWND, LPCSTR, HANDLE) { return 0; }
 inline HANDLE GetProp(HWND, LPCSTR) { return 0; }
 inline HMENU GetMenu(HWND) { return 0; }

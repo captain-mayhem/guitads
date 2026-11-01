@@ -386,14 +386,8 @@ public:
          *   property 
          */
         return ((GetWindowLong(hwnd, GWL_STYLE) & WS_CHILD) == 0
-                || is_mdi_child(hwnd)
                 || GetProp(hwnd, "CTadsWin.isFrame"));
     }
-
-    /* is this an MDI child window? */
-    int is_mdi_child() { return is_mdi_child(handle_); }
-    int is_mdi_child(HWND hwnd)
-        { return (GetWindowLong(hwnd, GWL_EXSTYLE) & WS_EX_MDICHILD) != 0; }
 
     /* 
      *   Create the operating system window object.  Returns zero on
@@ -857,9 +851,6 @@ public:
 
     /* names of window classes registered with the system */
     static const char win_class_name[];
-    static const char mdichild_win_class_name[];
-    static const char mdiframe_win_class_name[];
-    static const char mdiclient_win_class_name[];
 
     /* common message handler for all window types */
     virtual LRESULT common_msg_handler(HWND hwnd, UINT msg,
@@ -979,13 +970,6 @@ protected:
     static LRESULT CALLBACK std_message_handler(HWND hwnd, UINT msg,
                                                 WPARAM wpar, LPARAM lpar);
 
-    /* message handler for MDI frame windows */
-    static LRESULT CALLBACK mdiframe_message_handler(
-        HWND hwnd, UINT msg, WPARAM wpar, LPARAM lpar);
-
-    /* message handler for MDI child windows */
-    static LRESULT CALLBACK mdichild_message_handler(
-        HWND hwnd, UINT msg, WPARAM wpar, LPARAM lpar);
     
     /* paint the window */
     virtual int do_paint();
@@ -1240,49 +1224,11 @@ protected:
     virtual int do_ncactivate(int flag) { return FALSE; }
 
     /*
-     *   Process an MDI activation/deactivation message; this message is
-     *   received by MDI child windows.  By default, we'll call the normal
-     *   do_activate routine so that processing in MDI vs. SDI mode can be
-     *   handled by the same code; in situations where MDI and SDI
-     *   activation need different behavior, this routine should be
-     *   overridden.  Returns true if the activation was handled, false to
-     *   continue with Windows default processing.  
-     */
-    virtual int do_mdiactivate(HWND old_active, HWND new_active)
-    {
-        if (old_active == handle_)
-            return do_activate(WA_INACTIVE, FALSE, new_active);
-        else if (new_active == handle_)
-            return do_activate(WA_ACTIVE, FALSE, old_active);
-        else
-            return FALSE;
-    }
-
-    /*
      *   Process an MDI child activation message.  This message is
      *   received by MDI child windows when the user clicks on the
      *   window's title bar or moves or resizes it. 
      */
     virtual int do_childactivate() { return FALSE; }
-
-    /*
-     *   Process an MDI menu refresh message.  This message is passed to
-     *   an MDI client window to refresh its "Window" menu.  Return true
-     *   if handled, false if the message should be passed to the default
-     *   window procedure. 
-     */
-    virtual int do_mdirefreshmenu() { return FALSE; }
-
-    /* 
-     *   Receive notification that an MDI child of this window has been
-     *   created, destroyed, or activated.  This lets an MDI frame manage its
-     *   list of MDI child windows, such as to maintain a tab-control list.
-     *   'win' is the child window, and 'msg' is WM_CREATE, WM_DESTROY,
-     *   WM_SHOW, WM_SIZE, or WM_MDIACTIVATE.  This is sent to the parent
-     *   (MDI client) window.  By default we do nothing.  
-     */
-    virtual void mdi_child_event(
-        CTadsWin *win, UINT msg, WPARAM wpar, LPARAM lpar) { }
 
     /* handle timer messages */
     virtual int do_timer(int timer_id);

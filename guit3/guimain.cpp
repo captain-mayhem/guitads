@@ -67,7 +67,6 @@ Modified
 #include "guiengine.h"
 #endif
 #ifndef TADSDLG_H
-#include "tadsdlg.h"
 #endif
 #ifndef TADSIMG_H
 #include "tadsimg.h"
@@ -914,7 +913,9 @@ done:
  *   guit3 itself, run by the engine as its application (guiengine.h)
  */
 static int guit3_main(int argc, char** argv){
+#if defined(_WIN32) && defined(TADS_WEBUI_ENABLED)
     INITCOMMONCONTROLSEX ice;
+#endif
 
     /* initialize COM */
     CoInitialize(0);
@@ -922,16 +923,16 @@ static int guit3_main(int argc, char** argv){
     /* notify the oss_win layer that we're done with static initializers */
     oss_win_static_init_done();
 
+#if defined(_WIN32) && defined(TADS_WEBUI_ENABLED)
     /*
-     *   Make sure common controls are loaded.  guit3's own UI is all ImGui
-     *   now, but tadsdlg2.cpp's (dead-but-still-compiled) property-page code
-     *   still creates real WC_TABCONTROL/WC_TREEVIEW child windows, so this
-     *   stays until those files are confirmed unreachable and dropped - see
-     *   migration.md 5.4/M.
+     *   Load the common controls for the Game Chest's native dialogs
+     *   (tadschest.cpp, tadsdlg2.cpp's property pages).  guit3's own UI is
+     *   all ImGui, so nothing else needs them (migration.md 5.32).
      */
     ice.dwSize = sizeof(ice);
     ice.dwICC = ICC_WIN95_CLASSES | ICC_COOL_CLASSES | ICC_STANDARD_CLASSES;
     InitCommonControlsEx(&ice);
+#endif
 
 #ifdef _WIN32
     /* set the application instance in the TADS os layer */

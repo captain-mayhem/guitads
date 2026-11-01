@@ -32,23 +32,6 @@ Modified
 
 /* ------------------------------------------------------------------------ */
 /*
- *   accelerator save/restore structure 
- */
-struct app_accel_info
-{
-    /* old accelerator */
-    HACCEL waccel;
-    class CTadsAccelerator *taccel;
-    class CTadsWin *accel_win;
-
-    /* new accelerator being set */
-    HACCEL new_waccel;
-    class CTadsAccelerator *new_taccel;
-    class CTadsWin *new_accel_win;
-};
-
-/* ------------------------------------------------------------------------ */
-/*
  *   Application object 
  */
 class CTadsApp
@@ -64,10 +47,9 @@ public:
 
     /*
      *   Apply the standard processing to a message read from the Windows
-     *   system event queue.  This looks for modeless dialogs that want the
-     *   message, then looks for system MDI accelerator translations, then
-     *   looks for our own accelerator translations; failing all of that, we
-     *   dispatch the message to the target window normally.  
+     *   system event queue.  This gives the message filter, if any, the
+     *   first crack at it, then tries the accelerator translation; failing
+     *   that, we dispatch the message to the target window normally.  
      */
     void process_message(MSG *msg);
 
@@ -86,9 +68,6 @@ public:
      */
     void set_accel(HACCEL accel, class CTadsWin *win);
 
-    /* set the accelerator to a CTadsAccelerator object */
-    void set_accel(class CTadsAccelerator *accel, class CTadsWin *win);
-
     /* set no accelerator */
     void clear_accel();
 
@@ -99,80 +78,6 @@ public:
         accel_enabled_ = ena;
         return ret;
     }
-
-    /* save the accelerator settings, and set up a new accelerator */
-    void push_accel(app_accel_info *info, HACCEL accel, class CTadsWin *win)
-    {
-        /* save the old accelerator settings */
-        get_accel(info);
-
-        /* remember the new settings as well */
-        info->new_waccel = accel;
-        info->new_accel_win = win;
-
-        /* establish the new settings */
-        set_accel(accel, win);
-    }
-    void push_accel(app_accel_info *info,
-                    class CTadsAccelerator *accel, class CTadsWin *win)
-    {
-        /* save the old accelerator settings */
-        get_accel(info);
-
-        /* remember the new settings as well */
-        info->new_taccel = accel;
-        info->new_accel_win = win;
-
-        /* establish the new settings */
-        set_accel(accel, win);
-    }
-    void push_accel_clear(app_accel_info *info)
-    {
-        /* save the old settings */
-        get_accel(info);
-
-        /* clear the accelerator */
-        clear_accel();
-    }
-
-    /* 
-     *   Pop a saved accelerator.  If the current accelerators don't match
-     *   the 'new' accelerator in the stack structure, we'll do nothing, as
-     *   presumably a change in window activation has established a new
-     *   accelerator before we got around to restoring the old one. 
-     */
-    void pop_accel(app_accel_info *info)
-    {
-        /* 
-         *   if the current accelerator doesn't match the 'new' accelerator
-         *   in the stack structure, don't restore - window activation must
-         *   have changed and established a new current accelerator 
-         */
-        if (info->new_waccel != waccel_
-            || info->new_taccel != taccel_
-            || info->new_accel_win != accel_win_)
-            return;
-
-        /* restore the old settings */
-        set_accel(info);
-    }
-
-    /* get an empty accelerator table */
-    HACCEL get_empty_accel() const { return empty_accel_; }
-
-    /*
-     *   Get the accelerator key translation for a message, if any.  Returns
-     *   true if there's a translation, false if not.  We make all checks
-     *   that we'd ordinarly make in translating an accelerator key,
-     *   including checking for a disabled menu item; but rather than
-     *   actually executing the command, we merely return its translation.
-     *   If the message has an active translation but doesn't result in a
-     *   command (for example, because it's the first key of a multi-key
-     *   chord), we return true and fill in WM_NULL as the message.  Note
-     *   that we won't adjust the accelerator state, though, since we're only
-     *   looking up the message and not actually executing it.  
-     */
-    int get_accel_translation(MSG *msg);
 
     /* 
      *   translate a message via keyboard accelerators and carry it out;
@@ -287,11 +192,6 @@ public:
         return old_filter;
     }
 
-    /* get the Windows OS version information */
-    unsigned long get_win_sys_id() const { return win_sys_id_; }
-    unsigned long get_win_ver_major() const { return win_ver_major_; }
-    unsigned long get_win_ver_minor() const { return win_ver_minor_; }
-
     /* is this Vista or later? */
     int is_win_vista_plus() const
     {
@@ -310,34 +210,6 @@ public:
                  && win_ver_major_ == 4 && win_ver_minor_ == 0)
                 || (win_sys_id_ == VER_PLATFORM_WIN32_NT
                     && win_ver_major_ == 4 && win_ver_minor_ == 0));
-    }
-
-    /* determine if the OS is win98 (and only win98) */
-    int is_win98() const
-    {
-        /* win98 is major version 4, minor version 10 */
-        return (win_sys_id_ == VER_PLATFORM_WIN32_WINDOWS
-                && (win_ver_major_ == 4 && win_ver_minor_ == 10));
-    }
-
-    /* determine if the OS is win98 or later */
-    int is_win98_or_later() const
-    {
-        /* 
-         *   win95 is major version 4, minor version 0; anything with a
-         *   higher major version than 4, or a major version of 4 and a minor
-         *   version higher than 0, is post-win95, which means win98 or later
-         */
-        return (win_sys_id_ == VER_PLATFORM_WIN32_WINDOWS
-                && (win_ver_major_ > 4
-                    || (win_ver_major_ == 4 && win_ver_minor_ > 0)));
-    }
-
-    /* determine if the OS is NT4 or later (this includes 95, 98, and ME) */
-    int is_nt4_or_later() const
-    {
-        return (win_sys_id_ == VER_PLATFORM_WIN32_NT
-                && win_ver_major_ >= 4);
     }
 
     /* determine if the OS is Windows 2000 (and ONLY Win2k) */
@@ -389,26 +261,6 @@ public:
     void send_menuselect_to_statuslines(
         HWND hwnd, WPARAM wparam, LPARAM lparam);
 
-    /*
-     *   Register/unregister a menu handler.  Menu handlers receive
-     *   notifications for WM_INITMENUPOPUP, WM_MEASUREITEM, and WM_DRAWITEM
-     *   when relevant to menus.  
-     */
-    void register_menu_handler(class IMenuHandler *imh);
-    void unregister_menu_handler(class IMenuHandler *imh);
-
-    /* process a WM_INITMENUPOPUP through the menu handlers */
-    void send_initmenupopup_to_menu_handlers(
-        HWND hwnd, WPARAM wparam, LPARAM lparam);
-
-    /* process a WM_MEASUREITEM through the menu handlers */
-    void send_measureitem_to_menu_handlers(
-        HWND hwnd, WPARAM wparam, LPARAM lparam);
-
-    /* process a WM_DRAWITEM through the registered menu handlers */
-    void send_drawitem_to_menu_handlers(
-        HWND hwnd, WPARAM wparam, LPARAM lparam);
-
     void setMouseCapture(CTadsWin* win);
 	CTadsWin* getMouseCapture() const { return m_mouse_capture_win; }
 
@@ -444,24 +296,6 @@ private:
     /* set the accelerator window, maintaining reference counts */
     void set_accel_win(class CTadsWin *win);
 
-    /* get/restore the current accelerator */
-    void get_accel(app_accel_info *info)
-    {
-        memset(info, 0, sizeof(*info));
-        info->waccel = waccel_;
-        info->taccel = taccel_;
-        info->accel_win = accel_win_;
-    }
-    void set_accel(app_accel_info *info)
-    {
-        if (info->waccel != 0)
-            set_accel(info->waccel, info->accel_win);
-        else if (info->taccel != 0)
-            set_accel(info->taccel, info->accel_win);
-        else
-            clear_accel();
-    }
-
 private:
     /* application instance handle */
     HINSTANCE  instance_;
@@ -483,42 +317,18 @@ private:
     /* message filter */
     class CTadsMsgFilter *msg_filter_;
 
-    /* 
-     *   our list of modeless dialogs: space for the window handles, the
-     *   count of the number of slots allocated, and the number of slots
-     *   actually in use 
-     */
-    HWND *modeless_dlgs_;
-    int modeless_dlg_alloc_;
-    int modeless_dlg_cnt_;
-
     /* the list of registered menu status handlers */
     struct statline_listele *statusline_;
-
-    /* the list of registered menu handlers */
-    struct imh_listele *menu_handlers_;
 
     /* flag indicating that OLE was initialized successfully */
     unsigned int ole_inited_ : 1;
 
-    /*
-     *   Current accelerator and accelerator target window.  At any given
-     *   time, we can have *either* a native Windows accelerator or a custom
-     *   accelerator object. 
-     */
+    /* current accelerator and accelerator target window */
     HACCEL waccel_;
-    class CTadsAccelerator *taccel_;
     class CTadsWin *accel_win_;
 
     /* are accelerators enabled? */
     int accel_enabled_;
-
-    /* 
-     *   an empty accelerator table - our custom accelerator class can use
-     *   this to check a key against the standard system accelerators as a
-     *   last resort 
-     */
-    HACCEL empty_accel_;
 
     /* Windows OS system identifier (tells us if we're on 95, NT, etc) */
     unsigned long win_sys_id_;
@@ -534,33 +344,6 @@ private:
 
     /* portable logical-focus tracker - see setLogicalFocus()/getLogicalFocus() */
     CTadsWin* m_logical_focus_win;
-};
-
-
-/* ------------------------------------------------------------------------ */
-/*
- *   Menu handler.  Different parts of the application can register to
- *   receive notifications for menu messages (WM_INITMENUPOPUP, WM_DRAWITEM,
- *   WM_MEASUREITEM).  The handler is an abstract interface, so it can be
- *   implemented wherever is most convenient.  We send these notifications to
- *   all registered handlers when we receive them.  
- */
-class IMenuHandler
-{
-public:
-    virtual ~IMenuHandler()
-    {
-        /* make sure I'm unregistered, if I was registered globally */
-        CTadsApp::get_app()->unregister_menu_handler(this);
-    }
-
-    /* handle a WM_INITMENUPOPUP notification  */
-    virtual void imh_init_menu_popup(
-        HMENU menu, unsigned int pos, int sysmenu) = 0;
-
-    /* handle the owner-draw notifications */
-    virtual void imh_measure_item(int ctl_id, MEASUREITEMSTRUCT *di) = 0;
-    virtual void imh_draw_item(int ctl_id, DRAWITEMSTRUCT *di) = 0;
 };
 
 
@@ -592,265 +375,14 @@ class CTadsMsgFilter
 public:
     /* 
      *   Process a system message.  The message filter object always gets
-     *   first crack at a message, before we pass it to any modeless dialogs
-     *   or to any of the standard system handlers (TranslateAccelerator,
+     *   first crack at a message, before we pass it to any of the standard
+     *   system handlers (TranslateAccelerator,
      *   TranslateMessage, DispatchMessage).  Return true to indicate that
      *   the message was handled - we'll do nothing further with it.  Return
      *   false to indicate that the standard handling should proceed.  
      */
     virtual int filter_system_message(MSG *msg) = 0;
 };
-
-
-/* ------------------------------------------------------------------------ */
-/*
- *   Custom keyboard accelerator.
- *   
- *   This class defines a custom keyboard accelerator.  We can use this
- *   instead of the system accelerator mechanism.  This class provides a
- *   couple of extra features over the system mechanism, including dynamic
- *   updating and multi-key sequences, a la Emacs.  
- */
-
-/*
- *   Accelerator table enumerator 
- */
-class CTadsAccEnum
-{
-public:
-    virtual ~CTadsAccEnum() { }
-
-    /* 
-     *   process a key sequence: gives the full key sequence name, and the
-     *   command to which the key is mapped 
-     */
-    virtual void do_key(const textchar_t *keyname, unsigned short cmd) = 0;
-};
-
-/*
- *   Number of rows in a KeyMapTable - one per canonical key code (os_key_t,
- *   guios.h; formerly a Windows VK_xxx code, migration.md 5.4/L), so this
- *   must cover GUI_KEY_LAST (348, guikeys.h).  Kept as a plain literal,
- *   matching tadskb.h's shiftmap[512], rather than pulling guikeys.h into
- *   this header just for the one constant.
- */
-#define KEYMAP_ROW_COUNT  512
-
-/*
- *   A key mapping row gives the mapping for each shift-key combination for a
- *   single canonical key code.  There are three shift keys (Shift, Ctrl,
- *   Alt), so there are eight possible shift combinations.
- *
- *   Each mapping can contain one of the following:
- *   
- *   0 -> the key is not assigned
- *   
- *   1..99 -> the key is part of a multi-key sequence; the value gives the
- *   index of the next KeyMapTable in the sequence.
- *   
- *   100..65535 -> the key generates a command; the value is the WM_COMMAND
- *   WPARAM value for the command.
- *   
- *   Note that WM_COMMAND values below 100 aren't allowed, since values below
- *   100 are reserved to indicate multi-key sequences.  
- */
-struct KeyMapRow
-{
-    /* the command assignment for each shift combination for this key */
-    unsigned short cmd[8];
-
-    /* get the command entry for a given combination of shift keys */
-    unsigned short get_cmd(int shiftkeys)
-    {
-        return cmd[shiftkeys];
-    }
-
-    /* set the command entry for a given combination of shift keys */
-    void set_cmd(int shiftkeys, unsigned short val)
-    {
-        cmd[shiftkeys] = val;
-    }
-
-    /* enumerate our keys */
-    void enum_keys(class CTadsAccelerator *acc, CTadsAccEnum *e,
-                   const textchar_t *prefix, int vkey);
-};
-
-/* a key mapping table is a set of key rows, one per canonical key code */
-struct KeyMapTable
-{
-    /* give each canonical key code its own row */
-    KeyMapRow row[KEYMAP_ROW_COUNT];
-
-    /* get a command for a key */
-    unsigned short get_cmd(int vkey, int shiftkeys)
-        { return row[vkey].get_cmd(shiftkeys); }
-
-    /* set a command for a key */
-    void set_cmd(int vkey, int shiftkeys, unsigned short val)
-        { row[vkey].set_cmd(shiftkeys, val); }
-
-    KeyMapTable()
-    {
-        /* our keys are initially unassigned */
-        memset(row, 0, sizeof(row));
-    }
-
-    /* enumerate our keys */
-    void enum_keys(class CTadsAccelerator *acc, CTadsAccEnum *e,
-                   const textchar_t *prefix);
-};
-
-/*
- *   The accelerator class
- *
- *   Unreferenced in guit3 - its only instantiation anywhere in the tree is
- *   win32/w32tdb.cpp (the Workbench debugger), which isn't built here (see
- *   migration.md 5.4/L's "Correction found during M1").  map()/enum_keys()
- *   populate and read the table by canonical key code (os_key_t, guios.h)
- *   via CTadsApp::kb_ (CTadsKeyboard, tadskb.h), same as everywhere else in
- *   guit3 as of 5.4/L. translate()/msg_to_command() below, in contrast,
- *   still index the table with the real Win32 VK_xxx straight out of a
- *   WM_KEYDOWN's wParam - untouched, since they're reachable only from a
- *   real Win32 message loop guit3 doesn't have.  The two disagree for any
- *   named/punctuation key (VK_xxx and the canonical code coincide only for
- *   letters and digits), which is harmless today because nothing calls
- *   either path, but would need reconciling - translate one side or the
- *   other - before a future debugger port could use this class for real.
- */
-class CTadsAccelerator
-{
-public:
-    CTadsAccelerator();
-    ~CTadsAccelerator();
-
-    /* 
-     *   Translate a message.  This looks for a WM_KEYDOWN message with a
-     *   mapping in the accelerator table; if we find one, we send a
-     *   WM_COMMAND to the target window with the key's command, and return
-     *   TRUE; if there's no mapping for the key, or it's a non-key message,
-     *   we return FALSE.  
-     */
-    int translate(class CTadsWin *win, MSG *msg);
-
-    /*
-     *   Get the translation, but don't execute it.  
-     */
-    int get_translation(class CTadsWin *win, MSG *msg);
-
-    /*
-     *   Reset our key state.  This returns us to the initial state, so that
-     *   the next incoming key goes to the first-level table.  
-     */
-    void reset_keystate();
-
-    /* map a command (single or multi-key) based on the key name string */
-    int map(const textchar_t *keyname, size_t keylen, unsigned short cmd);
-
-    /* enumerate mapped keys */
-    void enum_keys(CTadsAccEnum *e);
-
-    /* get a sutable */
-    KeyMapTable *get_subtable(int idx) const { return tab[idx]; }
-
-    /* 
-     *   Handle a WM_INITMENUPOPUP notification.  This updates the menu's
-     *   accelerator keys to match the current keyboard bindings. 
-     */
-    void init_menu_popup(HMENU menu, unsigned int pos, int sysmenu);
-
-    /* 
-     *   Set our status-line object.  If this is set, we'll notify the status
-     *   line of an update any time we have a new partial-chord message to
-     *   show. 
-     */
-    void set_statusline(class CTadsStatusline *s)
-        { statusline = s; }
-
-    /*
-     *   Get a statusline message.  This can be used to show the "chord"
-     *   state on the status line when a prefix key is pressed.  We follow
-     *   the same protocol as CTadsStatusSource::get_status_message(), so a
-     *   status source can call this and return what we return.  We return
-     *   null if we don't have any chord state to show, in which case the
-     *   caller can display a lower-priority status message.  
-     */
-    textchar_t *get_status_message(int *caller_deletes);
-
-protected:
-    /* 
-     *   Set the new key state.  This sets the active mapping table, which is
-     *   the table that will be used to interpret the next key we read.  
-     */
-    void set_keystate(int vkey, int shift, int tab_idx);
-
-    /* translate a message to a command ID */
-    int msg_to_command(const MSG *msg, unsigned int *cmd);
-
-    /* test a command to see if we can send it */
-    int test_command(class CTadsWin *win, unsigned int cmd, MSG *msg);
-
-    /* send a translated key command */
-    void send_command(class CTadsWin *win, unsigned int cmd);
-
-    /* find a command in a menu, recursively searching submenus */
-    HMENU find_menu_command(int *index, HMENU menu, unsigned int cmd);
-
-    /* delete an existing mapping */
-    void del_key(unsigned short table_index, int vkey, int shiftkeys);
-
-    /* delete a subtable */
-    void delete_subtab(unsigned short subtab);
-
-    /* map a key into a subtable */
-    unsigned short map_to_subtab(
-        unsigned short tabidx, int vkey, int shiftkeys);
-
-    /* map a key into a table */
-    void map_into_table(unsigned short tabidx, int vkey, int shiftkeys,
-                        unsigned short cmd);
-
-    /* add a key string to our menu hash table */
-    void add_to_menu_hash(
-        const textchar_t *keyname, size_t keylen, unsigned short cmd);
-
-    /* 
-     *   Command-to-accelerator key hash table.  We use this to find the
-     *   accelerator key name to display for a given menu item.  
-     */
-    class CHtmlHashTable *menu_hash;
-
-    /*
-     *   Our mapping tables.  The zeroeth table is the first-key table; this
-     *   is used to map single-key commands and the first key of a multi-key
-     *   sequence.  Subsequent tables are nth-key tables, for keys in
-     *   multi-key sequences.  For any multi-key sequence, the first table's
-     *   entry for the first key in the sequence contains the index of the
-     *   table for the second key, and so on.  
-     */
-    KeyMapTable *tab[100];
-
-    /*
-     *   Our current key state.  This is the index of the key table we'll use
-     *   to interpret the next key.  Initially, this is zero, which is the
-     *   first-level key table.  When we encounter a key that's mapped to a
-     *   second-level table, this changes to the index of the mapped
-     *   subtable, so that we interpret the next key as a command in that
-     *   second table.  When we reach a command or an unmapped key, we revert
-     *   to the initial state. 
-     */
-    int keystate;
-
-    /*
-     *   The chord state message.  This is a string showing the list of keys
-     *   pressed so far to reach the current chord state. 
-     */
-    CStringBuf chord_so_far;
-
-    /* our status line object */
-    class CTadsStatusline *statusline;
-};
-
 
 
 /* ------------------------------------------------------------------------ */

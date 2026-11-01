@@ -108,7 +108,6 @@ Modified
 #include "tadsaudiodev.h"
 #endif
 #ifndef TADSDLG_H
-#include "tadsdlg.h"
 #endif
 #ifndef TADSCAR_H
 #include "tadscar.h"
@@ -10657,6 +10656,12 @@ CHtmlSys_mainwin::CHtmlSys_mainwin(CHtmlFormatterInput *formatter,
     /* no idle timer yet */
     idle_timer_id_ = 0;
 
+    /*
+     *   No native toolbar window: the toolbar is ImGui's (render_toolbar()).
+     *   toolbar_ stays null; the Win32 calls still aimed at it do nothing.
+     */
+    toolbar_ = 0;
+
     /* toolbar icon texture not loaded yet */
     toolbar_tex_ = nullptr;
     toolbar_tex_w_ = toolbar_tex_h_ = 0;
@@ -11092,9 +11097,6 @@ void CHtmlSys_mainwin::do_create()
     /* inherit default creation */
     CHtmlSys_framewin::do_create();
 
-    /* create our toolbar */
-    create_toolbar();
-
     /* create and show the status line */
     statusline_ = new CTadsStatusline(this, TRUE, HTML_MAINWIN_ID_STATUS);
 
@@ -11454,221 +11456,6 @@ int CHtmlSys_mainwin::do_timer(int timer_id)
     {
         /* not one of ours - inherit default handling */
         return CHtmlSys_framewin::do_timer(timer_id);
-    }
-}
-
-/*
- *   Create our toolbar 
- */
-void CHtmlSys_mainwin::create_toolbar()
-{
-    TBBUTTON buttons[30];
-    int i;
-
-    /*
-     *   Set up the button descriptors 
-     */
-
-    /* start at the first button */
-    i = 0;
-
-    /* load game */
-    buttons[i].iBitmap = 0;
-    buttons[i].idCommand = ID_FILE_LOADGAME;
-    buttons[i].fsState = TBSTATE_ENABLED;
-    buttons[i].fsStyle = TBSTYLE_BUTTON;
-    buttons[i].dwData = 0;
-    buttons[i].iString = 0;
-    ++i;
-
-    /* save */
-    buttons[i].iBitmap = 1;
-    buttons[i].idCommand = ID_FILE_SAVEGAME;
-    buttons[i].fsState = TBSTATE_ENABLED;
-    buttons[i].fsStyle = TBSTYLE_BUTTON;
-    buttons[i].dwData = 0;
-    buttons[i].iString = 0;
-    ++i;
-
-    /* restore */
-    buttons[i].iBitmap = 2;
-    buttons[i].idCommand = ID_FILE_RESTOREGAME;
-    buttons[i].fsState = TBSTATE_ENABLED;
-    buttons[i].fsStyle = TBSTYLE_BUTTON;
-    buttons[i].dwData = 0;
-    buttons[i].iString = 0;
-    ++i;
-
-    /* separator */
-    buttons[i].iBitmap = 0;
-    buttons[i].idCommand = 0;
-    buttons[i].fsState = TBSTATE_ENABLED;
-    buttons[i].fsStyle = TBSTYLE_SEP;
-    buttons[i].dwData = 0;
-    buttons[i].iString = 0;
-    ++i;
-
-    /* cut */
-    buttons[i].iBitmap = 3;
-    buttons[i].idCommand = ID_EDIT_CUT;
-    buttons[i].fsState = TBSTATE_ENABLED;
-    buttons[i].fsStyle = TBSTYLE_BUTTON;
-    buttons[i].dwData = 0;
-    buttons[i].iString = 0;
-    ++i;
-
-    /* copy */
-    buttons[i].iBitmap = 4;
-    buttons[i].idCommand = ID_EDIT_COPY;
-    buttons[i].fsState = TBSTATE_ENABLED;
-    buttons[i].fsStyle = TBSTYLE_BUTTON;
-    buttons[i].dwData = 0;
-    buttons[i].iString = 0;
-    ++i;
-
-    /* paste */
-    buttons[i].iBitmap = 5;
-    buttons[i].idCommand = ID_EDIT_PASTE;
-    buttons[i].fsState = TBSTATE_ENABLED;
-    buttons[i].fsStyle = TBSTYLE_BUTTON;
-    buttons[i].dwData = 0;
-    buttons[i].iString = 0;
-    ++i;
-
-    /* separator */
-    buttons[i].iBitmap = 0;
-    buttons[i].idCommand = 0;
-    buttons[i].fsState = TBSTATE_ENABLED;
-    buttons[i].fsStyle = TBSTYLE_SEP;
-    buttons[i].dwData = 0;
-    buttons[i].iString = 0;
-    ++i;
-
-    /* undo command */
-    buttons[i].iBitmap = 6;
-    buttons[i].idCommand = ID_CMD_UNDO;
-    buttons[i].fsState = TBSTATE_ENABLED;
-    buttons[i].fsStyle = TBSTYLE_BUTTON;
-    buttons[i].dwData = 0;
-    buttons[i].iString = 0;
-    ++i;
-
-    /* separator */
-    buttons[i].iBitmap = 0;
-    buttons[i].idCommand = 0;
-    buttons[i].fsState = TBSTATE_ENABLED;
-    buttons[i].fsStyle = TBSTYLE_SEP;
-    buttons[i].dwData = 0;
-    buttons[i].iString = 0;
-    ++i;
-
-    /* decrease font size */
-    buttons[i].iBitmap = 7;
-    buttons[i].idCommand = ID_VIEW_FONTS_NEXT_SMALLER;
-    buttons[i].fsState = TBSTATE_ENABLED;
-    buttons[i].fsStyle = TBSTYLE_BUTTON;
-    buttons[i].dwData = 0;
-    buttons[i].iString = 0;
-    ++i;
-
-    /* increase font size */
-    buttons[i].iBitmap = 8;
-    buttons[i].idCommand = ID_VIEW_FONTS_NEXT_LARGER;
-    buttons[i].fsState = TBSTATE_ENABLED;
-    buttons[i].fsStyle = TBSTYLE_BUTTON;
-    buttons[i].dwData = 0;
-    buttons[i].iString = 0;
-    ++i;
-
-    /* profiles */
-    buttons[i].iBitmap = 13;
-    buttons[i].idCommand = ID_THEMES_DROPDOWN;
-    buttons[i].fsState = TBSTATE_ENABLED;
-    buttons[i].fsStyle = TBSTYLE_BUTTON | TBSTYLE_DROPDOWN;
-    buttons[i].dwData = 0;
-    buttons[i].iString = 0;
-    ++i;
-
-    /* options */
-    buttons[i].iBitmap = 9;
-    buttons[i].idCommand = ID_VIEW_OPTIONS;
-    buttons[i].fsState = TBSTATE_ENABLED;
-    buttons[i].fsStyle = TBSTYLE_BUTTON;
-    buttons[i].dwData = 0;
-    buttons[i].iString = 0;
-    ++i;
-
-    /* separator */
-    buttons[i].iBitmap = 0;
-    buttons[i].idCommand = 0;
-    buttons[i].fsState = TBSTATE_ENABLED;
-    buttons[i].fsStyle = TBSTYLE_SEP;
-    buttons[i].dwData = 0;
-    buttons[i].iString = 0;
-    ++i;
-
-    /* previous page */
-    buttons[i].iBitmap = 10;
-    buttons[i].idCommand = ID_GO_PREVIOUS;
-    buttons[i].fsState = TBSTATE_ENABLED;
-    buttons[i].fsStyle = TBSTYLE_BUTTON;
-    buttons[i].dwData = 0;
-    buttons[i].iString = 0;
-    ++i;
-
-    /* next page */
-    buttons[i].iBitmap = 11;
-    buttons[i].idCommand = ID_GO_NEXT;
-    buttons[i].fsState = TBSTATE_ENABLED;
-    buttons[i].fsStyle = TBSTYLE_BUTTON;
-    buttons[i].dwData = 0;
-    buttons[i].iString = 0;
-    ++i;
-
-    /* find text */
-    buttons[i].iBitmap = 12;
-    buttons[i].idCommand = ID_EDIT_FIND;
-    buttons[i].fsState = TBSTATE_ENABLED;
-    buttons[i].fsStyle = TBSTYLE_BUTTON;
-    buttons[i].dwData = 0;
-    buttons[i].iString = 0;
-    ++i;
-
-    /* separator */
-    buttons[i].iBitmap = 0;
-    buttons[i].idCommand = 0;
-    buttons[i].fsState = TBSTATE_ENABLED;
-    buttons[i].fsStyle = TBSTYLE_SEP;
-    buttons[i].dwData = 0;
-    buttons[i].iString = 0;
-    ++i;
-
-    /* mute sound */
-    buttons[i].iBitmap = (prefs_->get_mute_sound() ? 15 : 14);
-    buttons[i].idCommand = ID_MUTE_SOUND;
-    buttons[i].fsState = TBSTATE_ENABLED;
-    buttons[i].fsStyle = TBSTYLE_BUTTON;
-    buttons[i].dwData = 0;
-    buttons[i].iString = 0;
-    ++i;
-
-    /* set up the toolbar */
-    toolbar_ = CreateToolbarEx(handle_,
-                               WS_CHILD | TBSTYLE_TOOLTIPS | TBSTYLE_FLAT,
-                               0, 1, CTadsApp::get_app()->get_instance(),
-                               IDB_TERP_TOOLBAR, buttons, i,
-                               16, 15, 16, 15, sizeof(buttons[0]));
-    if (toolbar_ != 0)
-    {
-        /* set the draw-drop-arrows extended style */
-        SendMessage(toolbar_, TB_SETEXTENDEDSTYLE, 0,
-                    TBSTYLE_EX_DRAWDDARROWS);
-
-        /* show the toolbar window */
-        ShowWindow(toolbar_, prefs_->get_toolbar_vis() ? SW_SHOW : SW_HIDE);
-
-        /* set up the toolbar to do idle status updating */
-        add_toolbar_proc(toolbar_);
     }
 }
 
@@ -12975,8 +12762,6 @@ void CHtmlSys_mainwin::do_load_recent_game(int idx)
 void CHtmlSys_mainwin::show_directx_warning(int init,
                                             htmlw32_directx_err_t warn_type)
 {
-    CTadsDlg_dxwarn *dlg;
-    
     /*
      *   Check to see if the user has previously told us to suppress this
      *   type of warning.  We'll only suppress the warnings on startup,
@@ -13007,20 +12792,26 @@ void CHtmlSys_mainwin::show_directx_warning(int init,
             return;
     }
 
-    /* run the dialog */
-    dlg = new CTadsDlg_dxwarn(prefs_, warn_type);
-    dlg->run_modal(DLG_DIRECTX_WARNING, NULL,
-                   CTadsApp::get_app()->get_instance());
-    delete dlg;
-
-    /* 
-     *   Remember the error type persistently for the next startup.  Note
-     *   that it's important to wait until *after* we've run the dialog,
-     *   because the dialog needs to be able to check the *old* value of
-     *   the error code in the preferences - this way, it can determine if
-     *   the checkbox setting is still applicable, since it only applies
-     *   when the current error is the same as the old error. 
+    /*
+     *   Ask in a message box.  The native dialog this replaces (a dialog
+     *   resource this repo doesn't carry) never showed in guit3; its "don't
+     *   show this again" checkbox is the question now.  Queued, because this
+     *   can run in the middle of a frame (the Options dialog's sound
+     *   checkbox), where a message box can't pump frames of its own.
      */
+    CHtmlPreferences *prefs = prefs_;
+    queue_deferred_dialog([this, prefs]()
+    {
+        int ret = tadswin_message_box(
+            get_app_window(),
+            "No sound output is available, so sounds and music are "
+            "turned off.\n\n"
+            "Show this message again the next time this happens?",
+            "Sound", MB_YESNO | MB_ICONWARNING);
+        prefs->set_directx_hidewarn(ret == IDNO);
+    });
+
+    /* remember the error type persistently for the next startup */
     prefs_->set_directx_error_code(warn_type);
 }
 
@@ -15777,6 +15568,14 @@ void CHtmlSys_mainwin::do_accel_keys()
      *   game out from under an open Options dialog.
      */
     if (ImGui::IsPopupOpen((const char *)0, ImGuiPopupFlags_AnyPopup))
+        return;
+
+    /*
+     *   Nor while a floating dialog (About, Credits, About This Game) is
+     *   open: they're modal too, and keys reach only them (event_loop()).
+     *   This is what modal_dlg_pre()'s enable_accel(FALSE) was for.
+     */
+    if (!active_dialogs_.empty())
         return;
 
     /*
@@ -18670,15 +18469,8 @@ void CHtmlSys_aboutgamewin::delete_html_subwin()
  */
 void CHtmlSys_aboutgamewin::run_aboutbox(CHtmlSys_mainwin *owner)
 {
-    void *ctx;
     RECT rc;
     int wid, ht;
-
-    /*
-     *   disable windows owned by the main window while the dialog is
-     *   running
-     */
-    ctx = CTadsDialog::modal_dlg_pre(owner->get_handle(), TRUE);
 
     /* start from our current (creation-time default) size */
     ImVec2 cur_size = get_win_size();
@@ -18724,9 +18516,6 @@ void CHtmlSys_aboutgamewin::run_aboutbox(CHtmlSys_mainwin *owner)
     }
 
     owner->pop_active_dialog();
-
-    /* re-enable the windows we disabled before running the dialog */
-    CTadsDialog::modal_dlg_post(ctx);
 
     /* hide myself again, and reset for the next time we're opened */
     setVisible(false);
@@ -19063,15 +18852,8 @@ int CHtmlSys_abouttadswin::do_char(TCHAR ch, long /*keydata*/)
  */
 void CHtmlSys_abouttadswin::run_dlg(CTadsWin *parent)
 {
-    void *ctx;
     RECT rc;
     int wid, ht;
-
-    /*
-     *   disable existing windows owned by the parent window while the
-     *   dialog is running
-     */
-    ctx = CTadsDialog::modal_dlg_pre(parent->get_handle(), TRUE);
 
     /* set the width and height */
     get_dlg_size(&wid, &ht);
@@ -19156,9 +18938,6 @@ void CHtmlSys_abouttadswin::run_dlg(CTadsWin *parent)
     }
 
     mainwin_->pop_active_dialog();
-
-    /* re-enable the windows we disabled before running the dialog */
-    CTadsDialog::modal_dlg_post(ctx);
 
     /* 
      *   Mark us as ready to close for real, and post a CLOSE message to
@@ -19965,72 +19744,4 @@ int CHtmlSysWin_win32_Popup::dismiss_on_click(int x, int y, DWORD flags)
     }
 }
 
-
-/* ------------------------------------------------------------------------ */
-/*
- *   DirectX warning dialog 
- */
-
-void CTadsDlg_dxwarn::init()
-{
-    int ck;
-    
-    /* inherit default */
-    CTadsDialog::init();
-
-    /*
-     *   Determine if the checkbox should be checked - it should be if the
-     *   error code is the same as last time, and the "hide this warning"
-     *   item was checked last time. 
-     */
-    ck = (warn_type_ == prefs_->get_directx_error_code()
-          && prefs_->get_directx_hidewarn());
-    CheckDlgButton(handle_, IDC_CK_SUPPRESS,
-                   ck ? BST_CHECKED : BST_UNCHECKED);
-
-    /* 
-     *   Show the appropriate message, depending on the type of error that
-     *   caused us to display the dialog 
-     */
-    switch(warn_type_)
-    {
-    default:
-    case HTMLW32_DIRECTX_MISSING:
-        ShowWindow(GetDlgItem(handle_, IDC_STATIC_DXINST), SW_SHOW);
-        ShowWindow(GetDlgItem(handle_, IDC_STATIC_DXINST2), SW_SHOW);
-        ShowWindow(GetDlgItem(handle_, IDC_STATIC_DXINST3), SW_SHOW);
-        break;
-
-    case HTMLW32_DIRECTX_BADVSN:
-        ShowWindow(GetDlgItem(handle_, IDC_STATIC_DXVSN), SW_SHOW);
-        ShowWindow(GetDlgItem(handle_, IDC_STATIC_DXVSN2), SW_SHOW);
-        ShowWindow(GetDlgItem(handle_, IDC_STATIC_DXVSN3), SW_SHOW);
-        break;
-    }
-}
-
-/*
- *   process a command 
- */
-int CTadsDlg_dxwarn::do_command(WPARAM id, HWND ctl)
-{
-    int ck;
-    
-    switch(id)
-    {
-    case IDC_CK_SUPPRESS:
-        /* note the new value */
-        ck = (IsDlgButtonChecked(handle_, IDC_CK_SUPPRESS) == BST_CHECKED);
-        
-        /* save the new setting in the preferences */
-        prefs_->set_directx_hidewarn(ck);
-
-        /* handled */
-        return TRUE;
-
-    default:
-        /* inherit default handling */
-        return CTadsDialog::do_command(id, ctl);
-    }
-}
 

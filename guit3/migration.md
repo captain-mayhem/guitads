@@ -941,7 +941,7 @@ sound, so a sound-bearing `.t3`/`.gam` needs sourcing to exercise the WAV/OGG/MP
 Deferred: decoder file I/O (§5.4), the vestigial DirectSound probe (§5.4), a portable MIDI synth (phase two —
 TinySoundFont + a bundled GM soundfont through `CTadsAudioDevice`), and the volume curve
 (`update_level()` applies a `log10` curve and hands 0..10000 to `set_volume`, which maps *linearly* to
-miniaudio's 0..1; the old code applied a second dB mapping on top — revisit once there's a test game).
+miniaudio's 0..1; the old code applied a second dB mapping on top — revisit once there's a test game). **Done in 5.32.**
 
 ### 3.8 Scrollback scrollbar
 
@@ -1083,7 +1083,7 @@ Also in `guit3`'s CMakeLists:
   only, already `_WIN32`-gated), `Ws2_32.lib`/`Wininet.lib`/`Mpr.lib` (networking — the superproject already
   vendors `curl/`), `Shlwapi.lib` (`PathMatchSpecA`, §5.4/J), `Version.lib`, `dxguid.lib` (only the
   vestigial DirectSound probe, §5.4/I), `Opengl32.lib` (already `if (WIN32)`-guarded).
-  (`Htmlhelp.lib` was here too — **dropped** in the M1 revisit along with the `.chm` help path, §5.4/F.)
+  (`Htmlhelp.lib` was here too — **dropped** in the M1 revisit along with the `.chm` help path, §5.4/F.) (**5.32:** `Comctl32.lib` is linked only with `TADS_WEBUI_ENABLED` on Windows now.)
 - **`Tads::tr32h` / `Tads::t3htm` already have non-Windows branches** (`tads2/CMakeLists.txt` builds
   `unix/osunixt.c` + `ostzposix.c` with `UNIX`/`OSANSI`/`LINUX_386` instead of the `msdos/` set). But `guit3`
   calls into the *Windows* half of that layer: `oss_win_static_init_done()`, `oss_win_free_all()`,
@@ -1134,7 +1134,7 @@ the cheapest possible progress and shrinks everything downstream (link libs, inc
 | `guifndlg.cpp` | 908 | Superseded by `CTadsFindDialog` (§3.3). `CTadsDialogFindReplace`/`FindRegex` are Workbench-only. **Done (M1)** - genuinely zero live references; dropped cleanly. |
 | `foldsel2.cpp` | 1011 | Superseded by `CTadsFolderDialog` (§3.3) for the live (ImGui Options/Starting tab) path. **Done (M1)**, but its only remaining consumer, `CHtmlDialogStart`, turned out to live inside a larger dead block: `htmlpref.cpp` also had `CHtmlDialogKeys`/`Safety`/`NetSafety`/`Mem`/`Quit`/`Start`/`GameChest` (the 7 property-page classes used *only* by `run_preferences_dlg()`, itself unreachable - `CHtmlDialogAppearance` was at the time the one page still shared with the then-live `run_profiles_dlg()`, so it alone survived that pass - it and the rest of that chain were removed in the M1 revisit once Manage Themes was ported, §3.3 / the `tadscbtn.cpp` row above) plus `run_preferences_dlg()` itself, all confirmed dead by the same "no call sites outside this block" check and removed together (~1750 lines) so the `foldsel.h` include could actually go. Watch for this pattern elsewhere in `htmlpref.cpp`: a file's "zero references" claim in this doc may only hold once a further, uncounted dead block that references it is cleared out too - verify reachability transitively, not just by grepping the target file's own name. |
 | `iconmenu.cpp` | 432 | Owner-drawn menu icons - dead (no real `HMENU` is ever shown). **Done (M1)**, but there were more live-but-inert call sites than this row implied: besides the `do_create()` construction, `create_toolbar()` (already-dead native toolbar code, §3.1) called `add_bitmap()`/`map_commands()`/`map_command()` ×3 every time it ran, and `do_destroy()` deleted the object. All of it executed at startup with no visible effect (no real menu bar ever receives `WM_INITMENUPOPUP`/`WM_DRAWITEM`) - removed all of it, then the file. |
-| `tadsdlg.cpp`/`.h`/`tadsdlg2.cpp` | 2463 | Dead **except** `CTadsDialog::modal_dlg_pre()`/`modal_dlg_post()` and `set_filedlg_center_hook()`, still used by `CHtmlSys_abouttadswin`/`CHtmlSys_creditswin::run_dlg()` and (once ported) `CHtmlSys_aboutgamewin` (§5.4/N). `LicenseDlg : CTadsDialog`, the last of the four, is gone now that License is ported (§3.3d). Port `CHtmlSys_aboutgamewin`/`CHtmlSysWin_win32_Popup`, then drop these. |
+| `tadsdlg.cpp`/`.h`/`tadsdlg2.cpp` | 2463 | Dead **except** `CTadsDialog::modal_dlg_pre()`/`modal_dlg_post()` and `set_filedlg_center_hook()`, still used by `CHtmlSys_abouttadswin`/`CHtmlSys_creditswin::run_dlg()` and (once ported) `CHtmlSys_aboutgamewin` (§5.4/N). `LicenseDlg : CTadsDialog`, the last of the four, is gone now that License is ported (§3.3d). Port `CHtmlSys_aboutgamewin`/`CHtmlSysWin_win32_Popup`, then drop these.  **Done (5.32):** compiled only for the Game Chest (`TADS_WEBUI_ENABLED` on Windows); the about boxes don't call `modal_dlg_pre()`/`post()` any more. |
 | `tadsole.cpp` | 430 | `CTadsDataObjText`, used by `htmlgui.cpp:1585`'s `get_data_object()` (OLE drag-and-drop source). Gate with the Web UI/COM flag (§5.4/O) or drop drag-out support off-Windows. |
 | `tadswebctl.cpp`/`tadscom.cpp`/`guinogch.cpp` | ~470 | Web UI / COM — gate behind `TADS_WEBUI_ENABLED` (§4, §5.4/O). |
 | MDI in `tadswin.h`/`.cpp` | — | `CTadsSyswinMdiFrame`/`MdiClient`/`MdiChild`, `client_handle_`. Workbench-only (§4). **Done (M2/A1).** The three subclasses + their `register_win_class()` registration block removed from `tadswin.h`/`tadswin.cpp`; `CTadsApp::set_mdi_win()`/`mdi_win_` + the `TranslateMDISysAccel()` branch in `process_message()` removed from `tadsapp.h`/`tadsapp.cpp`. The base-class `CTadsWin::mdi{child,frame}_message_handler()` and `mdi*_win_class_name` were left as unreferenced dead native code (base-class MDI plumbing is a broader native-dead-code sweep, not A1). |
@@ -1630,7 +1630,7 @@ too, but only after also removing ~1750 lines of dead property-page classes and 
   drag-and-drop in `tadswin.cpp` needs COM initialized regardless of the Web UI flag).
 - `CTadsApp` trimming (L) turned out to be based on an incorrect premise - `event_loop()` is very much
   alive - so only the confirmed-dead `add_modeless()`/`remove_modeless()` were removed; the rest of that
-  item needs a fresh reachability audit before it's attempted, not a repeat of this plan's original claims.
+  item needs a fresh reachability audit before it's attempted, not a repeat of this plan's original claims. **Audit done in 5.32.**
 
 The original pass was verified with a full clean Windows build and a manual smoke-test launch (game loaded,
 rendered, ran normally). The M1 revisit is verified with a clean Debug build of `guit3`; a smoke-test launch
@@ -2313,7 +2313,7 @@ existed. `release.yml` is unaffected (Windows-only build).
   build's rendering path, and before spending more effort chasing either warning in this environment.
 - `get_my_docs_path()`/`SHGetSpecialFolderLocation()` et al. now correctly report failure off Windows
   (post-HRESULT-fix), meaning the Options dialog's "Starting directory" default and similar features get no
-  real value there rather than a wrong one - a real fallback (e.g. `$HOME`) would be a nicer follow-up.
+  real value there rather than a wrong one - a real fallback (e.g. `$HOME`) would be a nicer follow-up. **Done in 5.32** (the XDG documents folder, else `$HOME`).
 
 **Linux/Wayland startup warning: `Plugin "GTK3 plugin" uses conflicting symbol "png_free"` - fixed.** guit3
 statically links its own private copies of libpng/zlib/libjpeg/libmng (built from the vendored
@@ -3734,6 +3734,60 @@ output, 80 lines, five `inputLine()`s that echo the line and its length, run wit
 - **Windows:** the test game's first page with the MORE prompt and the scrollbar (screenshot).
 - **Engine:** the new test fails without the fix (7.5 seconds instead of 10) and passes with it; all 189
   tests pass on Windows.
+
+### 5.32 Dead code and small follow-ups
+
+The items still open from the original plan (§5.3, §5.5/M1, §5.4/L, the M4 notes), apart from MIDI and the
+embedded Web UI (phase two).
+- **`tadsdlg.cpp`/`tadsdlg2.cpp`** (`CTadsDialog`, the native dialog and property-sheet classes) are compiled
+  only with `TADS_WEBUI_ENABLED` on Windows now, for the Game Chest (`tadschest.cpp`, `foldsel2.cpp`), the
+  only code left that uses them. The three other users:
+  - The about boxes (`CHtmlSys_abouttadswin::run_dlg()`, `CHtmlSys_aboutgamewin::run_aboutbox()`) called
+    `modal_dlg_pre()`/`post()`. The window disabling was a no-op, and so was the other half,
+    `CTadsApp::enable_accel(FALSE)`: `do_accel_keys()` never read `accel_enabled_`, so shortcuts worked behind
+    an open about box (Ctrl+O opened the new-game prompt). `do_accel_keys()` now returns while a floating
+    dialog is open (`active_dialogs_`), as `event_loop()` already does for its keys (5.31).
+  - The DirectX warning (`CTadsDlg_dxwarn`, shown when no audio output opens) was a native dialog built from
+    a dialog resource this repo doesn't carry, so it never showed. `show_directx_warning()` now queues an
+    ImGui message box (`queue_deferred_dialog()`: it can run mid-frame, from the Options dialog's sound
+    checkbox): "No sound output is available ... Show this message again the next time this happens?". No
+    stands for the old dialog's "don't show again" checkbox (`set_directx_hidewarn()`).
+  - `htmlgui.cpp`'s transcript viewer, inside `#if 0`.
+- **The native toolbar**: `create_toolbar()` (`CreateToolbarEx()`) built a never-shown toolbar window at
+  startup; it's gone and `toolbar_` stays null (the remaining Win32 calls on it do nothing). With it and
+  `tadsdlg2.cpp` gone, nothing else needs the common controls: `InitCommonControlsEx()` (`guimain.cpp`) and
+  `Comctl32.lib` are only in the `TADS_WEBUI_ENABLED` Windows build. `tadsole.cpp` stays: it is the live OLE
+  drag source on Windows.
+- **MDI**: the base-class leftovers are gone (`CTadsWin::mdiframe_/mdichild_message_handler()`, the three MDI
+  class names, `do_mdiactivate()`, `do_mdirefreshmenu()`, `mdi_child_event()`, `is_mdi_child()` and the
+  `WM_MDIACTIVATE`/`WM_MDIREFRESHMENU` cases), and so are `tadsplat.h`'s MDI stubs.
+- **`CTadsApp`** (the reachability audit §5.5 asked for): `event_loop()` and `process_message()` are live
+  (`process_message()` through `osnet_host_process_message()`), and so are the native accelerator
+  (`set_accel(HACCEL)`), the message filter, the status line list and the fonts. Removed, each with no caller
+  outside `tadsapp.cpp` and none reaching it inside:
+  - the custom accelerator `CTadsAccelerator` with `KeyMapTable`/`KeyMapRow`/`CTadsAccEnum`/
+    `AccelHashEntry` (about 1100 lines; nothing called `set_accel(CTadsAccelerator *)`), with
+    `get_accel_translation()`, `push_accel()`/`pop_accel()`/`app_accel_info` and the empty accelerator table;
+  - the menu handler registry (`IMenuHandler`, `register_menu_handler()` and the three `send_*_to_menu_
+    handlers()`: nothing registered a handler), and their calls in `tadswin.cpp`'s message handler;
+  - the modeless dialog list (nothing added to it since M1);
+  - the unused Windows version queries (`is_win98()`, `is_nt4_or_later()`, ...).
+- **The documents folder off Windows** (`CTadsApp::get_my_docs_path()`, the default place of the Game Chest
+  file): `XDG_DOCUMENTS_DIR` from `$XDG_CONFIG_HOME/user-dirs.dirs` (or `~/.config/user-dirs.dirs`) if that
+  folder exists, else `$HOME` (on the web `/home/web_user`). It reported failure before. The Game Chest path
+  was built with a literal `TADS\GameChest.txt`, a file name with a backslash off Windows; the two parts are
+  joined separately now.
+- **The volume curve** (§3.7): `CTadsAudioDevice::set_volume()` took the 0..10000 level as a linear gain.
+  The Win32 player gave DirectSound an attenuation of -60 dB to 0 dB for it, and the volume control's log10
+  curve and the faders (`tadssnd.cpp`) are shaped for that, so the base volume and the fades follow a
+  different curve than in htmlt3. It is a gain of 10^(-3 * (1 - level/10000)) now, and 0 is silence.
+
+**How it was verified:** guit3 builds without warnings on Windows with `TADS_WEBUI_ENABLED` on (the Game
+Chest build, which still compiles `tadsdlg` and links `Comctl32.lib`) and off (neither), on Linux and on the
+web. Windows (Web UI off): `ditch3.t3` starts with the ImGui toolbar. Web: with About GUI TADS open, Ctrl+O
+does nothing; after Escape closes it, Ctrl+O shows the new-game prompt. Not checked: the sound warning (no
+machine here without audio output), the documents folder on a Linux desktop with `user-dirs.dirs`, and the
+volume curve by ear or recording (no test game with sound here).
 
 ## 6. Working notes for a fresh session
 

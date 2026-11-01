@@ -54,7 +54,6 @@ Modified
 #include "tadssnd.h"
 #endif
 #ifndef TADSDLG_H
-#include "tadsdlg.h"
 #endif
 #ifndef TADSFILEDLG_H
 #include "tadsfiledlg.h"
@@ -3367,8 +3366,6 @@ private:
     /* finish command line input */
     void get_input_done();
 
-    /* create our toolbar */
-    void create_toolbar();
 
     /* adjust the layout of the status bar */
     void adjust_statusbar_layout();
@@ -4795,36 +4792,6 @@ protected:
     size_t txtlen_;
 };
 
-
-/* ------------------------------------------------------------------------ */
-/*
- *   DirectX warning dialog 
- */
-
-class CTadsDlg_dxwarn: public CTadsDialog
-{
-public:
-    CTadsDlg_dxwarn(class CHtmlPreferences *prefs,
-                    htmlw32_directx_err_t warn_type)
-        : CTadsDialog()
-    {
-        prefs_ = prefs;
-        warn_type_ = warn_type;
-    }
-
-    /* initialize the dialog */
-    void init();
-
-    /* process a command */
-    int do_command(WPARAM id, HWND ctl);
-
-private:
-    /* preferences object */
-    class CHtmlPreferences *prefs_;
-    
-    /* warning type */
-    htmlw32_directx_err_t warn_type_;
-};
 
 #endif /* HTMLSYS_W32_H */
 

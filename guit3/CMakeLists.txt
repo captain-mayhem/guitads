@@ -111,8 +111,6 @@ add_executable(guit3
 	tadsstat.h
 	htmlpref.cpp
 	htmlpref.h
-	tadsdlg.cpp
-	tadsdlg.h
 	tadsfiledlg.h
 	tadsfiledlg.cpp
 	tadsfinddlg.h
@@ -154,13 +152,6 @@ add_executable(guit3
 )
 
 if (WIN32)
-	# tadsdlg2.cpp is entirely dead code off-Windows (native property-sheet
-	# WM_NOTIFY handlers - migration.md 5.3): unlike tadsdlg.cpp, which still
-	# has two live entry points, nothing in it is ever called from guit3 once
-	# the ImGui dialogs replaced the property sheets. Keep it Windows-only
-	# rather than porting Win32 API calls that would never run.
-	target_sources(guit3 PRIVATE tadsdlg2.cpp)
-
 	# tadsole.cpp implements CTadsDataObjText, the real COM IDataObject
 	# backing OLE drag-and-drop *source* support - Windows-only until phase
 	# two (migration.md 5.3); get_drag_dataobj() (htmlgui.cpp) just returns
@@ -208,14 +199,23 @@ if (TADS_WEBUI_ENABLED)
 		# no blocking entry point and so can't be called synchronously from
 		# this dialog's WM_COMMAND handler the way
 		# CTadsDialogFolderSel2::run_select_folder() can; left compiled but
-		# unused everywhere else, same "harmless dead code" bucket as
-		# tadsdlg.cpp/tadsdlg2.cpp.
+		# unused everywhere else.
+		#
+		# tadsdlg.cpp/tadsdlg2.cpp (CTadsDialog, the native dialog and
+		# property-sheet classes) are here only for these two: nothing else
+		# in guit3 uses them since the ImGui dialogs replaced them
+		# (migration.md 5.32).
 		target_sources(guit3 PRIVATE
+			tadsdlg.cpp
+			tadsdlg.h
+			tadsdlg2.cpp
 			tadschest.cpp
 			foldsel2.cpp
 			foldsel.h
 			foldselr.h
 		)
+		# the common controls of those native dialogs (guimain.cpp)
+		target_link_libraries(guit3 PRIVATE Comctl32.lib)
 	else()
 		# no real (Windows-only) Game Chest port off Windows yet - fall
 		# back to the same no-op stubs the flag's OFF branch below uses
@@ -259,7 +259,6 @@ target_include_directories(guit3 PRIVATE
 
 if (WIN32)
 	target_link_libraries(guit3 PRIVATE
-		Comctl32.lib
 		# Winmm.lib is still needed for tadsmidi.cpp's midiStream* MIDI sequencer,
 		# which is gated to _WIN32 until a portable software synth replaces it.
 		Winmm.lib

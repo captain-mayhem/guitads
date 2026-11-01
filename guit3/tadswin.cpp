@@ -282,9 +282,6 @@ struct tadswin_timer_alo
 
 /* window class names for system registration */
 const char CTadsWin::win_class_name[] = "TADS_Window";
-const char CTadsWin::mdichild_win_class_name[] = "TADS_MDIChild_Window";
-const char CTadsWin::mdiframe_win_class_name[] = "TADS_MDIFrame_Window";
-const char CTadsWin::mdiclient_win_class_name[] = "TADS_MDIClient_Window";
 
 /* statics */
 int CTadsWin::next_timer_id_ = 1;
@@ -541,13 +538,11 @@ int CTadsWin::create_system_window(CTadsWin *parent, HWND parent_hwnd,
 HWND CTadsWin::get_frame_pos(HWND win, RECT *pos)
 {
     HWND hwnd;
-    int mdi;
 
-    /* get the enclosing popup or MDI client window */
-    for (mdi = FALSE, hwnd = win ; hwnd != 0 ; hwnd = GetParent(hwnd))
+    /* get the enclosing popup window */
+    for (hwnd = win ; hwnd != 0 ; hwnd = GetParent(hwnd))
     {
-        mdi = is_mdi_child();
-        if (mdi || is_frame_window())
+        if (is_frame_window())
             break;
     }
 
@@ -558,118 +553,8 @@ HWND CTadsWin::get_frame_pos(HWND win, RECT *pos)
     /* get the window rectangle */
     GetWindowRect(hwnd, pos);
 
-    /* if it's an MDI child, adjust to client-relative coordinates */
-    if (mdi)
-        MapWindowPoints(0, GetParent(hwnd), (POINT *)pos, 2);
-
     /* return the window handle we retrieved */
     return hwnd;
-}
-
-
-/*
- *   Windows message handler callback for MDI Frame windows 
- */
-LRESULT CALLBACK CTadsWin::
-   mdiframe_message_handler(HWND hwnd, UINT msg, WPARAM wpar, LPARAM lpar)
-{
-    CTadsWin *win;
-
-    /* get the window from the window class */
-    win = (CTadsWin *)GetWindowLongPtr(hwnd, 0);
-
-    /* see if the window handle has been set yet */
-    if (win == 0)
-    {
-        switch(msg)
-        {
-        case WM_NCCREATE:
-            /* creating the window - get the handle from the parameters */
-            win = (CTadsWin *)((CREATESTRUCT *)lpar)->lpCreateParams;
-            break;
-
-        default:
-            /* 
-             *   use default handling for any messages we receive before
-             *   we get our window object 
-             */
-            return DefFrameProc(hwnd, 0, msg, wpar, lpar);
-        }
-
-        /* set the window handle in window long #0 */
-        SetWindowLongPtr(hwnd, 0, (LONG_PTR)win);
-    }
-
-    if (msg == WM_NCDESTROY) {
-        return DefWindowProc(hwnd, msg, wpar, lpar);
-    }
-
-    /* use the common message dispatcher */
-    return win->common_msg_handler(hwnd, msg, wpar, lpar);
-}
-
-
-/*
- *   Windows message handler callback for MDI child windows 
- */
-LRESULT CALLBACK CTadsWin::
-   mdichild_message_handler(HWND hwnd, UINT msg, WPARAM wpar, LPARAM lpar)
-{
-    CTadsWin *win;
-
-    /* get the window from the window class */
-    win = (CTadsWin *)GetWindowLongPtr(hwnd, 0);
-
-    /* see if the window handle has been set yet */
-    if (win == 0)
-    {
-        switch(msg)
-        {
-        case WM_NCCREATE:
-        case WM_CREATE:
-            /* 
-             *   For MDI child windows, we get a WM_CREATE message instead
-             *   of a WM_NCCREATE.  We need to look inside the
-             *   MDICREATESTRUCT structure instead of the CREATESTRUCT, as
-             *   we do for non-MDI windows.  
-             */
-            win = (CTadsWin *)
-                  ((MDICREATESTRUCT *)
-                   (((CREATESTRUCT *)lpar)->lpCreateParams))->lParam;
-
-            /* done */
-            break;
-
-        default:
-            /* 
-             *   return default handling for any messages we receive
-             *   before we find our window object 
-             */
-            return DefMDIChildProc(hwnd, msg, wpar, lpar);
-        }
-
-        /* set the window handle in window long #0 */
-        SetWindowLongPtr(hwnd, 0, (LONG_PTR)win);
-    }
-
-    /* check for messages we need to send our parent */
-    switch (msg)
-    {
-    case WM_CREATE:
-    case WM_DESTROY:
-    case WM_MDIACTIVATE:
-    case WM_SHOWWINDOW:
-    case WM_SIZE:
-        /* notify our parent, to let it manage its MDI child list */
-        win->get_parent()->mdi_child_event(win, msg, wpar, lpar);
-    }
-
-    if (msg == WM_NCDESTROY) {
-        return DefWindowProc(hwnd, msg, wpar, lpar);
-    }
-
-    /* use the common message dispatcher */
-    return win->common_msg_handler(hwnd, msg, wpar, lpar);
 }
 
 
@@ -761,22 +646,11 @@ LRESULT CTadsWin::common_msg_handler(HWND hwnd, UINT msg,
             return 0;
         break;
 
-    case WM_MDIACTIVATE:
-        if (do_mdiactivate((HWND)wpar, (HWND)lpar))
-            return 0;
-        break;
-
     case WM_CHILDACTIVATE:
         /* process the message */
         do_childactivate();
 
         /* always pass this to MDI */
-        break;
-
-    case WM_MDIREFRESHMENU:
-        /* MDI menu refresh */
-        if (do_mdirefreshmenu())
-            return 0;
         break;
 
     case WM_MOUSEACTIVATE:
@@ -800,10 +674,6 @@ LRESULT CTadsWin::common_msg_handler(HWND hwnd, UINT msg,
     case WM_INITMENUPOPUP:
         /* call the virtual handler */
         init_menu_popup((HMENU)wpar, LOWORD(lpar), HIWORD(lpar));
-
-        /* pass it to the global icon menu handlers as well */
-        CTadsApp::get_app()->
-            send_initmenupopup_to_menu_handlers(hwnd, wpar, lpar);
 
         /* we've handled it */
         return 0;
@@ -857,10 +727,6 @@ LRESULT CTadsWin::common_msg_handler(HWND hwnd, UINT msg,
         /* call the virtual measure-item routine */
         ret = do_measure_item((int)wpar, (MEASUREITEMSTRUCT *)lpar);
 
-        /* also pass it to the global icon menu handlers */
-        CTadsApp::get_app()->send_measureitem_to_menu_handlers(
-            hwnd, wpar, lpar);
-
         /* if the virtual handler handled it, we're done */
         if (ret)
             return TRUE;
@@ -869,9 +735,6 @@ LRESULT CTadsWin::common_msg_handler(HWND hwnd, UINT msg,
     case WM_DRAWITEM:
         /* call the virtual draw-item routine */
         ret = do_draw_item((int)wpar, (DRAWITEMSTRUCT *)lpar);
-
-        /* also pass it to the global icon menu handlers */
-        CTadsApp::get_app()->send_drawitem_to_menu_handlers(hwnd, wpar, lpar);
 
         /* if the virtual handler handled it, we're done */
         if (ret)

@@ -23,6 +23,7 @@ Modified
 */
 
 #include <algorithm>
+#include <cmath>
 #include <deque>
 #include <memory>
 #include <mutex>
@@ -74,7 +75,15 @@ public:
 
     void set_volume(int vol)
     {
-        stream_->setVolume((float)std::clamp(vol, 0, 10000) / 10000.0f);
+        /*
+         *   0..10000 is an attenuation from -60 dB to 0 dB, as the Win32
+         *   player gave DirectSound; the volume control and the faders
+         *   (tadssnd.cpp) shape their levels for that scale.  0 is silence.
+         */
+        vol = std::clamp(vol, 0, 10000);
+        float gain = (vol == 0 ? 0.0f
+                      : std::pow(10.0f, -3.0f * (1.0f - (float)vol / 10000.0f)));
+        stream_->setVolume(gain);
     }
 
     int is_open() const { return stream_->isOpen() ? 1 : 0; }
