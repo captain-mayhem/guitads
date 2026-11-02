@@ -35,6 +35,9 @@ Modified
 #else
 #include "tadsplat.h"
 #endif
+#ifdef ANDROID
+#include <unistd.h>     /* _exit */
+#endif
 
 #ifndef TADSHTML_H
 #include "tadshtml.h"
@@ -538,9 +541,13 @@ static void run_game(int argc, char** argv,
     /*
      *   open Web UI games in the system's default browser rather than the
      *   classic tadsweb.exe child process, which guit3 doesn't build or
-     *   install alongside itself - see guit3.cpp's guit3_webui_launch_hook()
+     *   install alongside itself - see guit3.cpp's guit3_webui_launch_hook().
+     *   Only with the network module (VM_WITH_NETWORK, which off Windows
+     *   needs libcurl: not on Android), which defines the hook's setter.
      */
+#ifdef TADSNET
     oss_set_webui_launch_hook(guit3_webui_launch_hook);
+#endif
 
     /* no resource path yet */
     appctx.ext_res_path = 0;
@@ -996,9 +1003,29 @@ static int guit3_main(int argc, char** argv){
  *   Main entrypoint: Captain's Game Engine owns the window and the main
  *   loop, and runs guit3_main() from its application's first update
  */
+#ifdef ANDROID
+/*
+ *   On Android the activity's NativeActivity glue calls android_main on a
+ *   thread of its own; the engine takes the arguments (the game) from the
+ *   activity's intent.  The TADS runtime keeps global state that isn't set
+ *   up again for a second run in the same process, so the activity runs in
+ *   a process of its own (see the manifest), which ends with guit3.  The
+ *   activity is gone when the engine returns; _exit() skips the static
+ *   destructors, which would run while the activity's threads still do.
+ */
+extern "C" __attribute__((visibility("default")))
+void android_main(struct android_app *state)
+{
+    static char arg0[] = "guit3";
+    char *argv[] = { arg0, nullptr };
+    gui_run_application(1, argv, guit3_main, state);
+    _exit(0);
+}
+#else
 int main(int argc, char** argv){
     return gui_run_application(argc, argv, guit3_main);
 }
+#endif
 
 /* ------------------------------------------------------------------------ */
 /*

@@ -3861,6 +3861,75 @@ Gotchas:
   it's not MIDI; Mesa in WSL was updated on 2026-10-01. Not investigated. A lead: that Debug guit3 exports
   about 100 out-of-line `std::string` members in its dynamic symbol table, which libLLVM would bind to.
 
+### 5.34 Android
+
+guit3 runs on Android, on the engine's Android port (a `NativeActivity` with the engine's `CgeActivity`), as
+an APK built by the Gradle project [android/](android/) (`README.md` there). TADS 3 games only, like
+everywhere (guit3 has no TADS 2 runtime); no WebUI games (the network module needs libcurl, which the
+Android build doesn't have).
+- **The build:** Gradle runs tads-runner's `CMakeLists.txt` (the three checkouts side by side) for the target
+  `guit3`, which `cge_add_application()` makes `libguit3.so` there. `make_t3r()` is skipped on Android (it
+  runs the `t3res` it builds, an Android program); the Gradle task `writeResources` writes the same
+  `guit3.t3r` (one MRES block; identical to `t3res`'s but for the timestamp). The `--exclude-libs` link
+  option is off on Android: it would hide the glue's `ANativeActivity_onCreate`. The TADS sources needed two
+  changes in `tads2/unix/osunixt.h` (tads-runner): bionic has no `ushort`/`ulong`, and the `memcpy`/`memmove`
+  → `our_memcpy` macros break libc++'s `<locale>` — both as on the web. `oss_set_webui_launch_hook()` is
+  only called with `TADSNET` (it wasn't linked without the network module, on Linux without curl either).
+- **The entry point:** `android_main` ([guimain.cpp](guimain.cpp)) hands the `android_app` to
+  `gui_run_application()`. The engine builds the activity's argv in a local of its `windowCreated()`, so
+  `CGuiT3App::init()` copies the arguments now (it kept the pointers for the first `update()`; on Android
+  they were gone). The activity runs in a process of its own (`:game`), which `_exit()`s after guit3: the
+  TADS runtime isn't set up again for a second run in one process.
+- **Files:** `gui_get_exe_path()` on Android is `no_backup/runtime/guit3` in the app's folder (on Android
+  `__linux__` is defined too, and `/proc/self/exe` is `app_process64`). The launcher (`LauncherActivity`)
+  copies `charmap/`, `soundfont/` and `guit3.t3r` there from the APK's assets after an install or update;
+  `engine.ini` and the fonts (the engine's and `emscripten/fonts`) stay assets, which the engine reads
+  (`CGE::Assets`, and `SystemFonts` indexes `fonts/` besides `/system/fonts`). Games are copied into
+  `no_backup/games/<name>/` (a `.t3`, a `.zip` or a folder, through the Storage Access Framework); guit3's
+  settings are in `files/settings.ini` (`UserDirs`), saved games next to the game.
+- **The on-screen keyboard:** `gui_update_text_input()` ([guiengine.cpp](guiengine.cpp)), called every
+  frame from `event_loop()`, shows it while the game reads a command line or waits for a key/event
+  (`CHtmlSysWin_win32_Input::wants_text_input()`; not in MORE mode), hides it after, brings it back with a
+  tap after the user closed it, and again after a dialog's text field closed it (ImGui's backend stops text
+  input then). The window keeps its size under the keyboard (`CgeActivity`), and with targetSdk 36
+  (edge-to-edge) `adjustResize` wouldn't change that, so `GuiT3Activity` keeps the keyboard's height from its
+  IME window insets and `gui_keyboard_inset()` asks it over JNI (only while text input is active); the main
+  window reserves that height at the bottom of the viewport's work area with an empty side bar, as the
+  toolbar does at the top. When the panel gets lower while a command is read, `do_resize()` adjusts the
+  scrollbars (`fmt_adjust_vscroll()`), which scrolls the command line into view.
+- **MORE mode:** a tap (not a drag) anywhere releases a page, since there's no keyboard then and the prompt
+  is a small target (`event_loop()`, Android only).
+- **The render device's loss:** `CGuiT3App::onDeviceLost()` deletes the samplers and every texture
+  registered with `gui_track_texture()` (the images' and the toolbar's) and nulls the pointers; both owners
+  upload again when they find them null.
+- **Two fixes for every platform**, found on Android: after File > Exit, `do_destroy()` forgot the panels
+  while the toolbar still asked `check_command()` once more, which dereferenced `main_panel_` (a crash);
+  `check_command()` returns disabled without a panel now. And the waits never ended after the main window
+  was destroyed, since `PostQuitMessage()` does nothing off Windows (and on Windows only stops the engine's
+  message pump for a frame); `do_destroy()` calls `gui_request_quit()` now.
+
+**How it was verified:** on the emulator `Medium_Phone_API_37.0` (x86_64), debug build: `ditch3.t3` from the
+game list — the title picture and text, the keyboard opening at the prompt with the command line and the
+status line above it, commands typed through the IME (`adb shell input text`), Home and back to the running
+game, rotation to landscape (relayout, picture intact), MORE released by a tap, the command line scrolled
+into view when the keyboard opens in landscape, `quit` and File > Exit (back to the list, the process gone,
+no crash), and adding a game with "Add a file" through the system's picker. Windows and Linux build without
+new warnings; on Windows guit3 starts with a game and closes. **Not checked:** the render device's loss (the
+emulator keeps the context in the background), a real device and arm64, "Add a folder" and a `.zip`, sound
+and MIDI by ear, a release build, Android before 11 (the keyboard's height comes from the visible frame
+there), File > Exit on Windows.
+
+Gotchas:
+- **The engine's argv on Android only lasts for `init()`** (see above); an application that keeps `argv`
+  for later must copy it.
+- **An activity started with `am start -n` isn't the task's launcher intent**, so a later tap on the icon
+  starts a second `LauncherActivity` on top of the game instead of bringing it back. Start the app as the
+  home screen does: `am start -a android.intent.action.MAIN -c android.intent.category.LAUNCHER -f
+  0x10200000 -n de.captain_online.guit3/.LauncherActivity`.
+- **Git Bash rewrites device paths** (`/data/local/tmp` → `C:/Program Files/Git/data/...`) for `adb push`;
+  set `MSYS_NO_PATHCONV=1`.
+- **Keys typed in MORE mode release it** and don't reach the command line (as on the desktop).
+
 ## 6. Working notes for a fresh session
 
 ### Building and running

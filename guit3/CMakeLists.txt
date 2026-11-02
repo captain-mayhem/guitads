@@ -5,7 +5,9 @@
 # guinogch.cpp supplies the no-op Game Chest stubs used in that case instead.
 option(TADS_WEBUI_ENABLED "Enable guit3's embedded Web UI / Game Chest support (Windows-only, unimplemented off Windows)" OFF)
 
-add_executable(guit3
+# An executable, but on Android the shared library libguit3.so that the
+# activity loads (see android/).
+cge_add_application(guit3
 	../htmltads/tadshtml.cpp
 	../htmltads/tadshtml.h
 	../htmltads/tadsrtyp.cpp
@@ -286,8 +288,9 @@ endif()
 # The engine's configuration (the window, the renderer) and its font, next
 # to the executable: guit3 is started from any folder (often a game's), and
 # the engine looks there when the working directory has no engine.ini. On
-# the web they are packaged into the virtual file system below.
-if (NOT EMSCRIPTEN)
+# the web they are packaged into the virtual file system below, on Android
+# they are the APK's assets (android/app/build.gradle.kts).
+if (NOT EMSCRIPTEN AND NOT ANDROID)
 	add_custom_command(TARGET guit3 POST_BUILD
 		COMMAND ${CMAKE_COMMAND} -E copy_if_different
 			${CMAKE_CURRENT_SOURCE_DIR}/engine.ini $<TARGET_FILE_DIR:guit3>/engine.ini
@@ -491,7 +494,7 @@ if (EMSCRIPTEN)
 	)
 endif()
 
-if (UNIX AND NOT APPLE AND NOT EMSCRIPTEN)
+if (UNIX AND NOT APPLE AND NOT EMSCRIPTEN AND NOT ANDROID)
 	# guit3 statically links its own copies of libpng/zlib/libjpeg/libmng
 	# (see ../CMakeLists.txt), which by default export symbols like
 	# "png_free" into the executable's dynamic symbol table alongside its
@@ -525,12 +528,17 @@ add_custom_command(
 # falls back to reading directly when it doesn't find resources embedded in
 # the executable (see htmlgui.cpp). about3.jpg is a local copy (not a
 # reference into a win32/ tree - see the WIN32 NOTE above).
-make_t3r(guit3 about3.jpg=about.jpg)
-add_dependencies(guit3 build_guit3.t3r)
+# make_t3r() runs the t3res it builds, which an Android build can't run on
+# the build machine; the Android project writes the same .t3r itself
+# (android/app/build.gradle.kts).
+if (NOT ANDROID)
+	make_t3r(guit3 about3.jpg=about.jpg)
+	add_dependencies(guit3 build_guit3.t3r)
+endif()
 # A multi-config generator (Visual Studio) puts guit3.exe into a Release/
 # or Debug/ folder below the .t3r's, so copy it next to the exe (the
 # install step does the same).
-if (NOT EMSCRIPTEN)
+if (NOT EMSCRIPTEN AND NOT ANDROID)
 	add_custom_command(
 			TARGET guit3 POST_BUILD
 			COMMAND ${CMAKE_COMMAND} -E copy_if_different ${CMAKE_CURRENT_BINARY_DIR}/guit3.t3r $<TARGET_FILE_DIR:guit3>/)

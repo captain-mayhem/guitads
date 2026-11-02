@@ -5174,7 +5174,21 @@ void CHtmlSysWin_win32::do_resize(int mode, int x, int /*y*/)
     /* update our memory of the display width */
     get_scroll_area(&rc, TRUE);
     disp_width_ = rc.right - rc.left;
+#ifdef ANDROID
+    /*
+     *   Keep the command line in view when the window gets lower: that's the
+     *   on-screen keyboard coming up over it.  A change of the height alone
+     *   keeps the scroll position otherwise.  Adjusting the scrollbars for
+     *   the new height scrolls to the bottom, and not into MORE mode while
+     *   a command is read.
+     */
+    long old_height = disp_height_;
     disp_height_ = rc.bottom - rc.top;
+    if (disp_height_ < old_height && started_reading_cmd_ && formatter_ != 0)
+        fmt_adjust_vscroll();
+#else
+    disp_height_ = rc.bottom - rc.top;
+#endif
 
     /* see what we're doing */
     switch(mode)
@@ -10662,9 +10676,13 @@ CHtmlSys_mainwin::CHtmlSys_mainwin(CHtmlFormatterInput *formatter,
      */
     toolbar_ = 0;
 
-    /* toolbar icon texture not loaded yet */
+    /*
+     *   toolbar icon texture not loaded yet; loaded again after the render
+     *   device's loss (render_toolbar())
+     */
     toolbar_tex_ = nullptr;
     toolbar_tex_w_ = toolbar_tex_h_ = 0;
+    gui_track_texture(&toolbar_tex_);
 
     /* no find text yet */
     find_text_[0] = '\0';
@@ -10734,6 +10752,7 @@ CHtmlSys_mainwin::~CHtmlSys_mainwin()
     prefs_->save();
 
     /* free the toolbar icon texture, if we ever loaded it */
+    gui_untrack_texture(&toolbar_tex_);
     gui_delete_texture(toolbar_tex_);
 
     /* delete all orphaned banners */
@@ -11475,6 +11494,23 @@ int CHtmlSys_mainwin::do_render() {
      *   layout bookkeeping is needed for it either (see recalc_banner_layout())
      */
     render_toolbar();
+
+    /*
+     *   keep everything above the on-screen keyboard (Android), the command
+     *   line and the status line most of all: an empty side bar at the
+     *   bottom reserves the area it covers in the viewport's work area, the
+     *   same way the toolbar reserves its own
+     */
+    float kb_inset = gui_keyboard_inset();
+    if (kb_inset > 0.0f)
+    {
+        ImGui::BeginViewportSideBar("##Keyboard", ImGui::GetMainViewport(),
+            ImGuiDir_Down, kb_inset,
+            ImGuiWindowFlags_NoDecoration | ImGuiWindowFlags_NoInputs
+            | ImGuiWindowFlags_NoSavedSettings | ImGuiWindowFlags_NoNav
+            | ImGuiWindowFlags_NoFocusOnAppearing);
+        ImGui::End();
+    }
 
     const ImGuiViewport* viewport = ImGui::GetMainViewport();
 
@@ -13043,9 +13079,15 @@ void CHtmlSys_mainwin::do_destroy()
         aboutbox_ = 0;
     }
 
-    /* terminate the application */
+    /*
+     *   terminate the application - the waits pump the engine's frames, not
+     *   a message queue, so they end when the engine is asked to quit
+     *   (PostQuitMessage() does nothing off Windows, and on Windows only
+     *   stops the engine's message pump for a frame)
+     */
     PostQuitMessage(0);
-    
+    gui_request_quit();
+
     /* inherit default */
     CTadsWin::do_destroy();
 }
@@ -13832,6 +13874,7 @@ int CHtmlSys_mainwin::do_command(int notify_code,
          */
         if (!standalone_exe_
             && !in_debugger_
+            && main_panel_ != 0
             && !main_panel_->get_exit_pause())
         {
             /* load a new game */
@@ -14018,6 +14061,13 @@ int CHtmlSys_mainwin::do_command(int notify_code,
  */
 TadsCmdStat_t CHtmlSys_mainwin::check_command(const check_cmd_info *info)
 {
+    /*
+     *   nothing works without the panels, which do_destroy() forgets while
+     *   the menu bar and the toolbar are still drawn (and ask) once more
+     */
+    if (main_panel_ == 0)
+        return TADSCMD_DISABLED;
+
     /* check to see if it's one of our own commands */
     switch(info->command_id)
     {
@@ -14084,7 +14134,7 @@ TadsCmdStat_t CHtmlSys_mainwin::check_command(const check_cmd_info *info)
         /* 
          *   we can load a new game only in the normal interpreter, not in
          *   the debugger - the debugger has control over this when we're
-         *   running under it 
+         *   running under it
          */
         return standalone_exe_ || in_debugger_ || main_panel_->get_exit_pause()
             ? TADSCMD_DISABLED : TADSCMD_ENABLED;
@@ -15705,6 +15755,24 @@ int CHtmlSys_mainwin::event_loop(int* flag) {
                 keydlg->do_char('\r', 0);
             game_wants_keys = false;
         }
+
+        /* the on-screen keyboard (Android), while the game reads */
+        gui_update_text_input(game_wants_keys && main_panel_ != 0
+                              && main_panel_->wants_text_input());
+
+#ifdef ANDROID
+        /*
+         *   A tap (not a drag, which scrolls) outside of the controls shows
+         *   the next page in MORE mode: the on-screen keyboard is closed
+         *   then, and the MORE prompt is small to hit with a finger
+         */
+        if (game_wants_keys && main_panel_ != 0 && main_panel_->in_more_mode()
+            && ImGui::IsMouseReleased(ImGuiMouseButton_Left)
+            && io.MouseDragMaxDistanceSqr[ImGuiMouseButton_Left]
+               < io.MouseDragThreshold * io.MouseDragThreshold
+            && !ImGui::IsAnyItemHovered())
+            main_panel_->release_more_mode(HTMLW32_MORE_PAGE);
+#endif
 
         if (game_wants_keys)
         {

@@ -1,0 +1,18 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="app_name">GuiTads</string>
+    <string name="games_title">TADS 3 games</string>
+    <string name="no_games">No games yet. Add a game\'s .t3 file, a .zip of it, or its folder.</string>
+    <string name="add_file">Add a file</string>
+    <string name="add_folder">Add a folder</string>
+    <string name="adding">Adding %1$s…</string>
+    <string name="added">%1$s added</string>
+    <string name="add_failed">Couldn\'t add %1$s: %2$s</string>
+    <string name="no_game_file">there is no .t3 file</string>
+    <string name="delete_title">Delete %1$s?</string>
+    <string name="delete_message">The game\'s files are deleted, and so are its saved games.</string>
+    <string name="delete">Delete</string>
+    <string name="cancel">Cancel</string>
+    <string name="preparing">Preparing…</string>
+    <string name="prepare_failed">Couldn\'t prepare the app: %1$s</string>
+</resources>

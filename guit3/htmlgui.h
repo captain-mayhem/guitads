@@ -1740,6 +1740,18 @@ public:
     /* get the current EOF status */
     int get_eof_flag() const { return eof_; }
 
+    /*
+     *   Is the game reading a command line (also one interrupted by a
+     *   timeout), or waiting for a keystroke or an event?  That's when the
+     *   on-screen keyboard is shown (gui_update_text_input()).  Not in MORE
+     *   mode, which a tap releases.
+     */
+    int wants_text_input() const
+    {
+        return ((input_in_progress_ || waiting_for_key_ || waiting_for_evt_)
+                && !more_mode_);
+    }
+
     /* 
      *   Check for an EOF input loop.  Each input request method should call
      *   this when it's about to return an EOF error code, to let us check to

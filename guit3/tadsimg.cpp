@@ -72,16 +72,19 @@ CTadsImage::CTadsImage()
     /* presume we won't have alpha information */
     has_alpha_ = FALSE;
 
+    /* draw() uploads the texture again after the device's loss */
     m_texture = nullptr;
+    gui_track_texture(&m_texture);
 }
 
 /*
- *   destroy 
+ *   destroy
  */
 CTadsImage::~CTadsImage()
 {
     /* delete any existing image */
     delete_image();
+    gui_untrack_texture(&m_texture);
 }
 
 /*

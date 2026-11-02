@@ -26,7 +26,10 @@
 
 #include <cstdio>
 #include <cstring>
-#ifdef __linux__
+#if defined(__ANDROID__)
+#include <string>
+#include <platform/userdirs.h>  /* the app's folder, for the executable's path */
+#elif defined(__linux__)
 #include <unistd.h>       /* readlink() for the executable's path */
 #endif
 
@@ -44,7 +47,21 @@
 
 void gui_get_exe_path(char *buf, size_t buflen)
 {
-#ifdef __linux__
+#if defined(__ANDROID__)
+    /*
+     *   The process is the system's app_process.  The launcher copies the
+     *   files that are next to the executable elsewhere (charmap/,
+     *   soundfont/, guit3.t3r) from the APK's assets to runtime/ in the
+     *   app's no_backup folder (LauncherActivity), which is next to the
+     *   files folder (internalDataPath, UserDirs' data folder)
+     */
+    std::string dir = CGE::UserDirs::getDataDir();
+    size_t sep = dir.find_last_of('/');
+    if (sep != std::string::npos)
+        dir.erase(sep);
+    snprintf(buf, buflen, "%s/no_backup/runtime/guit3", dir.c_str());
+    return;
+#elif defined(__linux__)
     ssize_t len = readlink("/proc/self/exe", buf, buflen - 1);
     if (len > 0)
     {
