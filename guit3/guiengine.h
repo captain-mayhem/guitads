@@ -112,6 +112,23 @@ void gui_update_text_input(bool want);
 float gui_keyboard_inset();
 
 /*
+ *   Android: show a Web UI game's start page in guit3's own view for it, a
+ *   WebView over the window (GuiT3Activity.showWebUi), or navigate it to
+ *   'url' if it is open already.  'closed' is called (on the activity's
+ *   thread) when the user closes the view.  Returns false where there is no
+ *   such view (off Android, or without GuiT3Activity).
+ */
+bool gui_show_webui(const char *url, void (*closed)());
+
+/*
+ *   Process the window's events while the game waits for something else
+ *   than the user (a network wait), without building a frame of guit3's
+ *   windows - on Android the activity has to keep answering the system.
+ *   Does nothing while a frame is being built.
+ */
+void gui_pump_events();
+
+/*
  *   Samplers for ImGui images that need other sampling than the engine's
  *   default (linear, clamped), with ImGui_ImplCGE_SetSampler()
  */

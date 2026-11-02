@@ -3865,8 +3865,7 @@ Gotchas:
 
 guit3 runs on Android, on the engine's Android port (a `NativeActivity` with the engine's `CgeActivity`), as
 an APK built by the Gradle project [android/](android/) (`README.md` there). TADS 3 games only, like
-everywhere (guit3 has no TADS 2 runtime); no WebUI games (the network module needs libcurl, which the
-Android build doesn't have).
+everywhere (guit3 has no TADS 2 runtime); WebUI games too, in a view of guit3's own (below).
 - **The build:** Gradle runs tads-runner's `CMakeLists.txt` (the three checkouts side by side) for the target
   `guit3`, which `cge_add_application()` makes `libguit3.so` there. `make_t3r()` is skipped on Android (it
   runs the `t3res` it builds, an Android program); the Gradle task `writeResources` writes the same
@@ -3902,6 +3901,27 @@ Android build doesn't have).
 - **The render device's loss:** `CGuiT3App::onDeviceLost()` deletes the samplers and every texture
   registered with `gui_track_texture()` (the images' and the toolbar's) and nulls the pointers; both owners
   upload again when they find them null.
+- **WebUI games:** the network module is built (`VM_WITH_NETWORK`): tads-runner's `CMakeLists.txt` adds the
+  bundled `curl/` (static, HTTP only, no TLS) on Android as on the web, and the manifest asks for `INTERNET`
+  (needed for sockets on localhost too). The game's page isn't opened in the browser, as on the desktop:
+  that left guit3 in the background, and the system ends or freezes such an app, its server with it.
+  `guit3_webui_launch_hook()` calls `gui_show_webui()` instead, which has `GuiT3Activity.showWebUi()` show
+  it in a WebView, in a full-screen dialog (the NativeActivity's window draws no views); plain HTTP to
+  `localhost`/`127.0.0.1` is allowed by `res/xml/network_security_config.xml`. Other sites open in the
+  browser. Back asks and closes the view, and `osnet_webui_closed()` (as on the web) tells the game, which
+  quits. Saving is a download (`/clienttmp/...`), which the game serves *once*: `shouldInterceptRequest`
+  fetches it and keeps it for the download listener, which saves it where the user picks
+  (`ACTION_CREATE_DOCUMENT`); restoring is the WebUI's upload form, with the system's picker
+  (`onShowFileChooser`). Three changes in tads-runner were needed besides: the VM waits for the Web UI's
+  requests on the engine's thread, in `OS_Event::evt_wait()` (`tads3/unix/osnetunix.h`), which blocked:
+  the activity's thread waits for the native thread's answer to a pause, and the system ended the app
+  after 5 s (an ANR) as soon as anything came in front. `oss_set_net_wait_hook()` (`osifcnet.h`) now lets
+  the host run between polls of 10 ms on its thread, like the Emscripten branch there; guit3 registers
+  `guit3_net_wait_hook()` (Android only), which runs `gui_pump_events()` (a frame without guit3's windows)
+  and, once the activity is going away, closes the Web UI, so that the game quits instead of keeping the
+  thread in the wait. `os_get_tmp_path()` (`tads2/unix/osunixt.c`) was `/tmp`, which Android doesn't
+  have, so a WebUI save (written to a temporary file first) failed: it takes `$TMPDIR` now, which
+  `android_main` sets to the app's cache folder. And `osnet_webui_closed()` exists on Android too.
 - **Two fixes for every platform**, found on Android: after File > Exit, `do_destroy()` forgot the panels
   while the toolbar still asked `check_command()` once more, which dereferenced `main_panel_` (a crash);
   `check_command()` returns disabled without a panel now. And the waits never ended after the main window
@@ -3913,8 +3933,12 @@ game list — the title picture and text, the keyboard opening at the prompt wit
 status line above it, commands typed through the IME (`adb shell input text`), Home and back to the running
 game, rotation to landscape (relayout, picture intact), MORE released by a tap, the command line scrolled
 into view when the keyboard opens in landscape, `quit` and File > Exit (back to the list, the process gone,
-no crash), and adding a game with "Add a file" through the system's picker. Windows and Linux build without
-new warnings; on Windows guit3 starts with a game and closes. **Not checked:** the render device's loss (the
+no crash), and adding a game with "Add a file" through the system's picker. `tests/Webtest.t3` (WebUI):
+the page in guit3's view, commands typed, `save` (the system's save dialog, a 33780-byte `T3-state-v0`
+file in Downloads), `north`, `restore` with the WebUI's upload form and the system's picker ("Restored.",
+back in the Entryway), 20 s in the background and back (the same process, no ANR), Back → Close (the game
+quits, guit3 shuts down, back to the list). Windows and Linux build without
+new warnings; on Windows guit3 starts with a game and closes. **Not checked:** a real WebUI game, the WebUI's sounds and pictures, and its `osnet_askfile()` path; the render device's loss (the
 emulator keeps the context in the background), a real device and arm64, "Add a folder" and a `.zip`, sound
 and MIDI by ear, a release build, Android before 11 (the keyboard's height comes from the visible frame
 there), File > Exit on Windows.
@@ -3929,6 +3953,10 @@ Gotchas:
 - **Git Bash rewrites device paths** (`/data/local/tmp` → `C:/Program Files/Git/data/...`) for `adb push`;
   set `MSYS_NO_PATHCONV=1`.
 - **Keys typed in MORE mode release it** and don't reach the command line (as on the desktop).
+- **A NativeActivity draws no views:** its window's surface belongs to the native code
+  (`takeSurface()`), so a view added to the activity stays invisible; the WebView is in a dialog, which has a
+  window of its own. And a WebView ignores its own padding: the insets go on a frame around it.
+- **The emulator's ANR traces (`/data/anr`) can't be read** on a Google Play image (no `adb root`).
 
 ## 6. Working notes for a fresh session
 

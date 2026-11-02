@@ -29,6 +29,7 @@ Modified
 
 #include "t3main.h"
 #include "guimain.h"
+#include "guiengine.h"
 #include "hos_gui.h"
 #include "guios.h"
 
@@ -126,6 +127,20 @@ int guit3_webui_launch_hook(const char *addr, int port, const char *path,
 #endif
     url[sizeof(url) - 1] = '\0';
 
+#ifdef ANDROID
+    /*
+     *   On Android the page goes into guit3's own view for it: a browser in
+     *   front would leave guit3 in the background, where the system may
+     *   freeze or end it, the game's server with it.  Closing the view ends
+     *   the input, as a closed tadsweb.exe window does.
+     */
+    if (gui_show_webui(url, osnet_webui_closed))
+    {
+        *errmsg = 0;
+        return TRUE;
+    }
+#endif
+
     if (!os_open_url(url))
     {
         *errmsg = lib_copy_str(
@@ -138,10 +153,36 @@ int guit3_webui_launch_hook(const char *addr, int port, const char *path,
 #endif
 }
 
+#if defined(ANDROID) && defined(TADSNET)
+/*
+ *   Network wait hook (oss_set_net_wait_hook(), osifcnet.h): while the game
+ *   waits for its Web UI's requests, the engine's thread still has to
+ *   answer the activity (a pause, a new window), or the system ends the app
+ *   within seconds.  When the activity is going away, the Web UI is closed
+ *   once, so that a Web UI game ends its input and quits, rather than
+ *   keeping the engine's thread in the wait while the activity waits for
+ *   it.
+ */
+void guit3_net_wait_hook()
+{
+    static int closed = FALSE;
+    if (gui_quit_requested())
+    {
+        if (!closed)
+        {
+            closed = TRUE;
+            osnet_webui_closed();
+        }
+        return;
+    }
+    gui_pump_events();
+}
+#endif
+
 
 /* ------------------------------------------------------------------------ */
 /*
- *   list memory blocks in the T3 VM subsystem 
+ *   list memory blocks in the T3 VM subsystem
  */
 #ifdef TADSHTML_DEBUG
 

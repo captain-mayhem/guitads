@@ -245,10 +245,18 @@ void w32_webui_to_foreground();
  *   tadsweb.exe child process, which isn't built or installed alongside
  *   guit3.  Registered with oss_set_webui_launch_hook() (osifcnet.h) at
  *   startup; matches that header's os_webui_launch_hook_t signature.  On
- *   Windows this uses ShellExecute; on Linux/WSL, xdg-open.
+ *   Windows this uses ShellExecute; on Linux/WSL, xdg-open; on Android,
+ *   guit3's own Web UI view (gui_show_webui(), guiengine.h).
  */
 int guit3_webui_launch_hook(const char *addr, int port, const char *path,
                             char **errmsg);
+
+/*
+ *   Network wait hook (see guit3.cpp), Android only: keeps the engine's
+ *   thread answering the activity while the game waits for its Web UI.
+ *   Registered with oss_set_net_wait_hook() (osifcnet.h) at startup.
+ */
+void guit3_net_wait_hook();
 
 /*
  *   Display a message box dialog 

@@ -2,7 +2,7 @@
 
 The Gradle project of guit3 on Android: an APK with guit3 (`libguit3.so`, in
 Captain's Game Engine's activity) and a list of games. It plays TADS 3 games
-(`.t3`); WebUI games don't work (no network module on Android).
+(`.t3`), also WebUI games, which it shows in a view of its own.
 
 ## Building
 
@@ -38,5 +38,9 @@ deletes it again, with its saved games, which are in the game's folder.
 The on-screen keyboard opens while the game reads a command; a tap brings it
 back after it was closed. In MORE mode a tap shows the next page. Back is the
 Escape key for the game. File > Exit returns to the list of games.
+
+A WebUI game opens in its own view. Saving offers a file to save where you
+pick (e.g. Downloads), restoring picks it with the system's file picker.
+Back closes the view after asking, and ends the game.
 
 How it works: section 5.34 of [../migration.md](../migration.md).

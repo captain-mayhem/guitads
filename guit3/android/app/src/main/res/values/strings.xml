@@ -15,4 +15,9 @@
     <string name="cancel">Cancel</string>
     <string name="preparing">Preparing…</string>
     <string name="prepare_failed">Couldn\'t prepare the app: %1$s</string>
+    <!-- the Web UI's view (GuiT3Activity) -->
+    <string name="close_webui">Close the game\'s window? A game that is still running ends.</string>
+    <string name="close">Close</string>
+    <string name="saved">Saved</string>
+    <string name="save_failed">Couldn\'t save: %1$s</string>
 </resources>

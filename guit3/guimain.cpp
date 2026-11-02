@@ -36,7 +36,10 @@ Modified
 #include "tadsplat.h"
 #endif
 #ifdef ANDROID
+#include <stdlib.h>     /* setenv */
 #include <unistd.h>     /* _exit */
+#include <string>
+#include <android_native_app_glue.h>
 #endif
 
 #ifndef TADSHTML_H
@@ -547,6 +550,10 @@ static void run_game(int argc, char** argv,
      */
 #ifdef TADSNET
     oss_set_webui_launch_hook(guit3_webui_launch_hook);
+#ifdef ANDROID
+    /* the engine's thread runs the VM: keep it answering the activity */
+    oss_set_net_wait_hook(guit3_net_wait_hook);
+#endif
 #endif
 
     /* no resource path yet */
@@ -1018,6 +1025,19 @@ void android_main(struct android_app *state)
 {
     static char arg0[] = "guit3";
     char *argv[] = { arg0, nullptr };
+
+    /*
+     *   temporary files (a Web UI game's save before its download) go to
+     *   the app's cache folder, next to its files folder: there's no /tmp
+     */
+    std::string tmp = state->activity->internalDataPath;
+    size_t sep = tmp.find_last_of('/');
+    if (sep != std::string::npos)
+    {
+        tmp.replace(sep, std::string::npos, "/cache");
+        setenv("TMPDIR", tmp.c_str(), 1);
+    }
+
     gui_run_application(1, argv, guit3_main, state);
     _exit(0);
 }

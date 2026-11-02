@@ -324,6 +324,117 @@ void gui_update_text_input(bool want)
 #endif
 }
 
+void gui_pump_events()
+{
+    /* nothing to build: the frame is just the background */
+    static const std::function<void()> none;
+    if (!building)
+        gui_pump_frame(none);
+}
+
+#ifdef ANDROID
+namespace {
+
+/* the callback of gui_show_webui() */
+void (*webui_closed)() = nullptr;
+
+/* GuiT3Activity.nativeWebUiClosed: the user closed the Web UI's view */
+void JNICALL native_webui_closed(JNIEnv *, jobject)
+{
+    if (webui_closed != nullptr)
+        webui_closed();
+}
+
+/*
+ *   JNIEnv of the engine's thread for the activity's calls, attached if it
+ *   wasn't (as the engine's own calls do it)
+ */
+class CActivityEnv
+{
+public:
+    CActivityEnv()
+    {
+        CGE::Engine *engine = CGE::Engine::instance();
+        android_app *app = (engine != nullptr ? engine->getApp() : nullptr);
+        if (app == nullptr || app->activity == nullptr)
+            return;
+        vm_ = app->activity->vm;
+        activity_ = app->activity->clazz;
+        if (vm_->GetEnv((void **)&env_, JNI_VERSION_1_6) == JNI_EDETACHED)
+        {
+            if (vm_->AttachCurrentThread(&env_, nullptr) != JNI_OK)
+                env_ = nullptr;
+            else
+                attached_ = true;
+        }
+    }
+    ~CActivityEnv()
+    {
+        if (attached_)
+            vm_->DetachCurrentThread();
+    }
+    JNIEnv *env() const { return env_; }
+    jobject activity() const { return activity_; }
+
+private:
+    JavaVM *vm_ = nullptr;
+    JNIEnv *env_ = nullptr;
+    jobject activity_ = nullptr;
+    bool attached_ = false;
+};
+
+} // namespace
+#endif
+
+bool gui_show_webui(const char *url, void (*closed)())
+{
+#ifdef ANDROID
+    CActivityEnv ae;
+    JNIEnv *env = ae.env();
+    if (env == nullptr)
+        return false;
+    jclass cls = env->GetObjectClass(ae.activity());
+    jmethodID show = env->GetMethodID(cls, "showWebUi",
+                                      "(Ljava/lang/String;)V");
+    bool ok = false;
+    if (show != nullptr)
+    {
+        /*
+         *   the NativeActivity's library isn't one Java loaded, so Java
+         *   finds its native method only by registering it
+         */
+        static bool registered = false;
+        if (!registered)
+        {
+            JNINativeMethod method = {
+                (char *)"nativeWebUiClosed", (char *)"()V",
+                (void *)native_webui_closed
+            };
+            registered = (env->RegisterNatives(cls, &method, 1) == JNI_OK);
+            if (!registered)
+                env->ExceptionClear();
+        }
+        webui_closed = closed;
+        jstring jurl = env->NewStringUTF(url);
+        env->CallVoidMethod(ae.activity(), show, jurl);
+        env->DeleteLocalRef(jurl);
+        ok = !env->ExceptionCheck();
+        env->ExceptionClear();
+    }
+    else
+    {
+        /* a plain CgeActivity has no such method */
+        env->ExceptionClear();
+    }
+    env->DeleteLocalRef(cls);
+    return ok;
+#else
+    (void)url;
+    (void)closed;
+    return false;
+#endif
+}
+
 float gui_keyboard_inset()
 {
 #ifdef ANDROID
@@ -335,29 +446,18 @@ float gui_keyboard_inset()
      */
     if (!CGE::Platform::isTextInputActive())
         return 0.0f;
-    CGE::Engine *engine = CGE::Engine::instance();
-    android_app *app = (engine != nullptr ? engine->getApp() : nullptr);
-    if (app == nullptr || app->activity == nullptr)
+    CActivityEnv ae;
+    JNIEnv *env = ae.env();
+    if (env == nullptr)
         return 0.0f;
-    JavaVM *vm = app->activity->vm;
-    JNIEnv *env = nullptr;
-    bool attached = false;
-    if (vm->GetEnv((void **)&env, JNI_VERSION_1_6) == JNI_EDETACHED)
-    {
-        if (vm->AttachCurrentThread(&env, nullptr) != JNI_OK)
-            return 0.0f;
-        attached = true;
-    }
     int inset = 0;
-    jclass cls = env->GetObjectClass(app->activity->clazz);
+    jclass cls = env->GetObjectClass(ae.activity());
     jmethodID method = env->GetMethodID(cls, "getKeyboardInset", "()I");
     if (method != nullptr)
-        inset = env->CallIntMethod(app->activity->clazz, method);
+        inset = env->CallIntMethod(ae.activity(), method);
     else
         env->ExceptionClear();  /* a plain CgeActivity has no such method */
     env->DeleteLocalRef(cls);
-    if (attached)
-        vm->DetachCurrentThread();
     return (inset > 0 ? (float)inset : 0.0f);
 #else
     return 0.0f;
