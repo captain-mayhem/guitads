@@ -1,6 +1,9 @@
-## Licensing
-The license differs on a per-file basis.
-Parts are under GPL, parts are under HTML TADS freeware license.
+## Licensing Details
+
+The applicable license differs on a per-file basis.
+Parts of the program are under GPL, parts are under HTML TADS freeware license.
+Therefore, the program as a whole can only be distributed under the terms of the
+HTML TADS freeware license.
 
 The assessment is based on a line-by-line comparison of
 every guit3 file against the original HTML TADS import (htmltads commit `b1a60cf`).
@@ -86,8 +89,8 @@ Apache License 2.0, Proggy Clean/Tiny in the public domain. See
 `emscripten/fonts/README.txt` and `emscripten/fonts/licenses/`.
 
 -----------------------------------------------------------------------------
-
-Here are the license texts:
+Below are the license texts
+-----------------------------------------------------------------------------
 
 HTML TADS FREEWARE SOURCE CODE LICENSE
 
@@ -141,7 +144,7 @@ permission of this license. The original copyrights remain on all
 parts that are not specific to this port.
 
 
----------------------------------------------------------------
+-----------------------------------------------------------------------------
 
                     GNU GENERAL PUBLIC LICENSE
                        Version 3, 29 June 2007
