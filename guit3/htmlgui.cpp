@@ -10614,6 +10614,19 @@ CHtmlSys_mainwin::CHtmlSys_mainwin(CHtmlFormatterInput *formatter,
      */
     CHtmlDisp::set_image_scale(CTadsFont::get_dpi_scale());
 
+    /*
+     *   How far the mouse or a finger moves before it's a drag, not a
+     *   click: ImGui's 6 pixels at 100%, scaled like the rest.  A finger
+     *   wobbles more than a mouse, and a drag on the touch screen scrolls
+     *   instead of tapping (CHtmlSys_mainwin::event_loop()), so Android
+     *   takes its own touch slop, 8dp.
+     */
+#ifdef ANDROID
+    io.MouseDragThreshold = 8.0f * CTadsFont::get_dpi_scale();
+#else
+    io.MouseDragThreshold = 6.0f * CTadsFont::get_dpi_scale();
+#endif
+
     bool lightColors = true;
     // Setup Dear ImGui style
     if (lightColors) {
@@ -15972,19 +15985,92 @@ int CHtmlSys_mainwin::event_loop(int* flag) {
             : mouse_over_dbgwin
             ? static_cast<CTadsWin *>(dbgwin_) : static_cast<CTadsWin *>(this);
 
+        /*
+         *   The touch screen (the engine makes the first finger ImGui's left
+         *   mouse button; io.MouseSource tells it from a mouse): a finger
+         *   dragging scrolls the content under it
+         *   (CTadsWinScroll::touch_scroll_) instead of selecting text the
+         *   way a mouse drag does, a tap is a click, and a double tap starts
+         *   selecting - by words, like a double click; keeping the finger
+         *   down after the second tap and dragging selects more.  So a
+         *   touch only becomes a click when it's lifted without having
+         *   moved further than io.MouseDragThreshold, except for a double
+         *   tap's second touch, which is a double click at once.
+         */
+        enum touch_mode_t { TOUCH_NONE, TOUCH_PENDING, TOUCH_SCROLL,
+                            TOUCH_SELECT };
+        static touch_mode_t touch_mode = TOUCH_NONE;
+        static ImVec2 touch_start;
+        static double last_tap_time = -1.0;
+        static ImVec2 last_tap_pos;
+        CTadsWinScroll::touch_scroll_t &touch_scroll =
+            CTadsWinScroll::touch_scroll_;
+
         if (mouse_over_topdlg || mouse_over_dbgwin
             || (topdlg == nullptr && !io.WantCaptureMouse)) {
+            bool touch = io.MouseSource == ImGuiMouseSource_TouchScreen;
             if (ImGui::IsMouseClicked(ImGuiMouseButton_Left)) {
-                uncaptured_target->do_leftbtn_down(1, io.MousePos.x, io.MousePos.y, ImGui::GetMouseClickedCount(ImGuiMouseButton_Left));
-            }
-            if (ImGui::IsMouseReleased(ImGuiMouseButton_Left)) {
-                CTadsWin* capture_win = CTadsApp::get_app()->getMouseCapture();
-                if (capture_win) {
-                    capture_win->do_leftbtn_up(1, io.MousePos.x, io.MousePos.y);
+                float tdx = io.MousePos.x - last_tap_pos.x;
+                float tdy = io.MousePos.y - last_tap_pos.y;
+                float slop = 4.0f * io.MouseDragThreshold;
+                if (!touch) {
+                    touch_mode = TOUCH_NONE;
+                    uncaptured_target->do_leftbtn_down(1, io.MousePos.x, io.MousePos.y, ImGui::GetMouseClickedCount(ImGuiMouseButton_Left));
+                }
+                else if (last_tap_time >= 0.0
+                         && ImGui::GetTime() - last_tap_time
+                            <= io.MouseDoubleClickTime
+                         && tdx * tdx + tdy * tdy <= slop * slop) {
+                    /* a double tap: select */
+                    touch_mode = TOUCH_SELECT;
+                    last_tap_time = -1.0;
+                    uncaptured_target->do_leftbtn_down(1, io.MousePos.x, io.MousePos.y, 2);
                 }
                 else {
-                    uncaptured_target->do_leftbtn_up(1, io.MousePos.x, io.MousePos.y);
+                    /* a tap or a drag, which only moving tells apart */
+                    touch_mode = TOUCH_PENDING;
+                    touch_start = io.MousePos;
                 }
+            }
+
+            /* a touch moving too far for a tap scrolls */
+            if (touch_mode == TOUCH_PENDING
+                && ImGui::IsMouseDragging(ImGuiMouseButton_Left)) {
+                touch_mode = TOUCH_SCROLL;
+                touch_scroll.active = true;
+                touch_scroll.start_x = touch_start.x;
+                touch_scroll.start_y = touch_start.y;
+                touch_scroll.dy = 0.0f;
+                touch_scroll.win = nullptr;
+                last_tap_time = -1.0;
+            }
+            if (touch_mode == TOUCH_SCROLL && ImGui::IsMousePosValid())
+                touch_scroll.dy = io.MousePos.y - touch_start.y;
+
+            if (ImGui::IsMouseReleased(ImGuiMouseButton_Left)) {
+                if (touch_mode == TOUCH_PENDING) {
+                    /* a tap: a click where the finger touched down */
+                    uncaptured_target->do_leftbtn_down(1, touch_start.x, touch_start.y, 1);
+                    CTadsWin* capture_win = CTadsApp::get_app()->getMouseCapture();
+                    if (capture_win) {
+                        capture_win->do_leftbtn_up(1, touch_start.x, touch_start.y);
+                    }
+                    else {
+                        uncaptured_target->do_leftbtn_up(1, touch_start.x, touch_start.y);
+                    }
+                    last_tap_time = ImGui::GetTime();
+                    last_tap_pos = touch_start;
+                }
+                else if (touch_mode != TOUCH_SCROLL) {
+                    CTadsWin* capture_win = CTadsApp::get_app()->getMouseCapture();
+                    if (capture_win) {
+                        capture_win->do_leftbtn_up(1, io.MousePos.x, io.MousePos.y);
+                    }
+                    else {
+                        uncaptured_target->do_leftbtn_up(1, io.MousePos.x, io.MousePos.y);
+                    }
+                }
+                touch_mode = TOUCH_NONE;
             }
             if (ImGui::IsMouseClicked(ImGuiMouseButton_Right)) {
                 uncaptured_target->do_rightbtn_down(1, io.MousePos.x, io.MousePos.y, ImGui::GetMouseClickedCount(ImGuiMouseButton_Right));
@@ -16016,6 +16102,14 @@ int CHtmlSys_mainwin::event_loop(int* flag) {
                     uncaptured_target->do_setcursor(io.MousePos.x, io.MousePos.y);
                 }
             }
+        }
+
+        /* the finger is up: a touch is over, even if we didn't see it lifted */
+        if (!ImGui::IsMouseDown(ImGuiMouseButton_Left))
+            touch_mode = TOUCH_NONE;
+        if (touch_mode != TOUCH_SCROLL) {
+            touch_scroll.active = false;
+            touch_scroll.win = nullptr;
         }
 
         main_win_->do_render();

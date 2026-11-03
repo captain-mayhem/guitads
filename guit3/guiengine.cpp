@@ -313,10 +313,13 @@ void gui_update_text_input(bool want)
     /*
      *   A dialog's text field hides the keyboard when it closes (ImGui's
      *   backend), though the game still reads; and a tap outside of the
-     *   controls brings back a keyboard the user closed
+     *   controls brings back a keyboard the user closed - a tap, not a
+     *   drag, which scrolls (CHtmlSys_mainwin::event_loop())
      */
     if (!CGE::Platform::isTextInputActive()
         || (io.MouseReleased[ImGuiMouseButton_Left]
+            && io.MouseDragMaxDistanceSqr[ImGuiMouseButton_Left]
+               < io.MouseDragThreshold * io.MouseDragThreshold
             && !ImGui::IsAnyItemHovered()))
         CGE::Platform::startTextInput();
 #else

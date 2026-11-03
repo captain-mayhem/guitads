@@ -2657,7 +2657,14 @@ CTadsWinScroll::CTadsWinScroll(int has_vscroll, int has_hscroll)
  */
 CTadsWinScroll::~CTadsWinScroll()
 {
+    /* a finger dragging on us doesn't scroll anything anymore */
+    if (touch_scroll_.win == this)
+        touch_scroll_.win = nullptr;
 }
+
+/* the finger dragging on the touch screen, see tadswin.h */
+CTadsWinScroll::touch_scroll_t CTadsWinScroll::touch_scroll_ =
+    { false, 0.0f, 0.0f, 0.0f, nullptr, 0 };
 
 /*
  *   window creation 
@@ -2844,6 +2851,37 @@ void CTadsWinScroll::render_vscrollbar_imgui()
     long max_pos = total - page;
     if (max_pos <= 0)
         return;
+
+    /*
+     *   A finger dragging on the touch screen (touch_scroll_) that touched
+     *   down on us scrolls us: the content follows the finger.  The first
+     *   window under the starting point that can scroll takes it over.
+     */
+    touch_scroll_t &ts = touch_scroll_;
+    if (ts.active && ts.win == nullptr
+        && ts.start_x >= win_pos.x && ts.start_x < win_pos.x + m_size.x
+        && ts.start_y >= win_pos.y && ts.start_y < win_pos.y + m_size.y)
+    {
+        ts.win = this;
+        ts.start_pos = vscroll_ofs_;
+    }
+    if (ts.active && ts.win == this)
+    {
+        long units = get_vscroll_units();
+        float lines = ts.dy / (float)(units > 0 ? units : 1);
+        long newpos = ts.start_pos
+            - (long)(lines + (lines >= 0.0f ? 0.5f : -0.5f));
+        if (newpos < info.nMin)
+            newpos = info.nMin;
+        if (newpos > info.nMin + max_pos)
+            newpos = info.nMin + max_pos;
+        if (newpos != vscroll_ofs_)
+        {
+            do_scroll(TRUE, vscroll_, SB_THUMBPOSITION, newpos, TRUE);
+            if (!get_scroll_info(TRUE, &info))
+                return;
+        }
+    }
 
     RECT rc;
     get_scroll_area(&rc, TRUE);
