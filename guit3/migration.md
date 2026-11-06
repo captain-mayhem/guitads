@@ -3706,7 +3706,11 @@ output, 80 lines, five `inputLine()`s that echo the line and its length, run wit
 - **`//tmp` in the file dialog.** A name typed into the File name field was joined to the folder with
   `os_build_full_path()`, so `/tmp` in `/` became `//tmp`, and `realpath()` keeps that (Emscripten's does).
   An absolute name now stands on its own, and `navigate_to()` collapses doubled separators (on Windows not
-  the leading pair of a UNC name). Found along the way:
+  the leading pair of a UNC name). **Follow-up (2026-11-06):** that collapse first counted every
+  `OSPATHALT` character as a separator, and on Windows `OSPATHALT` is `"/:"`, so the drive letter's `:` and
+  the `\` after it were taken for a pair: `C:\games` became the drive-relative `C:games`. Every file dialog on
+  Windows opened on that broken path (with an empty list), and Up worked from it. Only `\` and `/` count now.
+  Found along the way:
   - tads-runner's Unix `os_get_root_name()` (`tads2/unix/osunixt.c`) didn't skip a separator at the start, so
     the default save name of a game at the root of the web's file system, `/ditch3.t3v`, stayed absolute,
     and the dialog showed it with its slash.
