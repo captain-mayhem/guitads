@@ -2707,6 +2707,15 @@ public:
     void render_menu_bar();
 
     /*
+     *   Switch the ImGui chrome style between light and dark (the "Dark"
+     *   theme uses the dark one) - see do_render()
+     */
+    void apply_chrome_style(bool dark);
+
+    /* is the dark chrome style currently applied? */
+    bool dark_chrome_ = false;
+
+    /*
      *   Render the Themes submenu's contents (the profile list plus the
      *   management items below it) - shared by render_menu_bar()'s Themes
      *   menu and render_toolbar()'s ID_THEMES_DROPDOWN popup, since both

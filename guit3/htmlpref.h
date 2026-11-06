@@ -983,7 +983,8 @@ public:
     {
         return (stricmp(profile, "Multimedia") == 0
                 || stricmp(profile, "Plain Text") == 0
-                || stricmp(profile, "Web Style") == 0);
+                || stricmp(profile, "Web Style") == 0
+                || stricmp(profile, "Dark") == 0);
     }
 
     /* set the factory defaults for the given standard theme */

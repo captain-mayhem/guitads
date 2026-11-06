@@ -19,6 +19,13 @@
 #include <ui/imgui_impl_cge_platform.h>
 #include <window/window.h>
 
+#ifdef _WIN32
+#ifndef NOMINMAX
+#define NOMINMAX
+#endif
+#include <windows.h>
+#endif
+
 #ifdef ANDROID
 #include <jni.h>
 #include <android_native_app_glue.h>
@@ -248,6 +255,47 @@ float gui_content_scale()
     float s = (engine != nullptr && engine->getWindow() != nullptr
                ? engine->getWindow()->getContentScale() : 1.0f);
     return (s > 0.0f ? s : 1.0f);
+}
+
+void gui_set_dark_title_bar(bool dark)
+{
+#ifdef _WIN32
+    CGE::Engine *engine = CGE::Engine::instance();
+    HWND hwnd = (engine != nullptr && engine->getWindow() != nullptr
+                 ? (HWND)engine->getWindow()->getHandle() : nullptr);
+    if (hwnd == nullptr)
+        return;
+
+    /*
+     *   DwmSetWindowAttribute() looked up at run time rather than linked,
+     *   so guit3 needs no dwmapi.lib.  The attribute is
+     *   DWMWA_USE_IMMERSIVE_DARK_MODE: 20 from Windows 10 20H1 on, 19 on
+     *   1809-1909 (the older SDKs don't define it at all).
+     */
+    typedef HRESULT (WINAPI *dwm_set_attr_t)(HWND, DWORD, LPCVOID, DWORD);
+    static dwm_set_attr_t set_attr = []() -> dwm_set_attr_t {
+        HMODULE dwm = LoadLibraryA("dwmapi.dll");
+        return dwm != nullptr
+            ? (dwm_set_attr_t)(void *)GetProcAddress(dwm, "DwmSetWindowAttribute")
+            : nullptr;
+    }();
+    if (set_attr == nullptr)
+        return;
+
+    BOOL value = dark ? TRUE : FALSE;
+    if (FAILED(set_attr(hwnd, 20, &value, sizeof(value))))
+        set_attr(hwnd, 19, &value, sizeof(value));
+
+    /*
+     *   Windows 11 repaints the caption at once; Windows 10 only on the
+     *   next non-client paint, so ask for one.
+     */
+    SetWindowPos(hwnd, nullptr, 0, 0, 0, 0,
+                 SWP_FRAMECHANGED | SWP_NOMOVE | SWP_NOSIZE | SWP_NOZORDER
+                 | SWP_NOACTIVATE | SWP_NOOWNERZORDER);
+#else
+    (void)dark;
+#endif
 }
 
 CGE::Gfx::RenderDevice *gui_render_device()

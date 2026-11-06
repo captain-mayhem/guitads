@@ -404,6 +404,31 @@ void CHtmlPreferences::set_theme_defaults(const textchar_t *theme)
         set_alink_color(HTML_make_color(0xff, 0x00, 0xff));
         set_hlink_color(HTML_make_color(0xff, 0x00, 0x80));
     }
+
+    /*
+     *   Apply overrides for the Dark theme: light text on a deep teal
+     *   background (the palette Thaumistry's own QTads-based front end
+     *   ships with), gold links that brighten on hover instead of being
+     *   underlined.  Choosing this theme also switches the ImGui chrome
+     *   (menu bar, toolbar, dialogs, status bar) to its dark style - see
+     *   CHtmlSys_mainwin::apply_chrome_style().
+     */
+    if (stricmp(theme, "Dark") == 0)
+    {
+        set_inpfont_color(HTML_make_color(0xbb, 0xd5, 0xd1));
+
+        set_use_win_colors(FALSE);
+        set_text_color(HTML_make_color(0xd7, 0xf6, 0xf2));
+        set_bg_color(HTML_make_color(0x06, 0x2b, 0x3d));
+        set_color_status_text(HTML_make_color(0xd8, 0xd8, 0xd8));
+        set_color_status_bg(HTML_make_color(0x03, 0x1c, 0x2a));
+        set_link_color(HTML_make_color(0xda, 0xc0, 0x60));
+        set_vlink_color(HTML_make_color(0xda, 0xc0, 0x60));
+        set_alink_color(HTML_make_color(0xff, 0xff, 0x96));
+        set_hlink_color(HTML_make_color(0xff, 0xe0, 0x70));
+        set_underline_links(FALSE);
+        set_hover_hilite(TRUE);
+    }
 }
 
 
@@ -529,6 +554,13 @@ void CHtmlPreferences::init_standard_profiles()
         /* save the settings */
         save_as("Plain Text");
     }
+
+    /* if the Dark theme doesn't exist, create it */
+    if (!profile_exists("Dark"))
+    {
+        set_theme_defaults("Dark");
+        save_as("Dark");
+    }
 }
 
 /*
@@ -547,6 +579,8 @@ void CHtmlPreferences::set_std_profile_desc(const textchar_t *profile)
         id = IDS_THEMEDESC_PLAIN_TEXT;
     else if (stricmp(profile, "Web Style") == 0)
         id = IDS_THEMEDESC_WEB_STYLE;
+    else if (stricmp(profile, "Dark") == 0)
+        id = IDS_THEMEDESC_DARK;
     else
         return;
 

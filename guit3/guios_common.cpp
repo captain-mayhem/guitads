@@ -216,6 +216,7 @@ const string_table_entry_t string_table[] =
     { IDS_THEMEDESC_MULTIMEDIA,  "The basic Windows look and feel." },
     { IDS_THEMEDESC_PLAIN_TEXT,  "A retro look recalling the classic text adventures of the 80's." },
     { IDS_THEMEDESC_WEB_STYLE,   "A clean, modern look based on popular Web page styles." },
+    { IDS_THEMEDESC_DARK,        "Light text on a dark background, with a dark window frame to match." },
 };
 const int string_table_cnt = sizeof(string_table) / sizeof(string_table[0]);
 

@@ -3999,6 +3999,44 @@ copy of `ditch3.t3` named `uploaded.t3` lands in `/IDBFS/guit3/games` (2141661 b
 over; after a reload the file and its Recent Games entry are still there. (Enter doesn't answer that Yes/No
 popup; the test clicks Yes.) The Windows desktop build still builds.
 
+### 5.36 The "Dark" theme and dark window chrome
+
+A fourth standard theme, **Dark**, next to Multimedia/Web Style/Plain Text: light text `#D7F6F2` on
+`#062B3D`, status line `#D8D8D8` on `#031C2A`, input `#BBD5D1`, gold links (`#DAC060`, hover `#FFE070`,
+clicked `#FFFF96`), not underlined but hover-highlighted — the palette Thaumistry's own QTads-based front end
+stores as its default. It is a standard profile like the other three (`set_theme_defaults()`,
+`init_standard_profiles()` — which creates it for existing installs too, since it only creates missing
+profiles — `set_std_profile_desc()`/`IDS_THEMEDESC_DARK`, `is_standard_profile()`), so it can't be deleted
+and "Reset to Defaults" restores it.
+
+**The ImGui chrome follows it.** `CHtmlSys_mainwin::apply_chrome_style(bool dark)` holds what used to be
+the inline `StyleColorsLight()` + grey `WindowBg`/`MenuBarBg`/`PopupBg` block in the constructor, plus a
+dark branch (`StyleColorsDark()` with a dark-slate `WindowBg` matching the status bar). `do_render()`
+compares the active profile name with `"Dark"` each frame and calls it when that changes — one string
+compare, instead of hooking every path that can change the active profile (Themes menu, toolbar dropdown,
+Options dialog, per-game profile on load, profile deletion). Choosing the theme by **name** is deliberate:
+deriving "dark" from the theme's background brightness would also flip Plain Text (white on navy).
+
+**Gotcha — the hand-drawn chrome doesn't use style colors.** The status bar
+(`CTadsStatusline::render()`), the main panel's sunken frame lines (`CHtmlSys_mainwin::render_panel_bevel()`), the toolbar's button hover/press greys and the themes
+dropdown arrow all use fixed `IM_COL32`s, so switching the ImGui style alone left a light-grey status bar
+and white frame lines. They now pick a dark set from `CTadsStatusline::is_dark_chrome()` (a static set by
+`apply_chrome_style()`) / `dark_chrome_`.
+
+**The OS title bar follows too (Windows).** `apply_chrome_style()` calls `gui_set_dark_title_bar()`
+(`guiengine.cpp`), which sets `DWMWA_USE_IMMERSIVE_DARK_MODE` on the engine window's `HWND`
+(`AppWindow::getHandle()`). `DwmSetWindowAttribute` is looked up with `LoadLibrary`/`GetProcAddress`, so no
+`dwmapi.lib` link dependency; attribute 20 first, 19 as the fallback for Windows 10 1809–1909. Windows 10
+doesn't repaint the caption by itself, hence the `SetWindowPos(SWP_FRAMECHANGED)` after it. No-op on the
+other platforms.
+
+Not done: the toolbar icon strip is drawn for a light background — the darker icons (undo, the arrows) are
+faint on the dark toolbar.
+
+**How it was verified**: Windows build, `settings.ini` with `Thaumistry.t3=Dark` under Game Profiles,
+fresh `guit3.exe Thaumistry.t3`, screenshot of its own window: dark menu bar, toolbar and status bar, Dark
+colors in the main panel and the game's status banner.
+
 ## 6. Working notes for a fresh session
 
 ### Building and running

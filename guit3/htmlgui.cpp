@@ -10628,30 +10628,11 @@ CHtmlSys_mainwin::CHtmlSys_mainwin(CHtmlFormatterInput *formatter,
     io.MouseDragThreshold = 6.0f * CTadsFont::get_dpi_scale();
 #endif
 
-    bool lightColors = true;
-    // Setup Dear ImGui style
-    if (lightColors) {
-        ImGui::StyleColorsLight();
-
-        /*
-         *   Match the window chrome (menu bar, toolbar, dropdown/context menus,
-         *   and by extension every plain ImGui::Begin() window, i.e. dialogs) to
-         *   the status bar's classic grey (see CTadsStatusline::render() in
-         *   tadsstat.cpp) instead of the light theme's near-white default, so
-         *   the whole UI - menu bar, toolbar, status bar, and any popup menu -
-         *   reads as one consistent Win32-chrome grey without each call site
-         *   needing its own PushStyleColor(WindowBg/MenuBarBg/PopupBg) override.
-         */
-        ImGuiStyle& style = ImGui::GetStyle();
-        const ImVec4 chrome_bg(212.0f / 255.0f, 212.0f / 255.0f, 212.0f / 255.0f, 1.0f);
-        const ImVec4 chrome_bg_transp(232.0f / 255.0f, 232.0f / 255.0f, 232.0f / 255.0f, 0.94f);
-        style.Colors[ImGuiCol_WindowBg] = chrome_bg;
-        style.Colors[ImGuiCol_MenuBarBg] = chrome_bg_transp;
-        style.Colors[ImGuiCol_PopupBg] = chrome_bg_transp;
-    }
-    else {
-        ImGui::StyleColorsDark();
-    }
+    /*
+     *   Set up the Dear ImGui style: light chrome to start with; do_render()
+     *   switches to the dark chrome once the "Dark" theme is active.
+     */
+    apply_chrome_style(false);
 
     /* create the main HTML display panel window */
     main_panel_ = new CHtmlSysWin_win32_Input(
@@ -11493,7 +11474,65 @@ int CHtmlSys_mainwin::do_timer(int timer_id)
     }
 }
 
+/*
+ *   Set the Dear ImGui style for the window chrome (menu bar, toolbar,
+ *   dialogs, popup menus) and tell the hand-drawn chrome (status bar, main
+ *   panel frame, toolbar buttons) which palette to use.
+ */
+void CHtmlSys_mainwin::apply_chrome_style(bool dark)
+{
+    ImGuiStyle &style = ImGui::GetStyle();
+
+    if (dark)
+    {
+        ImGui::StyleColorsDark();
+
+        /*
+         *   Dark slate rather than the dark style's near-black, matching
+         *   the status bar's dark color (CTadsStatusline::render()).
+         */
+        const ImVec4 chrome_bg(32.0f / 255.0f, 38.0f / 255.0f, 43.0f / 255.0f, 1.0f);
+        const ImVec4 chrome_bg_transp(38.0f / 255.0f, 45.0f / 255.0f, 51.0f / 255.0f, 0.94f);
+        style.Colors[ImGuiCol_WindowBg] = chrome_bg;
+        style.Colors[ImGuiCol_MenuBarBg] = chrome_bg_transp;
+        style.Colors[ImGuiCol_PopupBg] = chrome_bg_transp;
+    }
+    else
+    {
+        ImGui::StyleColorsLight();
+
+        /*
+         *   Match the window chrome (menu bar, toolbar, dropdown/context menus,
+         *   and by extension every plain ImGui::Begin() window, i.e. dialogs) to
+         *   the status bar's classic grey (see CTadsStatusline::render() in
+         *   tadsstat.cpp) instead of the light theme's near-white default, so
+         *   the whole UI - menu bar, toolbar, status bar, and any popup menu -
+         *   reads as one consistent Win32-chrome grey without each call site
+         *   needing its own PushStyleColor(WindowBg/MenuBarBg/PopupBg) override.
+         */
+        const ImVec4 chrome_bg(212.0f / 255.0f, 212.0f / 255.0f, 212.0f / 255.0f, 1.0f);
+        const ImVec4 chrome_bg_transp(232.0f / 255.0f, 232.0f / 255.0f, 232.0f / 255.0f, 0.94f);
+        style.Colors[ImGuiCol_WindowBg] = chrome_bg;
+        style.Colors[ImGuiCol_MenuBarBg] = chrome_bg_transp;
+        style.Colors[ImGuiCol_PopupBg] = chrome_bg_transp;
+    }
+
+    CTadsStatusline::set_dark_chrome(dark);
+    gui_set_dark_title_bar(dark);
+    dark_chrome_ = dark;
+}
+
 int CHtmlSys_mainwin::do_render() {
+    /*
+     *   Follow the active theme with the chrome style.  Checked every frame
+     *   instead of at each place the active profile can change (Themes
+     *   menu, toolbar dropdown, Options dialog, per-game profile on game
+     *   load, profile deletion), since it costs only a string compare.
+     */
+    bool want_dark = (stricmp(prefs_->get_active_profile_name(), "Dark") == 0);
+    if (want_dark != dark_chrome_)
+        apply_chrome_style(want_dark);
+
     /*
      *   draw the menu bar first, so its height is up to date before we
      *   compute the layout for everything below it (recalc_banner_layout(),
@@ -11945,9 +11984,13 @@ void CHtmlSys_mainwin::render_panel_bevel()
     ImDrawList *dl = ImGui::GetWindowDrawList();
     dl->PushClipRectFullScreen();
 
-    const ImU32 black = IM_COL32(0, 0, 0, 255);
-    const ImU32 white = IM_COL32(255, 255, 255, 255);
-    const ImU32 ltgray = IM_COL32(212, 212, 212, 255);
+    /* classic sunken-frame colors, or their dark-chrome counterparts */
+    const ImU32 black = dark_chrome_ ? IM_COL32(16, 20, 23, 255)
+                                     : IM_COL32(0, 0, 0, 255);
+    const ImU32 white = dark_chrome_ ? IM_COL32(58, 68, 76, 255)
+                                     : IM_COL32(255, 255, 255, 255);
+    const ImU32 ltgray = dark_chrome_ ? IM_COL32(32, 38, 43, 255)
+                                      : IM_COL32(212, 212, 212, 255);
 
     /* black line along the top edge, and down the left edge */
     dl->AddLine(ImVec2(left, top), ImVec2(right, top), black);
@@ -12395,8 +12438,16 @@ void CHtmlSys_mainwin::render_toolbar()
      *   to indicate state.
      */
     ImGui::PushStyleColor(ImGuiCol_Button, ImVec4(0.0f, 0.0f, 0.0f, 0.0f));
-    ImGui::PushStyleColor(ImGuiCol_ButtonHovered, ImVec4(0.75f, 0.75f, 0.75f, 1.0f));
-    ImGui::PushStyleColor(ImGuiCol_ButtonActive, ImVec4(0.65f, 0.65f, 0.65f, 1.0f));
+    if (dark_chrome_)
+    {
+        ImGui::PushStyleColor(ImGuiCol_ButtonHovered, ImVec4(0.30f, 0.34f, 0.38f, 1.0f));
+        ImGui::PushStyleColor(ImGuiCol_ButtonActive, ImVec4(0.38f, 0.43f, 0.48f, 1.0f));
+    }
+    else
+    {
+        ImGui::PushStyleColor(ImGuiCol_ButtonHovered, ImVec4(0.75f, 0.75f, 0.75f, 1.0f));
+        ImGui::PushStyleColor(ImGuiCol_ButtonActive, ImVec4(0.65f, 0.65f, 0.65f, 1.0f));
+    }
 
     bool open = ImGui::BeginViewportSideBar("##Toolbar", ImGui::GetMainViewport(),
                                             ImGuiDir_Up, height, flags);
@@ -12487,8 +12538,11 @@ void CHtmlSys_mainwin::render_toolbar()
                     ImVec2(c.x - ah, c.y - ah * 0.5f),
                     ImVec2(c.x + ah, c.y - ah * 0.5f),
                     ImVec2(c.x, c.y + ah * 0.7f),
-                    enabled ? IM_COL32(32, 32, 32, 255)
-                            : IM_COL32(150, 150, 150, 255));
+                    dark_chrome_
+                    ? (enabled ? IM_COL32(220, 220, 220, 255)
+                               : IM_COL32(110, 110, 110, 255))
+                    : (enabled ? IM_COL32(32, 32, 32, 255)
+                               : IM_COL32(150, 150, 150, 255)));
 
                 if (arrow_clicked)
                     ImGui::OpenPopup("##ToolbarThemesDropdown");

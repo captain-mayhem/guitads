@@ -207,6 +207,7 @@ Modified
 #define IDS_THEMEDESC_MULTIMEDIA        85
 #define IDS_THEMEDESC_PLAIN_TEXT        86
 #define IDS_THEMEDESC_WEB_STYLE         87
+#define IDS_THEMEDESC_DARK              178
 #define IDS_LINKS_ALWAYS                88
 #define IDS_LINKS_CTRL                  89
 #define IDS_LINKS_NEVER                 90
