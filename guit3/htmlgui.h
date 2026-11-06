@@ -2645,6 +2645,15 @@ public:
      */
     void do_load_new_game_prompt();
 
+#ifdef __EMSCRIPTEN__
+    /*
+     *   File > Open Game from Device... (the web): confirm ending the
+     *   current game like load_new_game(), then upload a game file with the
+     *   browser's file picker (websaves_upload_game(), websaves.h)
+     */
+    void load_uploaded_game();
+#endif
+
     /*
      *   Set the game pause flag; when this flag is true, it means that
      *   the game is suspended in the debugger.  When the game is paused,
@@ -3730,6 +3739,12 @@ private:
      *   for File > Open New Game's file-picker prompt.
      */
     unsigned int pending_new_game_is_recent_ : 1;
+
+    /*
+     *   Flag: the pending new-game confirmation is for File > Open Game
+     *   from Device... (the web's upload, load_uploaded_game())
+     */
+    unsigned int pending_new_game_is_upload_ : 1;
 
     /* which recent-game entry pending_new_game_is_recent_ refers to */
     int pending_new_game_recent_idx_;

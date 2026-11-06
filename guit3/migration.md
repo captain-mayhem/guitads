@@ -3930,6 +3930,71 @@ Gotchas:
   set `MSYS_NO_PATHCONV=1`.
 - **Keys typed in MORE mode release it** and don't reach the command line (as on the desktop).
 
+### 5.35 Saved positions on the web: IndexedDB, export and import
+
+Before, the web's Save/Restore dialog (`askfile_hook()` → `CTadsFileDialog`) worked in the in-memory file
+system (the game's folder `/`, or `/tmp`), so every saved position was lost on a reload. Now (all in
+`websaves.cpp`/`websaves.h`, Emscripten only, plus `#ifdef __EMSCRIPTEN__` call sites):
+- **The saves folder** is `/IDBFS/guit3/saves` (`CGE::UserDirs::getDataDir()` + `/saves`), in the engine's
+  IndexedDB mount. `askfile_hook()` calls `websaves_fix_default_name()` first: a default name outside
+  `/IDBFS` (the game's folder) keeps only its file name and moves into the saves folder; one already in
+  `/IDBFS` (the last save, which `os_askfile()` remembers) stays.
+- **The commit:** `os_askfile()` returns *before* the game writes the file, so the hook only notes the save
+  (`websaves_note_saved()`), and `websaves_poll()`, called by `event_loop()` between frames, runs
+  `UserDirs::commit()` (`FS.syncfs(false)`). event_loop() only runs once the game is waiting again, so the
+  file is complete. The engine's own per-frame settings save doesn't help: it syncs only when the settings
+  changed.
+- **File > Export Saved Position...** opens the deferred `CTadsFileDialog` in the saves folder; the chosen
+  file is read with `FS.readFile()` and downloaded with a Blob URL and an `<a download>` click.
+- **File > Import Saved Position...** opens a hidden `<input type=file accept=".t3v,.sav">`; the chosen file
+  is written into the saves folder, with `" (2)"`, `" (3)"`... before the extension if the name is taken,
+  and committed. The JS side leaves the outcome in `Module.guit3SaveImport`; `websaves_poll()` reads it
+  while an import is open and queues a message box with the new name (or the failure). New command ids
+  `ID_FILE_EXPORTSAVE`/`ID_FILE_IMPORTSAVE` (40389/40390, `htmlres.h`), in the File menu on the web only.
+
+Gotchas:
+- **A file picker needs transient user activation** (a click or key within about 5 s in Chrome). The menu
+  click normally still counts, since ImGui handles it on the next frame. If it doesn't
+  (`navigator.userActivation.isActive` is false), `websaves_import()` shows an OK/Cancel box first, and the
+  OK click gives a fresh activation. Downloads don't need one.
+- **`EM_JS` stringifies its body:** a regex with backslashes (`/[\/\\]/`) and `''` gave preprocessor
+  warnings and mangled code. Use `""`, and `String.fromCharCode(92)` for a backslash.
+- **Don't touch `Module.FS` from a test page:** with `ASSERTIONS=1` that aborts the app ("'FS' was not
+  exported"). The global `FS` works.
+- `FS.syncfs` may print "2 FS.syncfs operations in flight at once" (this commit and the engine's settings
+  save); harmless.
+- The Restore dialog's name field starts empty: `osunixt.c`'s `os_askfile()` clears a default that doesn't
+  exist *next to the game* before the hook runs (the same as on the desktop). The saves folder's list shows
+  the file.
+- The import's message box draws over a blank screen (`tadswin_message_box()` from
+  `queue_deferred_dialog()` has no background callback, like the sound warning).
+
+**File > Open Game from Device...** (web only, `ID_FILE_UPLOADGAME` 40391, below Open New Game...) uploads a
+game file (`.t3`, `.gam`) the same way into `/IDBFS/guit3/games` and loads it with `load_new_game(path)` from
+`websaves_poll()`. `CHtmlSys_mainwin::load_uploaded_game()` asks "end the current game?" first, like
+`load_new_game()` (the new `pending_new_game_is_upload_` flag picks the branch in
+`render_new_game_confirm()`). The Yes click is also the user activation the file picker needs. The game stays
+in IndexedDB, so its Recent Games entry and Open New Game...'s dialog still find it after a reload. Unlike a
+saved position, an upload with a taken name *replaces* the file (most likely a newer release of the same
+game). It's written under `.upload.tmp` and renamed, so a game still reading the old file keeps its old
+node until it ends. `websaves.cpp`'s picker is shared by both uploads (`upload_kind_t`,
+`Module.guit3Upload`).
+
+**Not covered:** files a game writes by itself (`FileName`/`File` I/O, autosaves without a dialog) still go to
+the working directory in memory. WebUI games are unchanged (their own download/upload, §5.6). There's no way
+to delete uploaded games or saves from the browser's storage within guit3 (the file dialog doesn't delete);
+clearing the site's data removes them all.
+
+**How it was verified** (headless Chrome, jewelhunter's `tools/webtest.mjs --isolate`, `ditch3.t3`): SAVE
+opens the dialog in `/IDBFS/guit3/saves` with `ditch3.t3v`; after a reload the file is there (249003 bytes)
+and RESTORE brings the position back; Import (the input's `click()` stubbed to set a `File` through
+`DataTransfer` and fire `change`) adds `ditch3 (2).t3v` and shows the message box; Export (the anchor's
+`click()` stubbed) downloads `ditch3.t3v` with 249003 bytes; after a second reload both files are there. Open
+Game from Device... during a game asks to end it; after Yes the (stubbed) picker gets `accept=".t3,.gam"`, a
+copy of `ditch3.t3` named `uploaded.t3` lands in `/IDBFS/guit3/games` (2141661 bytes) and the game starts
+over; after a reload the file and its Recent Games entry are still there. (Enter doesn't answer that Yes/No
+popup; the test clicks Yes.) The Windows desktop build still builds.
+
 ## 6. Working notes for a fresh session
 
 ### Building and running

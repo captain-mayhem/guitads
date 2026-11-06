@@ -90,6 +90,7 @@ Modified
 #include "guiwebui.h"
 #endif
 #include "guios.h"
+#include "websaves.h"
 
 #ifndef OSIFCNET_H
 #include "osifcnet.h"
@@ -162,6 +163,15 @@ static int askfile_hook(const char *prompt, const char *filter,
     char initial_path[OSFNMAX];
     size_t len;
 
+#ifdef __EMSCRIPTEN__
+    /*
+     *   The web: only /IDBFS survives a reload, so the dialog starts in the
+     *   saves folder there (websaves.h)
+     */
+    websaves_fix_default_name(fname_buf, (size_t)fname_buf_len);
+    initial_dir = 0;
+#endif
+
     /*
      *   Combine the initial directory and default filename into one path.
      *   The default save name comes from the game's name, which is a full
@@ -202,11 +212,19 @@ static int askfile_hook(const char *prompt, const char *filter,
         };
     }
 
-    return CTadsFileDialog::open_blocking(
+    int ok = CTadsFileDialog::open_blocking(
         win != 0 ? win->get_app_window() : 0,
         is_save ? TADSFILEDLG_SAVE : TADSFILEDLG_OPEN,
         prompt, filter, initial_path, !is_save,
         fname_buf, fname_buf_len, render_background) ? 1 : 0;
+
+#ifdef __EMSCRIPTEN__
+    /* the game writes the file after we return; it's committed later */
+    if (ok && is_save)
+        websaves_note_saved(fname_buf);
+#endif
+
+    return ok;
 }
 
 /* ------------------------------------------------------------------------ */

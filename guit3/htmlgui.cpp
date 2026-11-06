@@ -101,6 +101,7 @@ Modified
 #ifndef GUIOS_H
 #include "guios.h"
 #endif
+#include "websaves.h"
 #ifndef W32SND_H
 #include "guisnd.h"
 #endif
@@ -10721,6 +10722,7 @@ CHtmlSys_mainwin::CHtmlSys_mainwin(CHtmlFormatterInput *formatter,
     /* no pending new-game or quit confirmation dialogs yet */
     pending_new_game_confirm_ = FALSE;
     pending_new_game_is_recent_ = FALSE;
+    pending_new_game_is_upload_ = FALSE;
     pending_new_game_recent_idx_ = 0;
     new_game_confirm_opened_ = FALSE;
     pending_quit_confirm_ = FALSE;
@@ -11683,9 +11685,18 @@ void CHtmlSys_mainwin::render_menu_bar()
     if (menu_mnem("File", 'F'))
     {
         item(ID_FILE_LOADGAME, "Open New Game...", "Ctrl+O");
+#ifdef __EMSCRIPTEN__
+        /* a game file from the device, uploaded (websaves.h) */
+        item(ID_FILE_UPLOADGAME, "Open Game from Device...");
+#endif
         ImGui::Separator();
         item(ID_FILE_SAVEGAME, "Save Position...", "Ctrl+S");
         item(ID_FILE_RESTOREGAME, "Restore Position...", "Ctrl+R");
+#ifdef __EMSCRIPTEN__
+        /* the browser's storage <-> downloads and uploads (websaves.h) */
+        item(ID_FILE_EXPORTSAVE, "Export Saved Position...");
+        item(ID_FILE_IMPORTSAVE, "Import Saved Position...");
+#endif
         item(ID_FILE_QUIT, "Quit Game", "Ctrl+Q");
         ImGui::Separator();
 
@@ -12151,6 +12162,12 @@ void CHtmlSys_mainwin::render_new_game_confirm()
 
     if (result == IDYES)
     {
+#ifdef __EMSCRIPTEN__
+        /* the Yes click also lets the browser open its file picker */
+        if (pending_new_game_is_upload_)
+            websaves_upload_game(this);
+        else
+#endif
         if (pending_new_game_is_recent_)
             do_load_recent_game(pending_new_game_recent_idx_);
         else
@@ -12777,6 +12794,7 @@ void CHtmlSys_mainwin::load_recent_game(int idx)
     {
         pending_new_game_confirm_ = TRUE;
         pending_new_game_is_recent_ = TRUE;
+        pending_new_game_is_upload_ = FALSE;
         pending_new_game_recent_idx_ = idx;
         return;
     }
@@ -13770,7 +13788,17 @@ int CHtmlSys_mainwin::do_command(int notify_code,
 
         /* handled */
         return TRUE;
-        
+
+#ifdef __EMSCRIPTEN__
+    case ID_FILE_EXPORTSAVE:
+        websaves_export(this);
+        return TRUE;
+
+    case ID_FILE_IMPORTSAVE:
+        websaves_import(this);
+        return TRUE;
+#endif
+
     case ID_GO_TO_GAME_CHEST:
         /* 
          *   If a game is running, make sure they know that this will quit
@@ -13896,6 +13924,17 @@ int CHtmlSys_mainwin::do_command(int notify_code,
 
         /* handled */
         return TRUE;
+
+#ifdef __EMSCRIPTEN__
+    case ID_FILE_UPLOADGAME:
+        /* the same conditions as ID_FILE_LOADGAME */
+        if (!standalone_exe_
+            && !in_debugger_
+            && main_panel_ != 0
+            && !main_panel_->get_exit_pause())
+            load_uploaded_game();
+        return TRUE;
+#endif
 
     case ID_FILE_RECENT_1:
     case ID_FILE_RECENT_2:
@@ -14087,7 +14126,14 @@ TadsCmdStat_t CHtmlSys_mainwin::check_command(const check_cmd_info *info)
     case ID_FILE_EXIT:
         /* we can always exit the application */
         return TADSCMD_ENABLED;
-        
+
+#ifdef __EMSCRIPTEN__
+    case ID_FILE_EXPORTSAVE:
+    case ID_FILE_IMPORTSAVE:
+        /* file transfers only, so they're always available */
+        return TADSCMD_ENABLED;
+#endif
+
     case ID_GO_TO_GAME_CHEST:
         /* 
          *   allow going to the game chest if we're not already there;
@@ -14144,7 +14190,10 @@ TadsCmdStat_t CHtmlSys_mainwin::check_command(const check_cmd_info *info)
         return TADSCMD_DISABLED;
 
     case ID_FILE_LOADGAME:
-        /* 
+#ifdef __EMSCRIPTEN__
+    case ID_FILE_UPLOADGAME:
+#endif
+        /*
          *   we can load a new game only in the normal interpreter, not in
          *   the debugger - the debugger has control over this when we're
          *   running under it
@@ -14268,11 +14317,27 @@ void CHtmlSys_mainwin::load_new_game()
     {
         pending_new_game_confirm_ = TRUE;
         pending_new_game_is_recent_ = FALSE;
+        pending_new_game_is_upload_ = FALSE;
         return;
     }
 
     do_load_new_game_prompt();
 }
+
+#ifdef __EMSCRIPTEN__
+void CHtmlSys_mainwin::load_uploaded_game()
+{
+    if (!main_panel_->get_eof_flag())
+    {
+        pending_new_game_confirm_ = TRUE;
+        pending_new_game_is_recent_ = FALSE;
+        pending_new_game_is_upload_ = TRUE;
+        return;
+    }
+
+    websaves_upload_game(this);
+}
+#endif
 
 /*
  *   Show the ImGui file-open dialog and load the chosen game.  Split out of
@@ -16137,6 +16202,16 @@ int CHtmlSys_mainwin::event_loop(int* flag) {
          *   not happen mid-frame.
          */
         run_pending_deferred_dialogs();
+
+#ifdef __EMSCRIPTEN__
+        /*
+         *   Commit a saved position to IndexedDB (the game has finished
+         *   writing it by now) and report a finished import - before the
+         *   next iteration's run_pending_deferred_dialogs() shows its
+         *   message box (websaves.h)
+         */
+        websaves_poll(this);
+#endif
 
         /*
          *   Run any pending audio 'done' callbacks on the main thread.  The

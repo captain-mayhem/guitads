@@ -1351,6 +1351,11 @@ Modified
 #define ID_HELP_WWWTADSORG              40388
 //cmd Help.TadsWebSite Open the TADS Web site in a browser window
 
+/* guit3's web build: saved positions in and out of the browser (websaves.h) */
+#define ID_FILE_EXPORTSAVE              40389
+#define ID_FILE_IMPORTSAVE              40390
+#define ID_FILE_UPLOADGAME              40391
+
 /*
  *   File-open subcommands for the line sources.  The line sources are
  *   numbered consecutively starting at zero; for line source number n, we

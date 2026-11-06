@@ -306,6 +306,10 @@ endif()
 if (EMSCRIPTEN)
 	target_compile_options(guit3 PRIVATE -pthread)
 
+	# saved positions in IndexedDB, exported/imported as browser
+	# downloads/uploads (migration.md 5.35)
+	target_sources(guit3 PRIVATE websaves.cpp websaves.h)
+
 	# Link flags verified to compile and link as of migration.md 5.7; the
 	# -sPROXY_TO_PTHREAD/-sPROXY_POSIX_SOCKETS pairing (needed - and correct
 	# - for htmlt3's blocking-socket networking) was dropped again in 5.9
