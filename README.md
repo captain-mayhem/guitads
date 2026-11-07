@@ -39,6 +39,8 @@ the pinned commits, e.g. for an older release:
 - `cmake -P guitads/cmake/deps.cmake checkout` (`status` shows pinned vs. checked out)
 
 ### Making a release
+- set the new version in `GUITADS_VERSION` (`CMakeLists.txt`); it names the `GuiTads-<version>-<system>.zip`
+  package, and the release workflow checks that the tag is `v<version>`
 - commit and push tads-runner and captainsengine
 - `cmake -P guitads/cmake/deps.cmake update`, which writes their current commits to `dependencies.txt`
   (it refuses while either has uncommitted changes or unpushed commits)

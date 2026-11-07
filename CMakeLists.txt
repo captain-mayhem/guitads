@@ -16,6 +16,13 @@
 # skips those and only adds its legacy htmlt3/htmltdb3/tadsweb targets. See
 # tads-runner's CMakeLists.txt and CLAUDE.md.
 
+# guitads' own version: names the GuiTads-<version>-<system>.zip package
+# (tads-runner's CMakeLists.txt, which does the CPack setup, reads it from
+# here). Bump it for a release; release.yml checks that the v<version> tag
+# matches.
+set(GUITADS_VERSION 1.0.0)
+set(GUITADS_VERSION ${GUITADS_VERSION} PARENT_SCOPE)
+
 # Captain's Game Engine is a third sibling checkout. guit3 runs on it (the
 # window, the graphics, the main loop, Dear ImGui), and it brings the shared
 # 3rdparty libraries (zlib, libpng, libjpeg, FreeType, Dear ImGui) as
