@@ -33,18 +33,26 @@
 
 #include "guiengine.h"
 
-#if defined(_WIN32) && defined(T3_DEBUG)
+#if defined(T3_DEBUG)
 #include <cstdlib>
 #include <new>
 
 /*
  *   The plain global new and delete, in place of the T3 debug heap's
  *   (tads3/std_dbg.cpp, which the linker leaves out of t3htm once these
- *   exist).  On Windows a replacement only applies to the module that
- *   defines it, and the engine's DLLs hand guit3 memory they allocated
- *   (a std::string's buffer from CGE::Platform::getClipboardText(), for
- *   one) for guit3 to free: t3free() on such a block reads a header that
- *   isn't there and crashes.  The T3 debug heap still serves t3malloc().
+ *   exist).  The T3 debug heap still serves t3malloc().
+ *
+ *   Windows: a replacement only applies to the module that defines it, and
+ *   the engine's DLLs hand guit3 memory they allocated (a std::string's
+ *   buffer from CGE::Platform::getClipboardText(), for one) for guit3 to
+ *   free: t3free() on such a block reads a header that isn't there and
+ *   crashes.
+ *
+ *   Linux (and the other ELF platforms): the other way round - the
+ *   executable's new and delete replace every shared library's, so the
+ *   system's libraries got blocks with the debug heap's header too, and
+ *   Mesa's LLVM, loaded while the engine opens EGL, freed one with free():
+ *   "double free or corruption" before the window even opened.
  */
 void *operator new(size_t siz)
 {

@@ -152,6 +152,15 @@ cge_add_application(guit3
 	t3main.cpp
 	t3main.h
 	guit3.cpp
+
+	# The "bodgers/002" function set of Thaumistry's front end and its map
+	# screen, linked through guit3's own copy of the function set registry
+	# (which keeps the linker from taking t3htm's) - see migration.md 5.37
+	vmbifreg_guit3.cpp
+	guibodgers.cpp
+	guibodgers.h
+	guimap.cpp
+	guimap.h
 )
 
 if (WIN32)

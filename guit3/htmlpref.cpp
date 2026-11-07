@@ -153,6 +153,7 @@ CHtmlPreferences::CHtmlPreferences()
     proplist_->set_prop_name(HTML_PREF_ALT_MORE_STYLE, "Alt More Style");
     proplist_->set_prop_name(HTML_PREF_WINPOS, "Window Position");
     proplist_->set_prop_name(HTML_PREF_SUBWINPOS, "Child Window Position");
+    proplist_->set_prop_name(HTML_PREF_DARK_CHROME, "Dark Window Frame");
     proplist_->set_prop_name(HTML_PREF_DBGWINPOS, "Debug Window Position");
     proplist_->set_prop_name(HTML_PREF_DBGMAINPOS,
                              "Debug Main Window Position");
@@ -366,6 +367,9 @@ void CHtmlPreferences::set_theme_defaults(const textchar_t *theme)
     set_underline_links(TRUE);
     set_hover_hilite(FALSE);
 
+    /* the light window chrome */
+    set_dark_chrome(FALSE);
+
     /* apply overrides for the Web Style theme */
     if (stricmp(theme, "Web Style") == 0)
     {
@@ -428,6 +432,7 @@ void CHtmlPreferences::set_theme_defaults(const textchar_t *theme)
         set_hlink_color(HTML_make_color(0xff, 0xe0, 0x70));
         set_underline_links(FALSE);
         set_hover_hilite(TRUE);
+        set_dark_chrome(TRUE);
     }
 }
 
@@ -560,6 +565,28 @@ void CHtmlPreferences::init_standard_profiles()
     {
         set_theme_defaults("Dark");
         save_as("Dark");
+    }
+    else
+    {
+        /*
+         *   A Dark theme from before the "Dark Window Frame" setting got its
+         *   dark chrome from its name: give it the setting, keeping the
+         *   player's changes to it
+         */
+        char key_name[256];
+        get_settings_key_for(key_name, sizeof(key_name), "Dark");
+        tads_settings_key_t key = CTadsSettings::open_key(key_name, FALSE);
+        bool has_setting = key != 0
+            && CTadsSettings::value_exists(
+                key, proplist_->get_prop(HTML_PREF_DARK_CHROME)->get_name());
+        if (key != 0)
+            CTadsSettings::close_key(key);
+        if (!has_setting)
+        {
+            restore_as("Dark", FALSE);
+            set_dark_chrome(TRUE);
+            save_as("Dark");
+        }
     }
 }
 
@@ -1674,6 +1701,7 @@ void CHtmlPreferences::open_customize_theme_dialog(HWND owner,
     cust_stat_bg_color_ = get_color_status_bg();
     cust_use_win_colors_ = (get_use_win_colors() != 0);
     cust_override_colors_ = (get_override_colors() != 0);
+    cust_dark_chrome_ = (get_dark_chrome() != 0);
     cust_underline_links_ = (get_underline_links() != 0);
     cust_hover_hilite_ = (get_hover_hilite() != 0);
     cust_show_links_sel_ =
@@ -1979,6 +2007,10 @@ void CHtmlPreferences::cust_render_colors_tab()
         schedule_reformat(FALSE);
     }
     ImGui::EndDisabled();
+    /* takes effect on the next frame (CHtmlSys_mainwin::do_render()) */
+    if (ImGui::Checkbox("Dark window frame (menus, toolbar, dialogs)",
+                        &cust_dark_chrome_))
+        set_dark_chrome(cust_dark_chrome_);
 
     ImGui::Spacing();
     ImGui::SeparatorText("Status Line");
@@ -2286,6 +2318,13 @@ void CHtmlPreferences::restore_as(const char *profile, int synced_only)
 
     /* open the global key as well */
     global_key = CTadsSettings::open_key(w32_pref_key_name, TRUE);
+
+    /*
+     *   A setting a profile doesn't have keeps the value in memory, which is
+     *   the previous profile's.  The dark chrome came after the profiles
+     *   were saved: without it, a profile has the light chrome.
+     */
+    set_dark_chrome(FALSE);
 
     /* save the properties */
     for (id = 0 ; id < HTML_PREF_LAST ; ++id)

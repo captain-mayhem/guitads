@@ -57,7 +57,13 @@ char *w32_setup_reg_val_name = (char *)"Setup Done";
 char *w32_usage_app_name = (char *)"htmlt3";
 char *w32_titlebar_name = (char *)"HTML T3";
 int w32_in_debugger = FALSE;
-char *w32_opendlg_filter = (char *)"T3 Applications\0*.t3\0All Files\0*.*\0\0";
+/*
+ *   vmimage.bin: the game file of Thaumistry: In Charm's Way, next to its
+ *   Thaumistry.t3 (a build for other interpreters without the map) - see
+ *   guibodgers.h
+ */
+char *w32_opendlg_filter =
+    (char *)"T3 Applications\0*.t3;vmimage.bin\0All Files\0*.*\0\0";
 const char *w32_version_string =
     HTMLTADS_VERSION
     " (Build Guitads " GUITADS_BUILD

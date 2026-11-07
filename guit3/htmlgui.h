@@ -2605,6 +2605,14 @@ public:
      */
     void set_game_specific_profile(const char *profile);
 
+    /*
+     *   Use the given profile for the current game if the player hasn't
+     *   chosen one for it yet, remembering it as the game's profile - for
+     *   a game whose front end comes with its own look (guibodgers.cpp).
+     *   Does nothing if the game already has a profile.
+     */
+    void suggest_game_profile(const char *profile);
+
     /* get the profile associated with the given game file */
     void get_game_specific_profile(char *profile_buf, size_t profile_buf_len,
                                    const char *filename, int must_exist);
@@ -2707,8 +2715,8 @@ public:
     void render_menu_bar();
 
     /*
-     *   Switch the ImGui chrome style between light and dark (the "Dark"
-     *   theme uses the dark one) - see do_render()
+     *   Switch the ImGui chrome style between light and dark (the theme's
+     *   "Dark Window Frame" setting) - see do_render()
      */
     void apply_chrome_style(bool dark);
 

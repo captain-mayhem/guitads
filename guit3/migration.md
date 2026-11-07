@@ -4012,10 +4012,20 @@ and "Reset to Defaults" restores it.
 **The ImGui chrome follows it.** `CHtmlSys_mainwin::apply_chrome_style(bool dark)` holds what used to be
 the inline `StyleColorsLight()` + grey `WindowBg`/`MenuBarBg`/`PopupBg` block in the constructor, plus a
 dark branch (`StyleColorsDark()` with a dark-slate `WindowBg` matching the status bar). `do_render()`
-compares the active profile name with `"Dark"` each frame and calls it when that changes — one string
-compare, instead of hooking every path that can change the active profile (Themes menu, toolbar dropdown,
-Options dialog, per-game profile on load, profile deletion). Choosing the theme by **name** is deliberate:
-deriving "dark" from the theme's background brightness would also flip Plain Text (white on navy).
+checks the active theme's **"Dark Window Frame"** setting (`HTML_PREF_DARK_CHROME`,
+`get_dark_chrome()`) each frame and calls it when that changes — a lookup, instead of hooking every path
+that can change the active profile or the setting (Themes menu, toolbar dropdown, Options and Customize
+Theme dialogs, per-game profile on load, profile deletion). It is a per-theme setting, on in the Dark
+theme's defaults and in the Thaumistry theme (5.37), with a checkbox on Customize Theme's Colors tab
+("Dark window frame (menus, toolbar, dialogs)"). The first version keyed on the theme's **name**
+`"Dark"`; deriving it from the background brightness was rejected because it would also flip Plain Text
+(white on navy).
+
+**Gotcha — a setting a profile doesn't have keeps the previous profile's value.** `restore_as()` reads
+each property only if the profile has it (`read_from_registry()` keeps the in-memory value otherwise), so
+profiles saved before the setting existed would have taken the dark chrome from whichever theme was
+active before. `restore_as()` now resets it to off before reading, and `init_standard_profiles()` gives an
+existing Dark profile without the value the setting once (restoring it, so the player's changes stay).
 
 **Gotcha — the hand-drawn chrome doesn't use style colors.** The status bar
 (`CTadsStatusline::render()`), the main panel's sunken frame lines (`CHtmlSys_mainwin::render_panel_bevel()`), the toolbar's button hover/press greys and the themes
@@ -4036,6 +4046,96 @@ faint on the dark toolbar.
 **How it was verified**: Windows build, `settings.ini` with `Thaumistry.t3=Dark` under Game Profiles,
 fresh `guit3.exe Thaumistry.t3`, screenshot of its own window: dark menu bar, toolbar and status bar, Dark
 colors in the main panel and the game's status banner.
+
+### 5.37 Thaumistry's front end: the "bodgers" function set, the map, the game's fonts
+
+*Thaumistry: In Charm's Way* (Bob Bates, 2017; Steam) ships its own interpreter, `Thaumistry.exe`, a
+QTads 1.3 fork built from "qtads-bodgers", next to two builds of the game: **`Thaumistry.t3`**, a fallback
+for other interpreters (only the standard function sets; the front end's functions are stubs in the game
+code), and **`vmimage.bin`**, the real one, which requires the function set **`bodgers/002`** and so
+didn't load anywhere else. The front end adds a map screen (pictures in `maps.bin`), Steam achievements,
+its own main menu and save manager, a credits screen, a screen reader mode, and a look of its own (the
+dark-teal palette of 5.36's Dark theme and the TTFs in the game's `fonts/` folder). The files guit3 needs:
+`vmimage.bin`, `maps.bin`, `patch_bootstrap.t`, `patch.t`, `credits_patch.t`, `fonts/`.
+
+**Where the facts come from** — the front end's source isn't published; everything below was read from
+the game's byte code and from the shipped files (scratch scripts, not kept): the function names and
+numbers from `vmimage.bin`'s reflection symbol table (the `qtads_*` names resolve to `VM_BIFPTR` values
+set 3, function 0–13), the argument counts and uses from the call sites (a small T3 disassembler over the
+code pool), `maps.bin`'s layout from its Qt resource header, and the room and area positions from a table
+in `Thaumistry.exe`'s `.rdata` (records of name length, name pointer, x, y — checked against the pictures:
+the clouds land on the rooms, the pins on the right parts of Manhattan).
+
+**The function set** — `guibodgers.h/.cpp` (`CVmBifBodgers`); the table in `guibodgers.h` lists what each
+function does and what guit3 does for it. The ones that matter: `qtads_update_map(json)` (every turn: a
+flat JSON object with `current_section`, `current_room` and `true`/`false` per `rm_*` room and `map_*`
+area), `qtads_show_map()` (the MAP command and the status line's [Map] link; the game only calls it when
+`systemInfo(SysInfoInterpClass)` is HTML), `qtads_patches_path()` (the game compiles
+`<path>patch_bootstrap.t` with `Compiler.compile` at start, so the result needs the trailing separator),
+`qtads_saves_path()` (the game autosaves `new FileName(<path>, 'Autosave')`: the game's folder, which the
+file safety sandbox lets it write to), `qtads_platform()` (the game treats 100 and above as a phone and
+drops the commands that need a file dialog: 0 here). The rest return nil; the credits are printed by
+`credits_patch.t`, which replaces the method that calls `qtads_show_credits()`.
+`CVmBifBodgers::attach()` runs while the image loads (after `set_image_name()` picked the game's theme,
+and while `G_image_loader` still exists — it's reset once loading ends, so the game's folder is taken
+here): it registers `fonts/` with `CGE::SystemFonts::addFolder()` (new in the engine: GDI private fonts,
+fontconfig application fonts, or the Android/web index), creates the **Thaumistry** theme once (the Dark
+theme's colors with Open Sans, Cousine, Gunny Rewritten for TADS-Serif, Mrs Saint Delafield for
+TADS-Script, Erica Type for TADS-Typewriter, at the front end's default sizes), and gives it to the game
+if the player hasn't chosen a theme for it (`CHtmlSys_mainwin::suggest_game_profile()`).
+
+**Linking the set** — a host's extra function set goes into the host's own copy of the registry
+(`vmbifreg.cpp`'s own instructions): `vmbifreg_guit3.cpp` is `vmbifregxn.cpp`/`vmbifregx.cpp` (by
+`TADSNET`) plus `bodgers/002`. It defines `G_bif_reg_table` and every set's `bif_table`, so the linker never
+takes `t3htm`'s registry object, and `t3htm` stays shared with htmlt3/htmltdb3 unchanged. Keep its list in
+step with `vmbifregxn.cpp`.
+
+**The map screen** — `guimap.h/.cpp`. `maps.bin` is a Qt resource file ("qres" v1: header, data, names in
+UTF-16, a tree of 14-byte nodes; 22 bytes from v2 on), read with `osfoprb`/`osfseek` — the index once,
+each picture when needed. The pictures are TIFFs (RGBA, Deflate with the horizontal predictor), decoded
+with the engine's new TIFF codec (`CGE::ImageLoader::TIFF`, `Engine/image/tiff.cpp`, with unit tests). The
+screen copies the original's: `background.tif` fills the window; the area's `map.tif` (3530×3140) with a
+cloud (`<area>/rm_*.tif`) over every room not visited and a pulsing `dot.tif` on the current one, or
+`map_overview.tif` (4000×3000) with a pin (`label_<area>.tif`, kept at a fixed screen size and anchored by
+its tip) for every area reached; the area's `title.tif` at the top, `compass_*` and `legend_*` (the
+`legend_mobile*` ones on Android) in the corners, picked by size. Drag/arrows pan, wheel/±/pinch zoom,
+Tab or a double click switches area/world, Esc/Back closes; buttons do the same. It runs its own frames
+like `tadswin_message_box()` (the VM waits inside `qtads_show_map()`, so the game gets no keys). The big
+pictures are uploaded with halved copies down to 256 px and the copy nearest the drawn size is used (ImGui
+images have no mipmaps); everything is freed when the map closes, and the textures are tracked for
+Android's device loss. Section names that aren't pins: `map_overview` (the lab, which has no area map —
+the world map shows, the dot on `map_lab`) and `map_tech_museum_basement` (the museum's pin).
+
+**Opening it** — the open dialog's filter is `*.t3;vmimage.bin` (`w32_opendlg_filter`, guitrt3.cpp).
+
+**Fixed along the way — the window shrank at every start** (older than this; the build of Nov 1 did it
+too). `CHtmlSys_framewin::set_winpos_prefs()` (on every `do_resize()`, which `do_render()` calls with the
+ImGui work area) saved `CTadsWin::get_frame_pos()`, which called `GetWindowRect()` on `handle_` — a token,
+not a window: on Windows the call failed and left the `RECT` uninitialized (it held the work area of an
+earlier call: the client area less the menu bar and toolbar, 83 px), elsewhere the stand-in returned an
+empty one. The next start created the window with that as its size, `prefs_->save()` during the game's
+profile load wrote the new, smaller work area, and so on. `get_frame_pos()` now reports the engine window's
+content size in logical pixels — what `syswin_create_system_window()` passes to `changeSize()` — at 0,0
+(the position isn't used), and `set_winpos_prefs()` doesn't save an empty rectangle (minimized, or a
+window without the engine window, like the debug log). Checked: three starts from an unset setting all
+save and open 1426×746. The preferences reach the settings file on `prefs_->save()` (exit, profile
+changes), so a size set by resizing persists after a normal exit, not after the process is killed.
+
+**Fixed along the way — the Linux Debug build aborted at start** ("double free or corruption" /
+"munmap_chunk(): invalid pointer", in Mesa's LLVM while the engine opens EGL). With `T3_DEBUG`,
+`tads3/std_dbg.cpp` replaces the global `new`/`delete` with the T3 debug heap's, which put a header in
+front of every block; an ELF executable's operators replace those of *every* shared library in the process,
+so the system's libraries got such blocks too, and LLVM freed one with `free()`. `guiengine.cpp`'s plain
+`new`/`delete` (malloc/free), which keep `std_dbg.o` out of the link, were only there for Windows (for the
+opposite reason: there a replacement is per module, and the engine's DLLs handed guit3 blocks without
+the header); they are now there for every platform. The debug heap still serves `t3malloc()`. Checked:
+the Linux Debug build opens Thaumistry and its map.
+
+**How it was verified**: Windows build, `guit3.exe vmimage.bin`: the startup banner and the game run, the
+Thaumistry theme is chosen with the game's fonts (the letter's signature in Mrs Saint Delafield); the map
+opened from a command script (`-i`, `>map`) shows the world map with the lab's pin; with a test state
+(temporary hook, removed) the zoo's map shows clouds exactly over the unvisited rooms and the dot on the
+current one. Engine: the TIFF and `addFolder()` unit tests, the whole suite.
 
 ## 6. Working notes for a fresh session
 

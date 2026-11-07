@@ -10330,8 +10330,11 @@ void CHtmlSys_framewin::set_winpos_prefs()
     /* get the frame coordinates */
     hwnd = get_frame_pos(&rc);
 
-    /* if the window isn't iconic, remember its current position */
-    if (!IsIconic(hwnd))
+    /*
+     *   if the window isn't iconic, remember its current position - not an
+     *   empty one (minimized, or no window of its own: get_frame_pos())
+     */
+    if (!IsIconic(hwnd) && rc.right > rc.left && rc.bottom > rc.top)
     {
         CHtmlRect winpos;
 
@@ -10630,7 +10633,8 @@ CHtmlSys_mainwin::CHtmlSys_mainwin(CHtmlFormatterInput *formatter,
 
     /*
      *   Set up the Dear ImGui style: light chrome to start with; do_render()
-     *   switches to the dark chrome once the "Dark" theme is active.
+     *   switches to the dark chrome for a theme with "Dark Window Frame"
+     *   set (the Dark theme's default).
      */
     apply_chrome_style(false);
 
@@ -11524,12 +11528,13 @@ void CHtmlSys_mainwin::apply_chrome_style(bool dark)
 
 int CHtmlSys_mainwin::do_render() {
     /*
-     *   Follow the active theme with the chrome style.  Checked every frame
-     *   instead of at each place the active profile can change (Themes
-     *   menu, toolbar dropdown, Options dialog, per-game profile on game
-     *   load, profile deletion), since it costs only a string compare.
+     *   Follow the active theme's "Dark Window Frame" setting with the chrome
+     *   style.  Checked every frame instead of at each place the active
+     *   profile or the setting can change (Themes menu, toolbar dropdown,
+     *   Options and Customize Theme dialogs, per-game profile on game load,
+     *   profile deletion), since it costs only a lookup.
      */
-    bool want_dark = (stricmp(prefs_->get_active_profile_name(), "Dark") == 0);
+    bool want_dark = (prefs_->get_dark_chrome() != 0);
     if (want_dark != dark_chrome_)
         apply_chrome_style(want_dark);
 
@@ -16819,8 +16824,24 @@ void CHtmlSys_mainwin::set_game_specific_profile(const char *profile)
 }
 
 /*
+ *   Use a profile for the current game unless it has one already
+ */
+void CHtmlSys_mainwin::suggest_game_profile(const char *profile)
+{
+    char current[128];
+
+    /* no game, an unknown profile, or the player chose one: leave it */
+    if (profile_game_.get() == 0 || profile_game_.get()[0] == '\0'
+        || !CHtmlPreferences::profile_exists(profile)
+        || get_profile_assoc(profile_game_.get(), current, sizeof(current)))
+        return;
+
+    set_game_specific_profile(profile);
+}
+
+/*
  *   Get the game-specific profile for the given game file.
- *   
+ *
  *   If we've remembered a specific profile setting for this game, we'll load
  *   the saved profile.  If not, we'll look for a GameInfo record, and check
  *   to see if it has a PresentationProfile setting; if so, use the profile

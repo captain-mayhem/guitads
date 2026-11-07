@@ -121,6 +121,9 @@ enum HTML_pref_id_t
     HTML_PREF_NET_SERVER_SAFETY,
     HTML_PREF_SUBWINPOS,
 
+    /* guit3: draw the window chrome dark (the "Dark" theme) */
+    HTML_PREF_DARK_CHROME,
+
     /* high water mark - this is always the last property ID */
     HTML_PREF_LAST
 };
@@ -554,6 +557,15 @@ public:
         { return get_val_bool(HTML_PREF_HOVER_HILITE); }
     void set_hover_hilite(int flag)
         { set_val_bool(HTML_PREF_HOVER_HILITE, flag); }
+
+    /*
+     *   draw the window chrome (menu bar, toolbar, dialogs, status bar, title
+     *   bar) dark - a theme setting; see CHtmlSys_mainwin::apply_chrome_style()
+     */
+    int get_dark_chrome() const
+        { return get_val_bool(HTML_PREF_DARK_CHROME); }
+    void set_dark_chrome(int flag)
+        { set_val_bool(HTML_PREF_DARK_CHROME, flag); }
 
     /* 
      *   parameterized color settings 
@@ -1175,6 +1187,7 @@ private:
     HTML_color_t cust_stat_bg_color_ = 0;
     bool cust_use_win_colors_ = false;
     bool cust_override_colors_ = false;
+    bool cust_dark_chrome_ = false;
     bool cust_underline_links_ = false;
     bool cust_hover_hilite_ = false;
     int cust_show_links_sel_ = 0;          /* 0=Always, 1=Ctrl, 2=Never */

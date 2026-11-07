@@ -533,24 +533,31 @@ int CTadsWin::create_system_window(CTadsWin *parent, HWND parent_hwnd,
  */
 HWND CTadsWin::get_frame_pos(HWND win, RECT *pos)
 {
-    HWND hwnd;
-
-    /* get the enclosing popup window */
-    for (hwnd = win ; hwnd != 0 ; hwnd = GetParent(hwnd))
+    /*
+     *   The engine's window is the only real one: report its contents' size
+     *   in logical (96 DPI) pixels, which is what the next start creates the
+     *   window with (syswin_create_system_window() -> changeSize(); the
+     *   position isn't used, so it is 0,0).  handle_ is only a token, not a
+     *   window: GetWindowRect() on it failed and left 'pos' uninitialized on
+     *   Windows (and empty elsewhere), and the window came back smaller at
+     *   every start.  A window without the engine's window (the debug log,
+     *   drawn inside it) reports an empty rectangle, which isn't saved
+     *   (CHtmlSys_framewin::set_winpos_prefs()).
+     */
+    SetRect(pos, 0, 0, 0, 0);
+    for (CTadsWin *w = this ; w != nullptr ; w = w->parent_)
     {
-        if (is_frame_window())
+        if (w->m_window != nullptr)
+        {
+            float scale = w->m_window->getContentScale();
+            if (scale <= 0.0f)
+                scale = 1.0f;
+            pos->right = (LONG)(w->m_window->getWidth() / scale + 0.5f);
+            pos->bottom = (LONG)(w->m_window->getHeight() / scale + 0.5f);
             break;
+        }
     }
-
-    /* if we couldn't find a suitable parent, use our own handle */
-    if (hwnd == 0)
-        hwnd = win;
-
-    /* get the window rectangle */
-    GetWindowRect(hwnd, pos);
-
-    /* return the window handle we retrieved */
-    return hwnd;
+    return win;
 }
 
 
