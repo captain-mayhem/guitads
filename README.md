@@ -32,6 +32,19 @@ See LICENSE for licensing details
 - git clone https://github.com/captain-mayhem/captainsengine.git
 - create an empty folder parallel to the three git repositories as build directory, e.g. build_tads
 
+`dependencies.txt` pins the tads-runner and captainsengine commits that belong to a guitads commit (only
+guitads is tagged for releases). Configuring warns when your checkouts differ from it. To build exactly
+the pinned commits, e.g. for an older release:
+- check out the guitads commit or tag
+- `cmake -P guitads/cmake/deps.cmake checkout` (`status` shows pinned vs. checked out)
+
+### Making a release
+- commit and push tads-runner and captainsengine
+- `cmake -P guitads/cmake/deps.cmake update`, which writes their current commits to `dependencies.txt`
+  (it refuses while either has uncommitted changes or unpushed commits)
+- commit `dependencies.txt`, then tag guitads (`v*`) and push the tag; the release workflow builds the
+  pinned commits, and fails if they don't match
+
 ### Build instructions
 - Open a Visual Studio "x64 Native Tools Command Prompt"
 - enter your build directory (cd build_tads)

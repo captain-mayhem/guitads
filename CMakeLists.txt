@@ -32,7 +32,18 @@ if (NOT TARGET CGE::Engine)
 		set(CGE_WEB_THREADS ON)
 	endif()
 	add_subdirectory(${CGE_DIR} cge)
+	set(guitads_cge_dir "${CGE_DIR}")
+else()
+	set(guitads_cge_dir "")
 endif()
+
+# Only guitads is tagged for a release: dependencies.txt pins the commits of
+# tads-runner (the top-level project) and Captain's Game Engine that belong
+# to it. Check the checkouts against it - a warning, or an error with
+# -DGUITADS_REQUIRE_PINNED_DEPS=ON (release builds). See
+# cmake/GuitadsDeps.cmake.
+include(cmake/GuitadsDeps.cmake)
+guitads_check_pinned_deps("${CMAKE_SOURCE_DIR}" "${guitads_cge_dir}")
 
 add_subdirectory(libmng)
 
