@@ -1711,7 +1711,7 @@ public:
     void get_input_begin(size_t bufsiz);
 
     /* also drain a pending game-chest reload (HTMLM_RELOAD_GC replacement) */
-    virtual void run_pending_deferred();
+    virtual void run_pending_deferred() override;
 
     /*
      *   center the text in a column of the theme's maximum text width
@@ -1801,17 +1801,17 @@ public:
     int is_game_running() const { return game_started_ && !game_over_; }
 
     /* handle a keystroke */
-    int do_char(TCHAR c, long keydata);
-    int do_keydown(int virtual_key, long keydata);
+    int do_char(TCHAR c, long keydata) override;
+    int do_keydown(int virtual_key, long keydata) override;
 
     /* handle a system key */
-    int do_syschar(TCHAR c, unsigned long keydata);
+    int do_syschar(TCHAR c, unsigned long keydata) override;
 
     /* set the current accelerator table based on the preference settings */
-    void set_current_accel();
+    void set_current_accel() override;
 
     /* is the given OS_CMD_xxx command enabled for process_command() use? */
-    virtual int is_cmd_evt_enabled(int os_cmd_id) const;
+    virtual int is_cmd_evt_enabled(int os_cmd_id) const override;
 
     /* 
      *   Process a command.  We'll enter the command into the command buffer.
@@ -1824,13 +1824,13 @@ public:
      *   command.  
      */
     void process_command(const textchar_t *cmd, size_t cmdlen,
-                         int append, int enter, int os_cmd_id);
+                         int append, int enter, int os_cmd_id) override;
 
     /* update the display after changing the input buffer contents */
-    virtual void update_input_display();
+    virtual void update_input_display() override;
 
     /* update the caret position for scrolling or reformatting */
-    virtual void update_caret_pos(int bring_on_screen, int update_sel_range);
+    virtual void update_caret_pos(int bring_on_screen, int update_sel_range) override;
 
     /* 
      *   Abort the current command line.  This is intended for use by the
@@ -1853,28 +1853,28 @@ public:
         { *entries = current_accel_entries_; *count = current_accel_entry_cnt_; }
 
     /* receive notification of a change to link enabling preferences */
-    virtual void notify_link_pref_change();
+    virtual void notify_link_pref_change() override;
 
     /*
      *   CTadsStatusSource implementation 
      */
-    textchar_t *get_status_message(int *caller_deletes);
+    textchar_t *get_status_message(int *caller_deletes) override;
 
     /*
      *   IDropTarget implementation 
      */
     HRESULT STDMETHODCALLTYPE DragEnter(IDataObject __RPC_FAR *pDataObj,
                                         DWORD grfKeyState, POINTL pt,
-                                        DWORD __RPC_FAR *pdwEffect);
+                                        DWORD __RPC_FAR *pdwEffect) override;
     HRESULT STDMETHODCALLTYPE DragOver(DWORD grfKeyState, POINTL pt,
-                                       DWORD __RPC_FAR *pdwEffect);
-    HRESULT STDMETHODCALLTYPE DragLeave();
+                                       DWORD __RPC_FAR *pdwEffect) override;
+    HRESULT STDMETHODCALLTYPE DragLeave() override;
     HRESULT STDMETHODCALLTYPE Drop(IDataObject __RPC_FAR *pDataObj,
                                    DWORD grfKeyState, POINTL pt,
-                                   DWORD __RPC_FAR *pdwEffect);
+                                   DWORD __RPC_FAR *pdwEffect) override;
 
     /* determine if we're to show links at all */
-    virtual int get_html_show_links() const;
+    virtual int get_html_show_links() const override;
 
 protected:
     /* process an event in command editing mode */
@@ -1889,30 +1889,30 @@ protected:
     void get_input_done();
 
     /* notify before scrolling */
-    virtual void notify_pre_scroll(HWND hwnd);
+    virtual void notify_pre_scroll(HWND hwnd) override;
 
     /* notify after scrolling */
-    virtual void notify_scroll(HWND hwnd, long oldpos, long newpos);
+    virtual void notify_scroll(HWND hwnd, long oldpos, long newpos) override;
 
     /* get the starting position for a 'find' command */
     virtual void find_get_start(int start_at_top,
                                 unsigned long *sel_start,
-                                unsigned long *sel_end);
+                                unsigned long *sel_end) override;
 
     /* receive system window creation notification */
-    void do_create();
+    void do_create() override;
 
     /* receive system window destruction notification */
-    void do_destroy();
+    void do_destroy() override;
 
     /* process a user message */
-    int do_user_message(int msg, WPARAM wpar, LPARAM lpar);
+    int do_user_message(int msg, WPARAM wpar, LPARAM lpar) override;
 
     /* check to see if we've started reading a command */
-    virtual void check_cmd_start();
+    virtual void check_cmd_start() override;
 
     /* handle timer messages */
-    int do_timer(int timer_id);
+    int do_timer(int timer_id) override;
 
     /*
      *   Determine if we're waiting for a keystroke or generic event.  If

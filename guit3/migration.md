@@ -4283,6 +4283,11 @@ build/emscripten --target guit3`) produces `guit3.js`/`.wasm` plus the test page
 `guit3/CMakeLists.txt` — a distinct name from `tests/CMakeLists.txt`'s own `em_package(ditch3 ...)` for classic
 `t3run`, since `em_package()`'s `add_custom_target()` name must be unique project-wide).
 
+- **Plain `guit3.html` starts no game** — it passes guit3 an empty argv, so it comes up without loading a game,
+  as the native build does when started without one (`w32_pre_start()`, `guitr.cpp`). Use `guit3.html?game=ditch3`
+  for the test game (the page then also loads `ditch3game.js`); `?game=webtest`/`mp3test`/`extra` work as before.
+  Older notes and test recipes that say plain `guit3.html` runs `ditch3.t3` predate this.
+
 - **This build needs `Cross-Origin-Opener-Policy: same-origin` / `Cross-Origin-Embedder-Policy: require-corp`
   response headers** (it uses `-pthread`, which needs `SharedArrayBuffer`, which browsers gate behind
   cross-origin isolation) — plain static file serving (`python -m http.server`) fails silently. Serve it with a

@@ -150,10 +150,12 @@
   </div>
 
   <script type="text/javascript">
-    // By default this page loads tests/ditch3.t3, packaged by
-    // htmltads/htmltads/imgui/CMakeLists.txt's em_package(ditch3game ...)
+    // Without a ?game= parameter this page starts guit3 with no game
+    // argument, so it comes up without loading a game (as the native build
+    // does when started without one). ?game=ditch3 loads tests/ditch3.t3,
+    // packaged by guit3/CMakeLists.txt's em_package(ditch3game ...)
     // call as ditch3game.data/.js (mapped to the virtual path ditch3.t3
-    // guit3's own argv references below). It also loads guit3fonts.data/.js,
+    // guit3's own argv references below). It always loads guit3fonts.data/.js,
     // that same CMakeLists.txt's em_package(guit3fonts ...) packaging of
     // guit3/emscripten/fonts (mapped to the virtual path "fonts", which the
     // engine's system font lookup indexes: the game's fonts and the
@@ -183,7 +185,7 @@
       // only if configured with -DGUIT3_EXTRA_TEST_GAME=... (CMakeLists.txt)
       extra: { pkg: 'guit3extragame.js', file: 'extra.t3' },
     };
-    var game = games[new URLSearchParams(location.search).get('game')] || games.ditch3;
+    var game = games[new URLSearchParams(location.search).get('game')] || null;
     var statusElement = document.getElementById('status');
     var progressElement = document.getElementById('progress');
     var spinnerElement = document.getElementById('spinner');
@@ -207,7 +209,7 @@
     }, true);
 
     var Module = {
-      arguments: [game.file],
+      arguments: game ? [game.file] : [],
       canvas: canvasElement,
       print(...args) {
         console.log(args.join(' '));
@@ -303,7 +305,8 @@
     });
   </script>
   <script>
-    document.write('<script src="' + game.pkg + '"><\/script>');
+    if (game)
+      document.write('<script src="' + game.pkg + '"><\/script>');
   </script>
   <script src="guit3fonts.js"></script>
   <script src="guit3charmap.js"></script>
