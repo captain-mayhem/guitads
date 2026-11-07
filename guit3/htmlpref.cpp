@@ -154,6 +154,7 @@ CHtmlPreferences::CHtmlPreferences()
     proplist_->set_prop_name(HTML_PREF_WINPOS, "Window Position");
     proplist_->set_prop_name(HTML_PREF_SUBWINPOS, "Child Window Position");
     proplist_->set_prop_name(HTML_PREF_DARK_CHROME, "Dark Window Frame");
+    proplist_->set_prop_name(HTML_PREF_MAX_TEXT_WIDTH, "Maximum Text Width");
     proplist_->set_prop_name(HTML_PREF_DBGWINPOS, "Debug Window Position");
     proplist_->set_prop_name(HTML_PREF_DBGMAINPOS,
                              "Debug Main Window Position");
@@ -367,8 +368,9 @@ void CHtmlPreferences::set_theme_defaults(const textchar_t *theme)
     set_underline_links(TRUE);
     set_hover_hilite(FALSE);
 
-    /* the light window chrome */
+    /* the light window chrome, and the text as wide as the window */
     set_dark_chrome(FALSE);
+    set_max_text_width(0);
 
     /* apply overrides for the Web Style theme */
     if (stricmp(theme, "Web Style") == 0)
@@ -1709,6 +1711,7 @@ void CHtmlPreferences::open_customize_theme_dialog(HWND owner,
     cust_warned_link_change_ = false;
 
     cust_alt_more_style_ = (get_alt_more_style() ? 1 : 0);
+    cust_max_text_width_ = (int)get_max_text_width();
 
     cust_graphics_on_ = (get_graphics_on() != 0);
     cust_sounds_on_ = (get_sounds_on() != 0);
@@ -2145,6 +2148,27 @@ void CHtmlPreferences::cust_render_more_tab()
     ImGui::TextWrapped(
         "Shows all of the text without stopping to wait for a key press.");
     ImGui::Unindent();
+
+    /* the widest column of the main text (CHtmlSysWin_win32_Input::update_text_margins()) */
+    ImGui::Spacing();
+    ImGui::SeparatorText("Text Width");
+    bool limit = cust_max_text_width_ > 0;
+    if (ImGui::Checkbox("Limit the width of the text, centered in the window", &limit))
+    {
+        cust_max_text_width_ = limit ? 80 : 0;
+        set_max_text_width(cust_max_text_width_);
+        schedule_reformat(FALSE);
+    }
+    ImGui::BeginDisabled(!limit);
+    ImGui::SetNextItemWidth(ImGui::GetFontSize() * 8);
+    int chars = limit ? cust_max_text_width_ : 80;
+    if (ImGui::InputInt("characters##MaxTextWidth", &chars, 5, 10) && limit)
+    {
+        cust_max_text_width_ = chars < 20 ? 20 : chars > 400 ? 400 : chars;
+        set_max_text_width(cust_max_text_width_);
+        schedule_reformat(FALSE);
+    }
+    ImGui::EndDisabled();
 }
 
 /*
@@ -2321,10 +2345,12 @@ void CHtmlPreferences::restore_as(const char *profile, int synced_only)
 
     /*
      *   A setting a profile doesn't have keeps the value in memory, which is
-     *   the previous profile's.  The dark chrome came after the profiles
-     *   were saved: without it, a profile has the light chrome.
+     *   the previous profile's.  The dark chrome and the text width came
+     *   after the profiles were saved: without them, a profile has the
+     *   light chrome and the text as wide as the window.
      */
     set_dark_chrome(FALSE);
+    set_max_text_width(0);
 
     /* save the properties */
     for (id = 0 ; id < HTML_PREF_LAST ; ++id)

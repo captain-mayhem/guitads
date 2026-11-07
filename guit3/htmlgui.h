@@ -727,6 +727,14 @@ public:
     void do_reformat(int show_status, int freeze_display,
                      int reset_sounds);
 
+    /*
+     *   Set the formatter's left and right margins for a complete reformat,
+     *   called right before it starts over (do_reformat(),
+     *   format_after_resize()).  Nothing here; the main window centers its
+     *   text in a column of the theme's maximum text width.
+     */
+    virtual void update_text_margins() { }
+
     /* 
      *   Remove all of the banner windows.  We'll call this whenever we
      *   switch to a new page (or go back to an old history page), since
@@ -1704,6 +1712,12 @@ public:
 
     /* also drain a pending game-chest reload (HTMLM_RELOAD_GC replacement) */
     virtual void run_pending_deferred();
+
+    /*
+     *   center the text in a column of the theme's maximum text width
+     *   (CHtmlPreferences::get_max_text_width()), when the window is wider
+     */
+    void update_text_margins() override;
 
     /* 
      *   cancel input previously started with get_input_timeout() and
@@ -4807,6 +4821,9 @@ public:
         *result = MA_NOACTIVATE;
         return TRUE;
     }
+
+    /* draw the menu's one-pixel frame (do_paint_content() is GDI's) */
+    void do_render_content_end() override;
 
     /* paint the contents of the window */
     void do_paint_content(HDC hdc, const RECT *paintrc) override;

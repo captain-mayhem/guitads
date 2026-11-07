@@ -55,7 +55,7 @@ int w32_allow_debugwin = TRUE;
 int w32_always_pause_on_exit = FALSE;
 char *w32_setup_reg_val_name = (char *)"Setup Done";
 char *w32_usage_app_name = (char *)"htmlt3";
-char *w32_titlebar_name = (char *)"HTML T3";
+char *w32_titlebar_name = (char *)"GUI T3";
 int w32_in_debugger = FALSE;
 /*
  *   vmimage.bin: the game file of Thaumistry: In Charm's Way, next to its

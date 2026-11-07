@@ -39,6 +39,7 @@ Modified
 #include <imgui.h>
 #include <imgui_internal.h>
 #include <ui/imgui_impl_cge_render.h>
+#include <platform/systemfonts.h>
 #include <window/window.h>
 
 #include "guiengine.h"
@@ -4427,8 +4428,6 @@ void CHtmlSysWin_win32::inval_more_area()
  */
 void CHtmlSysWin_win32::get_moreprompt_rect(RECT *rc)
 {
-    HDC dc;
-    SIZE txtsiz;
     int x, y;
     SCROLLINFO info;
     long vscroll_max;
@@ -4460,23 +4459,19 @@ void CHtmlSysWin_win32::get_moreprompt_rect(RECT *rc)
     y = doc_to_screen_y(vscroll_max*get_vscroll_units() + rc->bottom);
     x = doc_to_screen_x(0);
 
-    /* set the appropriate font */
-    dc = GetDC(NULL);
-    select_font(dc, get_default_font());
-
-    /* get the size of the prompt */
-    ht_GetTextExtentPoint32(dc, more_prompt_str_.get(),
-                            strlen(more_prompt_str_.get()), &txtsiz);
+    /*
+     *   get the size of the prompt in the default font - with the FreeType
+     *   metrics it's drawn with (measure_text()), not GDI's, which only
+     *   exist on Windows
+     */
+    CHtmlPoint txtsiz = measure_text(get_default_font(), more_prompt_str_.get(),
+                                     strlen(more_prompt_str_.get()), 0);
 
     /*
      *   position it at the bottom of the text area when scrolled all the
-     *   way to the bottom 
+     *   way to the bottom
      */
-    SetRect(rc, x, y - txtsiz.cy, rc->right, y);
-
-    /* done with the device context */
-    ReleaseDC(NULL, dc);
-    ImGui::PopFont();
+    SetRect(rc, x, y - txtsiz.y, rc->right, y);
 }
 
 /*
@@ -5265,7 +5260,8 @@ void CHtmlSysWin_win32::format_after_resize(long new_width)
         /* forget any tracking links */
         status_link_ = track_link_ = 0;
 
-        /* discard all current formatting */
+        /* discard all current formatting, with the margins for the new width */
+        update_text_margins();
         formatter_->start_at_top(FALSE);
 
         /* run the formatter */
@@ -5714,6 +5710,10 @@ void CHtmlSysWin_win32::do_paint_content(HDC dc, const RECT *rc)
     }
 }
 
+/* fill a rectangle in the window's drawing coordinates (defined below) */
+static void fill_local_rect(long left, long top, long right, long bottom,
+                            ImU32 color);
+
 /*
 * paint the window contents
 */
@@ -5840,26 +5840,39 @@ void CHtmlSysWin_win32::do_render_content_begin()
     /* draw our own border, if we're a bordered banner */
     draw_banner_border_imgui();
 
-    /* if we're in "MORE" mode, draw a prompt at the bottom */
+    /*
+     *   if we're in "MORE" mode, draw a prompt at the bottom: the prompt in
+     *   the highlight text color, in the default font, over a bar of the
+     *   highlight color (the in-window style; the other one shows "MORE" in
+     *   the status line)
+     */
     if (more_mode_ && !prefs_->get_alt_more_style())
     {
-        COLORREF oldclr;
-        int oldbkmode;
-#if 0
-        /* write the prompt in white text in the default font */
-        select_font(dc, get_default_font());
-        oldclr = SetTextColor(dc, GetSysColor(COLOR_HIGHLIGHTTEXT));
-        oldbkmode = SetBkMode(dc, TRANSPARENT);
+        /*
+         *   nothing past the prompt shows: the formatter leaves out the
+         *   lines there, but not a table's background reaching below
+         */
+        fill_local_rect(more_rc.left, more_rc.bottom, more_rc.right,
+                        (long)m_size.y, ImGui::GetColorU32(bgcolor_));
+        fill_local_rect(more_rc.left, more_rc.top, more_rc.right,
+                        more_rc.bottom,
+                        ImGui::GetColorU32(HTML_color_to_ImVec4(COLORREF_to_HTML_color(
+                            os_get_sys_color(OS_SYS_COLOR_HIGHLIGHT)))));
 
-        /* write the MORE prompt over a dark gray background */
-        FillRect(dc, &more_rc, GetSysColorBrush(COLOR_HIGHLIGHT));
-        ExtTextOut(dc, more_rc.left, more_rc.top, 0, 0,
-            more_prompt_str_.get(), strlen(more_prompt_str_.get()), 0);
-
-        /* restore the old text color and mode */
-        SetBkMode(dc, oldbkmode);
-        SetTextColor(dc, oldclr);
-#endif
+        CHtmlSysFont *font = get_default_font();
+        const textchar_t *str = more_prompt_str_.get();
+        size_t utf8size = 0;
+        char *utf8data = os_local_to_utf8(font->get_charset().codepage,
+                                          str, strlen(str), &utf8size);
+        static_cast<CHtmlSysFont_win32 *>(font)->push_imgui_font();
+        ImGui::SetCursorPos(ImVec2((float)more_rc.left, (float)more_rc.top));
+        ImGui::PushStyleColor(ImGuiCol_Text,
+                              HTML_color_to_ImVec4(COLORREF_to_HTML_color(
+                                  os_get_sys_color(OS_SYS_COLOR_HIGHLIGHT_TEXT))));
+        ImGui::TextUnformatted(utf8data, utf8data + utf8size);
+        ImGui::PopStyleColor();
+        ImGui::PopFont();
+        th_free(utf8data);
     }
 }
 
@@ -5919,22 +5932,23 @@ CHtmlPoint CHtmlSysWin_win32::measure_text(CHtmlSysFont *font,
                                            const textchar_t *txt, size_t len,
                                            int *ascent)
 {
-    SIZE txtsiz;
     HDC dc;
-    TEXTMETRIC tm;
 
-    /* get my device context */
+    /* get my device context, and select the font (this pushes its ImGui font) */
     dc = GetDC(NULL);
-
-    /* select the font */
     select_font(dc, font);
 
-    /* get the text width */
-    ht_GetTextExtentPoint32(dc, txt, len, &txtsiz);
-
-    /* get the height from the text metrics */
-    GetTextMetrics(dc, &tm);
-    txtsiz.cy = tm.tmHeight;
+    /*
+     *   The height is the font's line height, its ascender plus descender,
+     *   as GDI's tmHeight was in HTML TADS, and the ascent is the font's
+     *   own: both from the FreeType metrics the text is drawn with.  This
+     *   used ImGui's text height, which is only the font's size (the em),
+     *   so lines sat closer than the font asks for - 19 pixels instead of
+     *   26 for Thaumistry's Open Sans at 18 - and the ascent came from GDI
+     *   (on a GDI font that need not be the one drawn; nothing off Windows).
+     */
+    CHtmlFontMetrics metrics;
+    font->get_font_metrics(&metrics);
 
     /*
      *   Convert the engine's local-codepage bytes to the UTF-8 Dear ImGui
@@ -5956,7 +5970,7 @@ CHtmlPoint CHtmlSysWin_win32::measure_text(CHtmlSysFont *font,
 
     /* return the ascender height if the caller wants it */
     if (ascent != 0)
-        *ascent = tm.tmAscent;
+        *ascent = metrics.ascender_height;
 
     /* done with the DC */
     ReleaseDC(NULL, dc);
@@ -5964,7 +5978,7 @@ CHtmlPoint CHtmlSysWin_win32::measure_text(CHtmlSysFont *font,
     ImGui::PopFont();
 
     /* return the value, reinterpreted into our own Point type */
-    return CHtmlPoint(size.x, size.y/*txtsiz.cx, txtsiz.cy*/);
+    return CHtmlPoint((long)size.x, metrics.total_height);
 }
 
 /*
@@ -6252,6 +6266,22 @@ void CHtmlSysWin_win32::draw_text_clip(int hilite, long x, long y,
         char *utf8data = os_local_to_utf8(
             font->get_charset().codepage, str, len, &utf8size);
 
+        /*
+         *   ExtTextOut()'s ETO_CLIPPED: draw_text_space() fills a gap with
+         *   whole spaces and clips the last one to the gap, so a selection
+         *   highlight or an underline doesn't run on into the next word
+         */
+        bool clipped = (flags & ETO_CLIPPED) != 0 && doc_cliprect != 0;
+        if (clipped)
+        {
+            ImVec2 win = ImGui::GetWindowPos();
+            float ox = win.x - ImGui::GetScrollX();
+            float oy = win.y - ImGui::GetScrollY();
+            ImGui::PushClipRect(ImVec2(ox + cliprect.left, oy + cliprect.top),
+                                ImVec2(ox + cliprect.right, oy + cliprect.bottom),
+                                true);
+        }
+
         ImGui::SetCursorPos(ImVec2(x, y));
         ImGui::PushStyleColor(ImGuiCol_Text, textColor);
         if (font->get_font_desc_ref()->underline || drawBackground) {
@@ -6273,6 +6303,8 @@ void CHtmlSysWin_win32::draw_text_clip(int hilite, long x, long y,
         ImGui::SetCursorPos(ImVec2(x, y));
         ImGui::TextUnformatted(utf8data, utf8data + utf8size);
         ImGui::PopStyleColor();
+        if (clipped)
+            ImGui::PopClipRect();
         th_free(utf8data);
     }
     ImGui::PopFont();
@@ -6528,176 +6560,106 @@ void CHtmlSysWin_win32::unregister_timer_func(void (*timer_func)(void *),
 }
 
 /*
- *   draw a horizontal rule 
+ *   Fill a rectangle given in the window's drawing coordinates (the x/y
+ *   draw_text() hands ImGui::SetCursorPos()), for the current frame.  The
+ *   rules and the tables' backgrounds and borders below still filled GDI
+ *   rectangles on hdc_, which draws nothing in guit3: tables had no
+ *   background (Thaumistry's letter, <table bgcolor=statusbg>) and no
+ *   borders, and <hr> was invisible.  The formatter draws a table before its
+ *   cells' contents, so the background ends up behind the text.
+ */
+static void fill_local_rect(long left, long top, long right, long bottom,
+                            ImU32 color)
+{
+    if (ImGui::GetCurrentContext()->CurrentWindow == nullptr
+        || right <= left || bottom <= top)
+        return;
+    ImVec2 win = ImGui::GetWindowPos();
+    float ox = win.x - ImGui::GetScrollX();
+    float oy = win.y - ImGui::GetScrollY();
+    ImGui::GetWindowDrawList()->AddRectFilled(
+        ImVec2(ox + left, oy + top), ImVec2(ox + right, oy + bottom), color);
+}
+
+/*
+ *   The classic 3D colors of rules and table borders (COLOR_3DSHADOW,
+ *   COLOR_3DFACE, COLOR_3DHILIGHT): GetSysColor() only exists on Windows,
+ *   and these are its usual values
+ */
+static const ImU32 rule_shadow = IM_COL32(160, 160, 160, 255);
+static const ImU32 rule_face = IM_COL32(240, 240, 240, 255);
+static const ImU32 rule_hilite = IM_COL32(255, 255, 255, 255);
+
+/*
+ *   draw a horizontal rule
  */
 void CHtmlSysWin_win32::draw_hrule(const CHtmlRect *pos, int shade)
 {
-    HBRUSH shadow;
-    HBRUSH hilite;
-    RECT rc;
-    CHtmlRect scrpos;
-
     /* convert the position to absolute coordinates */
-    scrpos = doc_to_screen(*pos);
+    CHtmlRect rc = doc_to_screen(*pos);
 
-    /* set up a windows RECT structure for the position */
-    SetRect(&rc, scrpos.left, scrpos.top, scrpos.right, scrpos.bottom);
-
-    /* get system brushes for shadow and highlight colors */
-    shadow = GetSysColorBrush(COLOR_3DSHADOW);
-    hilite = GetSysColorBrush(COLOR_3DHILIGHT);
-
-    /* see if we're shading */
     if (shade)
     {
-        RECT lrc;
-        
-        /* fill the top line with shadow color */
-        SetRect(&lrc, rc.left, rc.top, rc.right, rc.top + 1);
-        FillRect(hdc_, &lrc, shadow);
-
-        /* draw the left edge with shadow color */
-        SetRect(&lrc, rc.left, rc.top, rc.left + 1, rc.bottom - 1);
-        FillRect(hdc_, &lrc, shadow);
-
-        /* fill the bottom line with hilite color */
-        SetRect(&lrc, rc.left, rc.bottom - 1, rc.right, rc.bottom);
-        FillRect(hdc_, &lrc, hilite);
-
-        /* fill the right line with hilite color */
-        SetRect(&lrc, rc.right - 1, rc.top, rc.right, rc.bottom);
-        FillRect(hdc_, &lrc, hilite);
+        /* engraved: shadow on the top and left, highlight bottom and right */
+        fill_local_rect(rc.left, rc.top, rc.right, rc.top + 1, rule_shadow);
+        fill_local_rect(rc.left, rc.top, rc.left + 1, rc.bottom - 1, rule_shadow);
+        fill_local_rect(rc.left, rc.bottom - 1, rc.right, rc.bottom, rule_hilite);
+        fill_local_rect(rc.right - 1, rc.top, rc.right, rc.bottom, rule_hilite);
     }
     else
     {
         /* not shading - fill in the rectangle with the shadow color */
-        FillRect(hdc_, &rc, shadow);
+        fill_local_rect(rc.left, rc.top, rc.right, rc.bottom, rule_shadow);
     }
 }
 
 /*
- *   Draw a table/cell background 
+ *   Draw a table/cell background
  */
 void CHtmlSysWin_win32::draw_table_bkg(const CHtmlRect *pos,
                                        HTML_color_t bgcolor)
 {
-    HBRUSH hbr;
-    LOGBRUSH lbr;
-    RECT rc;
-    CHtmlRect scrpos;
-
-    /* create a brush with the given color */
-    lbr.lbStyle = BS_SOLID;
-    lbr.lbColor = HTML_color_to_COLORREF(bgcolor);
-    lbr.lbHatch = 0;
-    hbr = CreateBrushIndirect(&lbr);
-
-    /* set up a Windows RECT structure in screen coordinates */
-    scrpos = doc_to_screen(*pos);
-    SetRect(&rc, scrpos.left, scrpos.top, scrpos.right, scrpos.bottom);
-
-    /* fill the area with the given brush */
-    FillRect(hdc_, &rc, hbr);
-
-    /* we're done with the brush */
-    DeleteObject(hbr);
+    CHtmlRect rc = doc_to_screen(*pos);
+    fill_local_rect(rc.left, rc.top, rc.right, rc.bottom,
+                    ImGui::GetColorU32(HTML_color_to_ImVec4(bgcolor)));
 }
 
 /*
- *   Draw a table/cell border 
+ *   Draw a table/cell border
  */
 void CHtmlSysWin_win32::draw_table_border(const CHtmlRect *pos, int width,
                                           int cell)
 {
-    HBRUSH shadow;
-    HBRUSH hilite;
-    HBRUSH tl_brush, br_brush;
-    RECT rc;
-    RECT lrc;
-    CHtmlRect scrpos;
+    CHtmlRect rc = doc_to_screen(*pos);
 
-    /* convert the position to absolute coordinates */
-    scrpos = doc_to_screen(*pos);
-
-    /* set up a windows RECT structure for the position */
-    SetRect(&rc, scrpos.left, scrpos.top, scrpos.right, scrpos.bottom);
-
-    /* get system brushes for shadow and highlight colors */
-    shadow = GetSysColorBrush(COLOR_3DSHADOW);
-    hilite = GetSysColorBrush(COLOR_3DFACE);
-
-    /* 
-     *   select the drawing scheme according to whether we're drawing a table
-     *   or a cell 
+    /*
+     *   a cell looks indented (shadow on the top and left), the table
+     *   embossed (the other way round)
      */
-    if (cell)
+    ImU32 tl = cell ? rule_shadow : rule_face;
+    ImU32 br = cell ? rule_face : rule_shadow;
+
+    /* the top and left lines */
+    fill_local_rect(rc.left, rc.top, rc.right - width, rc.top + width, tl);
+    fill_local_rect(rc.left, rc.top, rc.left + width, rc.bottom - width, tl);
+
+    /* the bottom and right lines, over the corners */
+    fill_local_rect(rc.left, rc.bottom - width, rc.right, rc.bottom, br);
+    fill_local_rect(rc.right - width, rc.top, rc.right, rc.bottom, br);
+
+    /* a wide table border: the edges meet diagonally in the corners */
+    if (!cell && width > 1 && ImGui::GetCurrentContext()->CurrentWindow != nullptr)
     {
-        /* 
-         *   cell - make these look indented, so use the shadow color for the
-         *   top and left edges, and the highlight color for the bottom and
-         *   right edges 
-         */
-        tl_brush = shadow;
-        br_brush = hilite;
-    }
-    else
-    {
-        /* 
-         *   table - make the whole table look embossed, so use the highlight
-         *   color for the top and left edges, and the shadow color for the
-         *   bottom and right edges 
-         */
-        tl_brush = hilite;
-        br_brush = shadow;
-    }
-
-    /* draw the top and left lines in highlight color */
-    SetRect(&lrc, rc.left, rc.top, rc.right - width, rc.top + width);
-    FillRect(hdc_, &lrc, tl_brush);
-    SetRect(&lrc, rc.left, rc.top, rc.left + width, rc.bottom - width);
-    FillRect(hdc_, &lrc, tl_brush);
-
-    /* draw the right and bottom lines in shadow color */
-    SetRect(&lrc, rc.left, rc.bottom - width, rc.right, rc.bottom);
-    FillRect(hdc_, &lrc, br_brush);
-    SetRect(&lrc, rc.right - width, rc.top, rc.right, rc.bottom);
-    FillRect(hdc_, &lrc, br_brush);
-
-    /* 
-     *   If the width is greater than 1, fill in the corners to make the
-     *   edges meet diagonally.  We've already drawn the bottom and right
-     *   lines so they fully overlap the corners, so just add little
-     *   triangles extending from the left and bottom edges.  
-     */
-    if (!cell && width > 1)
-    {
-        HPEN null_pen;
-        HPEN old_pen;
-        HBRUSH old_brush;
-        POINT pts[3];
-
-        /* set up and select an empty pen */
-        null_pen = CreatePen(PS_NULL, 0, 0);
-        old_pen = (HPEN)SelectObject(hdc_, null_pen);
-
-        /* select the top/left brush */
-        old_brush = (HBRUSH)SelectObject(hdc_, tl_brush);
-
-        /* draw the top right corner */
-        pts[0].x = rc.right - width;  pts[0].y = rc.top;
-        pts[1].x = rc.right;          pts[1].y = rc.top;
-        pts[2].x = rc.right - width;  pts[2].y = rc.top + width;
-        Polygon(hdc_, pts, 3);
-
-        /* draw the bottom left corner */
-        pts[0].x = rc.left;           pts[0].y = rc.bottom - width;
-        pts[1].x = rc.left;           pts[1].y = rc.bottom;
-        pts[2].x = rc.left + width;   pts[2].y = rc.bottom - width;
-        Polygon(hdc_, pts, 3);
-
-        /* restore the old pen and brush */
-        SelectObject(hdc_, old_pen);
-        SelectObject(hdc_, old_brush);
+        ImVec2 win = ImGui::GetWindowPos();
+        float ox = win.x - ImGui::GetScrollX();
+        float oy = win.y - ImGui::GetScrollY();
+        ImDrawList *dl = ImGui::GetWindowDrawList();
+        dl->AddTriangleFilled(ImVec2(ox + rc.right - width, oy + rc.top),
+                              ImVec2(ox + rc.right, oy + rc.top),
+                              ImVec2(ox + rc.right - width, oy + rc.top + width), tl);
+        dl->AddTriangleFilled(ImVec2(ox + rc.left, oy + rc.bottom - width),
+                              ImVec2(ox + rc.left, oy + rc.bottom),
+                              ImVec2(ox + rc.left + width, oy + rc.bottom - width), tl);
     }
 }
 
@@ -7105,7 +7067,8 @@ void CHtmlSysWin_win32::do_reformat(int show_status, int freeze_display,
     /* we're obviously not in MORE mode yet */
     set_more_mode(FALSE);
 
-    /* restart the formatter */
+    /* restart the formatter, with the margins for the current theme */
+    update_text_margins();
     formatter_->start_at_top(reset_sounds);
 
     /* make sure we redraw everything */
@@ -8291,6 +8254,33 @@ int CHtmlSysWin_win32_Input::do_user_message(
 
     /* inherit default handling */
     return CHtmlSysWin_win32::do_user_message(msg, wpar, lpar);
+}
+
+/*
+ *   Center the main text in a column of the theme's maximum text width (in
+ *   average characters of the main font, like QTads' "line width" setting;
+ *   Thaumistry's interpreter uses 80): in a wider window the left and right
+ *   margins take up the rest.  The margins are otherwise the 8 pixels the
+ *   constructor sets.  A table or picture wider than the column still fits
+ *   in it as it would in a narrow window.
+ */
+void CHtmlSysWin_win32_Input::update_text_margins()
+{
+    const long base = 8;
+    long side = base;
+    long chars = prefs_ != 0 ? prefs_->get_max_text_width() : 0;
+    if (chars > 0 && disp_width_ > 0)
+    {
+        static const textchar_t alphabet[] = "abcdefghijklmnopqrstuvwxyz";
+        CHtmlPoint size = measure_text(get_default_font(), alphabet,
+                                       sizeof(alphabet) - 1, 0);
+        long column = chars * size.x / (long)(sizeof(alphabet) - 1);
+        if (column > 0 && disp_width_ - 2 * base > column)
+            side = (disp_width_ - column) / 2;
+    }
+
+    CHtmlRect m = formatter_->get_phys_margins();
+    formatter_->set_phys_margins(side, m.top, side, m.bottom);
 }
 
 /*
@@ -16775,6 +16765,21 @@ void CHtmlSys_mainwin::notify_load_game(const char *fname)
     /* make sure we've loaded the correct preferences profile for the game */
     if (fname != 0 && fname[0] != '\0')
     {
+        /*
+         *   The fonts the game brings along in a "fonts" folder next to it
+         *   (Thaumistry does): available to this process from now on, like
+         *   installed ones.  Before the profile, whose fonts may be among
+         *   them - a font asked for before is cached with the substitute
+         *   the system found then (Arial for Thaumistry's Open Sans).
+         */
+        {
+            char dir[OSFNMAX], fonts[OSFNMAX];
+            os_get_path_name(dir, sizeof(dir), fullname);
+            os_build_full_path(fonts, sizeof(fonts), dir, "fonts");
+            if (osfacc(fonts) == 0)
+                CGE::SystemFonts::addFolder(fonts);
+        }
+
         /* load the game's preferred profile */
         load_game_specific_profile(fullname);
 
@@ -19667,6 +19672,20 @@ void CHtmlSys_popup_menu_win::do_paint_content(HDC win_dc, const RECT *rc)
 
     /* draw a one-pixel border */
     FrameRect(win_dc, rc, (HBRUSH)GetStockObject(LTGRAY_BRUSH));
+}
+
+/*
+ *   The same one-pixel light gray frame for guit3, after the children: the
+ *   HTML panel fills the whole menu (set_phys_margins(1, ...) leaves its
+ *   text the pixel for the frame), so the frame goes on the foreground draw
+ *   list, over it - the menu is the topmost thing while it's open anyway
+ */
+void CHtmlSys_popup_menu_win::do_render_content_end()
+{
+    ImGui::GetForegroundDrawList()->AddRect(
+        m_pos, ImVec2(m_pos.x + m_size.x, m_pos.y + m_size.y),
+        IM_COL32(192, 192, 192, 255));
+    CHtmlSys_top_win::do_render_content_end();
 }
 
 /*

@@ -124,6 +124,9 @@ enum HTML_pref_id_t
     /* guit3: draw the window chrome dark (the "Dark" theme) */
     HTML_PREF_DARK_CHROME,
 
+    /* guit3: the main text's widest column, in characters (0: the window's) */
+    HTML_PREF_MAX_TEXT_WIDTH,
+
     /* high water mark - this is always the last property ID */
     HTML_PREF_LAST
 };
@@ -566,6 +569,17 @@ public:
         { return get_val_bool(HTML_PREF_DARK_CHROME); }
     void set_dark_chrome(int flag)
         { set_val_bool(HTML_PREF_DARK_CHROME, flag); }
+
+    /*
+     *   the widest the main window's text gets, in average characters of
+     *   the main font, centered in a wider window; 0 for no limit (the
+     *   window's width) - a theme setting, like QTads' "line width"; see
+     *   CHtmlSysWin_win32_Input::update_text_margins()
+     */
+    long get_max_text_width() const
+        { return get_val_longint(HTML_PREF_MAX_TEXT_WIDTH); }
+    void set_max_text_width(long chars)
+        { set_val_longint(HTML_PREF_MAX_TEXT_WIDTH, chars); }
 
     /* 
      *   parameterized color settings 
@@ -1188,6 +1202,7 @@ private:
     bool cust_use_win_colors_ = false;
     bool cust_override_colors_ = false;
     bool cust_dark_chrome_ = false;
+    int cust_max_text_width_ = 0;
     bool cust_underline_links_ = false;
     bool cust_hover_hilite_ = false;
     int cust_show_links_sel_ = 0;          /* 0=Always, 1=Ctrl, 2=Never */

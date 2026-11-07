@@ -4137,6 +4137,52 @@ opened from a command script (`-i`, `>map`) shows the world map with the lab's p
 (temporary hook, removed) the zoo's map shows clouds exactly over the unvisited rooms and the dot on the
 current one. Engine: the TIFF and `addFolder()` unit tests, the whole suite.
 
+**Matching the original's look** (compared with a screenshot of `Thaumistry.exe`) took four more fixes, the
+last three of them for every game:
+- **The text column.** QTads has a "line width" setting (the front end's is 80): the text is at most
+  that many average characters of the main font wide, centered. guit3's theme setting **Maximum Text
+  Width** (`HTML_PREF_MAX_TEXT_WIDTH`, 0 = the window's width; Customize Theme, More tab; 80 in the
+  Thaumistry theme). `CHtmlSysWin_win32_Input::update_text_margins()` sets the formatter's left and
+  right physical margins right before each full reformat (`do_reformat()`, `format_after_resize()`,
+  through the virtual `CHtmlSysWin_win32::update_text_margins()`, empty for banners); the margins are
+  otherwise the constructor's 8 px. Like the dark chrome, `restore_as()` resets it before reading.
+- **Table backgrounds, borders and rules weren't drawn at all.** `draw_table_bkg()`,
+  `draw_table_border()` and `draw_hrule()` still filled GDI rectangles on `hdc_`. The game prints
+  documents like the opening letter as `<table align=center cellpadding=28 bgcolor=statusbg>` (inside
+  its own `<bq>` style tag) — the box was missing. They now fill rectangles in the ImGui draw list
+  (`fill_local_rect()`, in the same window-local coordinates `draw_text()` uses: window position minus
+  scroll); the 3D border colors are the usual `COLOR_3DSHADOW/3DFACE/3DHILIGHT` values, as
+  `GetSysColor()` only exists on Windows.
+- **Lines were too close together.** `measure_text()` returned ImGui's text height — the font's size,
+  the em — as the line height, and GDI's `tmAscent` (nothing off Windows) as the ascent. HTML TADS used
+  `tmHeight`, the ascender plus the descender. It now returns the font's own FreeType metrics
+  (`get_font_metrics()`: `total_height`, `ascender_height`), the ones the text is drawn with: Open Sans
+  at 18 px lines up 26 px apart, as in the original (it was 19); Times New Roman at 16 px, 19 (was 16).
+- **The game's regular Open Sans came out as Arial** after the first start. Once the Thaumistry theme
+  exists it is chosen when the game's name is set (`notify_load_game()`), before the image loads and
+  the function set's `attach()` registered the fonts — the font was asked for before it was available,
+  GDI gave its substitute, and guit3's font cache kept it. `notify_load_game()` now adds a `fonts`
+  folder next to any game before loading its profile (`attach()` no longer does).
+
+**The last GDI drawing, ported** (a search of every GDI drawing call in the built sources; what is left
+is in code guit3 never runs: the `do_paint()`/`do_paint_content()`/`do_erase_bkg()` handlers, which only
+a `WM_PAINT` reaches, `CTadsCaret::invert()` — `draw_caret_imgui()` draws the caret — `draw_hbitmap()`,
+used only by the unbuilt `tadstab.cpp`, the native Game Chest dialogs, where GDI works, and the
+`ExtTextOut()` in `draw_text_clip()` next to its ImGui path):
+- **The in-window MORE prompt** ("Show a MORE prompt in the game window" on Customize Theme's More tab;
+  the standard themes use the status line) was `#if 0` in `CHtmlSysWin_win32::do_render_content_begin()`:
+  the text stopped at the prompt's line and nothing showed. It's the highlight-colored bar with the
+  prompt in the highlight text color again, and the window's background below it (the formatter leaves
+  out the lines past the prompt, but not a table background reaching there). `get_moreprompt_rect()`
+  measured the prompt with GDI (nothing off Windows); it uses `measure_text()` now.
+- **Clipped text**: `draw_text_clip()`'s ImGui path ignored `ETO_CLIPPED`, which only
+  `draw_text_space()` uses, for the last of the spaces it fills a gap with: a selection highlight or an
+  underline over a gap ran up to a space's width on. It pushes the clip rectangle now.
+- **The popup menu's frame** (`CHtmlSys_popup_menu_win`, the menus of `show_popup_menu()`): the one-pixel
+  light gray frame `set_phys_margins(1, ...)` leaves room for was only drawn by its GDI
+  `do_paint_content()`; `do_render_content_end()` draws it now, on the foreground draw list, since the
+  HTML panel fills the whole menu. (Not seen on screen: no game here opens one; the prompt was.)
+
 ## 6. Working notes for a fresh session
 
 ### Building and running

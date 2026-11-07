@@ -16,8 +16,6 @@
 #include "charmap.h"
 #include "os.h"
 
-#include <platform/systemfonts.h>
-
 #include "htmlgui.h"
 #include "htmlpref.h"
 #include "htmlver.h"
@@ -83,6 +81,8 @@ void set_up_theme()
         prefs->set_inpfont_size(14);
         prefs->set_inpfont_bold(FALSE);
         prefs->set_inpfont_italic(TRUE);
+        /* the front end's "line width": 80 characters, centered */
+        prefs->set_max_text_width(80);
         prefs->set_profile_desc(
             "The look of Thaumistry's own interpreter: its fonts, from the "
             "game's fonts folder, with the Dark theme's colors.");
@@ -106,9 +106,11 @@ void CVmBifBodgers::attach(VMG0_)
         game_dir = G_image_loader->get_path();
     guimap_set_game(game_dir.c_str());
 
-    /* the game's fonts, before the theme that uses them */
-    if (!game_dir.empty())
-        CGE::SystemFonts::addFolder(game_dir_slash() + "fonts");
+    /*
+     *   The theme with the game's fonts; the main window added the game's
+     *   fonts/ folder already, before the game's theme was chosen
+     *   (CHtmlSys_mainwin::notify_load_game())
+     */
     set_up_theme();
 }
 
