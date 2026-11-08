@@ -453,7 +453,8 @@ This has to be step 2, before any of the transport plumbing, or nothing downstre
      (`Cross-Origin-Embedder-Policy: require-corp`), so every synthesized response needs matching
      `Cross-Origin-Resource-Policy`/CORP headers or the page's own isolation breaks;
    - Service Worker scope: the real WebUI uses root-absolute paths (`/webui/...`), so the worker must be
-     registered at scope `/` (or the host needs to send `Service-Worker-Allowed: /`);
+     registered at scope `/` (or the host needs to send `Service-Worker-Allowed: /`) - *since lifted: under
+     a sub-path the worker mounts the VM's URLs below its scope, see migration.md §5.38*;
    - that a worker registered on first load doesn't control that first navigation (a Service Worker only
      starts controlling requests *after* it activates), which affects when COEP can first apply.
 2. **Fix the main-thread blocking-wait problem** (above) in `osnetunix.h`, gated on `__EMSCRIPTEN__`, and

@@ -84,6 +84,7 @@ var Guit3WebUIBridge = (function () {
     const recentLog = [];
 
     let worker = null;          /* the active Service Worker, once ready */
+    let mount = "";             /* where the VM's URLs appear (see pageUrl()) */
 
     /*
      *   Our half of the worker's routing table (see "Routing" in
@@ -677,7 +678,7 @@ var Guit3WebUIBridge = (function () {
     function routingState() {
         const launch = launchInfo();
         return {
-            launch: launch ? [launch.path] : [],
+            launch: launch ? [pageUrl(launch.path)] : [],
             clients: servedClients.slice(),
             docs: servedDocs.slice(),
         };
@@ -748,12 +749,11 @@ var Guit3WebUIBridge = (function () {
         if (!("serviceWorker" in navigator))
             throw new Error("Service Workers are unavailable here (insecure context?) - WebUI games can't run");
 
+        /* the worker's scope is its own directory; under a sub-path, the VM's URLs are mounted below it */
+        const scope = new URL(".", new URL(swUrl || "guit3-webui-sw.js", location.href)).pathname;
+        mount = scope === "/" ? "" : scope + "vm";
         navigator.serviceWorker.addEventListener("message", onWorkerMessage);
         const reg = await navigator.serviceWorker.register(swUrl || "guit3-webui-sw.js");
-        if (new URL(reg.scope).pathname !== "/")
-            console.warn("guit3 WebUI bridge: Service Worker scope is " + reg.scope
-                + ", not the site root - WebUI requests (/webui/...) won't be intercepted."
-                + " Serve guit3.html and guit3-webui-sw.js from the root.");
         const ready = await navigator.serviceWorker.ready;
         worker = ready.active;
         routed = announce();
@@ -775,5 +775,15 @@ var Guit3WebUIBridge = (function () {
         return recentLog.slice();
     }
 
-    return { start, whenRouted, recent };
+    /*
+     *   The URL to load a VM's page (path + query, e.g. the start page the
+     *   launch hook reports) at: the path itself at the site root, or under
+     *   a sub-path, that path below the worker's VM mount (MOUNT in
+     *   guit3-webui-sw.js). Only meaningful once start() was called.
+     */
+    function pageUrl(path) {
+        return mount + path;
+    }
+
+    return { start, whenRouted, recent, pageUrl };
 })();

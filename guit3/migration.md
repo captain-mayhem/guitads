@@ -4183,6 +4183,47 @@ used only by the unbuilt `tadstab.cpp`, the native Game Chest dialogs, where GDI
   `do_paint_content()`; `do_render_content_end()` draws it now, on the foreground draw list, since the
   HTML panel fills the whole menu. (Not seen on screen: no game here opens one; the prompt was.)
 
+### 5.38 GitHub Pages: a sub-path, and no COOP/COEP from the host
+
+The release workflow (`.github/workflows/release.yml`, job `pages`) publishes the Emscripten zip's contents
+as a GitHub Pages project site (`guit3.html` also as `index.html`) on a tag push, a manual non-draft
+release, or a manual run with `pages_only` (which builds only the web version and makes no release). Two
+things a static project site can't do had to move into the Service Worker (`guit3-webui-sw.js`):
+
+- **No custom headers, so no COOP/COEP.** Without them there is no `SharedArrayBuffer` and guit3's pthreads
+  can't start (silently, see 5.8). The worker now passes every same-origin request that isn't a VM's
+  through `passThrough()`, adding `ISOLATION_HEADERS` where the server didn't send them - the
+  coi-serviceworker technique. On a first visit (or a hard reload, which bypasses the worker) the page isn't
+  controlled yet, so `guit3.html` only loads guit3 and its packages when `crossOriginIsolated`; otherwise it
+  waits for `Guit3WebUIBridge.start()` and reloads once (a `sessionStorage` flag stops a reload loop and
+  shows an error instead).
+- **A sub-path (`/<repo>/`), so the worker's scope isn't `/`.** Scope only matters for navigations: a
+  controlled document's subresource requests (XHR, images, scripts, beacons) reach the worker whatever their
+  URL, so root-absolute `/webui/...` requests were never the problem. Navigations outside the scope (the
+  layout windows' `/cmdwin.htm`, the debug log's `/webuires/debuglog.htm`, downloads in `/clienttmp/...`)
+  would go to the host and 404. So under a sub-path the VM's URL space is mounted at `<scope>vm`
+  (`MOUNT`; VM path `/x` is `<scope>vm/x`, `vmTarget()` strips it again), the bridge announces and
+  `guit3.html` loads the start page there (`Guit3WebUIBridge.pageUrl()`), and `NAV_SHIM` (injected into
+  every VM document, only under a sub-path) rewrites out-of-scope same-origin navigations into the mount:
+  `window.open()`, iframe `src` (property and attribute), form submissions, link clicks, and the Navigation
+  API's `navigate` event for the rest. At the site root nothing changes (`MOUNT` is empty).
+- **Gotcha: `frameWindow.location = url` on a fresh iframe has no hook.** The library does this for its
+  layout windows and file dialog (`createLayoutFrame()`, `initFileDialog()`). `location` is unforgeable, and
+  the Navigation API fires no `navigate` event for a frame's initial `about:blank` document. The shim's
+  `contentWindow` getter therefore hands out a `Proxy` for a frame still at `about:blank`, whose `location`
+  setter maps the URL (methods are bound to the real window; capitalized names, i.e. constructors, are
+  returned as-is so their statics survive). Code comparing such a frame's `contentWindow` to a real window
+  by identity would see a difference; the library doesn't, while the frame is still blank.
+
+**Verified** in headless Chrome (CDP, driven from Node's built-in `WebSocket`) against a plain static server
+that serves the build only under `/guitads/` and sends no COOP/COEP: the page reloaded once and became
+cross-origin isolated; `?game=webtest`'s WebUI loaded at `/guitads/vm/?TADS_session=...` with its layout
+frames at `/guitads/vm/cmdwin.htm` and `/statwin.htm`; `x chair` got the game's reply; `debugLog()` opened
+`/guitads/vm/webuires/debuglog.htm`; `save` downloaded a real `Save1.t3v` through
+`/guitads/vm/clienttmp/Save1.t3v`; and the server saw no request outside `/guitads/` (bar `favicon.ico`).
+The same run at the site root (no mount) still passes. **Not tested:** restore (the upload form's
+`submit()` path) under a sub-path, and browsers other than Chrome.
+
 ## 6. Working notes for a fresh session
 
 ### Building and running

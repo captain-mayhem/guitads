@@ -9,9 +9,13 @@ on:
         description: 'Tag to release (defaults to the ref this workflow runs on)'
         required: false
       draft:
-        description: 'Create as a draft release (for testing, not publicly visible)'
+        description: 'Create as a draft release (for testing, not publicly visible; also skips GitHub Pages)'
         type: boolean
         default: true
+      pages_only:
+        description: 'Only build the web version and deploy it to GitHub Pages - no release'
+        type: boolean
+        default: false
 
 permissions:
   contents: write
@@ -21,19 +25,13 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        include:
-          - os: windows-latest
-            preset: windows-only
-            build_dir: build/default
-            artifact: guitads-windows
-          - os: ubuntu-latest
-            preset: default
-            build_dir: build/default
-            artifact: guitads-linux
-          - os: ubuntu-latest
-            preset: emscripten
-            build_dir: build/emscripten
-            artifact: guitads-emscripten
+        # Everything for a release; just the web build for a Pages-only run.
+        include: >-
+          ${{ fromJSON(inputs.pages_only
+          && '[{"os":"ubuntu-latest","preset":"emscripten","build_dir":"build/emscripten","artifact":"guitads-emscripten"}]'
+          || '[{"os":"windows-latest","preset":"windows-only","build_dir":"build/default","artifact":"guitads-windows"},
+          {"os":"ubuntu-latest","preset":"default","build_dir":"build/default","artifact":"guitads-linux"},
+          {"os":"ubuntu-latest","preset":"emscripten","build_dir":"build/emscripten","artifact":"guitads-emscripten"}]') }}
     runs-on: ${{ matrix.os }}
     steps:
       - uses: actions/checkout@v7
@@ -109,14 +107,56 @@ jobs:
 
   release:
     needs: build
+    if: ${{ !inputs.pages_only }}
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/download-artifact@v5
+      - uses: actions/download-artifact@v8
         with:
           path: dist
-      - uses: softprops/action-gh-release@v2
+      - uses: softprops/action-gh-release@v3
         with:
           tag_name: ${{ inputs.tag || github.ref_name }}
           draft: ${{ github.event_name == 'workflow_dispatch' && inputs.draft }}
           generate_release_notes: true
           files: dist/**/*.zip
+
+  # The web build, as a GitHub Pages site: on a tag push, a manual non-draft
+  # release, or a manual Pages-only run. Needs Settings > Pages > Source set
+  # to "GitHub Actions", and the github-pages environment must allow the
+  # v* tags (Settings > Environments) for tag pushes to deploy.
+  pages:
+    needs: build
+    if: ${{ github.event_name == 'push' || inputs.pages_only || !inputs.draft }}
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      pages: write
+      id-token: write
+    concurrency:
+      group: pages
+      cancel-in-progress: false
+    environment:
+      name: github-pages
+      url: ${{ steps.deploy.outputs.page_url }}
+    steps:
+      - uses: actions/download-artifact@v8
+        with:
+          name: guitads-emscripten
+          path: dist
+      - name: Unpack the web build
+        # The site is the GuiTads-<version>-Emscripten.zip's contents, with
+        # guit3.html also as index.html. A project site lives under a
+        # sub-path (/<repo>/), which the WebUI Service Worker handles, and
+        # Pages can't send the COOP/COEP headers guit3 needs, which that
+        # worker adds (see guit3/emscripten/guit3-webui-sw.js).
+        run: |
+          unzip -q dist/*.zip -d unpacked
+          dir=$(dirname "$(find unpacked -name guit3.html | head -n 1)")
+          mkdir site
+          cp -r "$dir"/. site/
+          cp site/guit3.html site/index.html
+      - uses: actions/upload-pages-artifact@v5
+        with:
+          path: site
+      - id: deploy
+        uses: actions/deploy-pages@v5

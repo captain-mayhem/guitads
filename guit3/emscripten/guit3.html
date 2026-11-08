@@ -255,9 +255,12 @@
   </script>
   <!-- WebUI transport (webui-emscripten-plan.md step 4): registers
        guit3-webui-sw.js and relays the requests it catches to the VM's
-       loopback connections. Needs this page served from the site root over
-       http(s) (http://localhost is fine) - Service Workers are unavailable
-       from file:// - but plain non-WebUI games don't depend on it. -->
+       loopback connections. Needs this page served over http(s)
+       (http://localhost is fine) - Service Workers are unavailable from
+       file:// - from the site root or any sub-path (the worker then mounts
+       the game's pages below it, see guit3-webui-sw.js). Plain non-WebUI
+       games don't need the WebUI part, but on a host that can't send
+       COOP/COEP headers, guit3 itself needs the worker (see below). -->
   <script src="guit3-webui-bridge.js"></script>
   <script>
     Guit3WebUIBridge.start().catch((e) => console.warn('guit3: WebUI games unavailable: ' + e));
@@ -278,7 +281,7 @@
 
     Module.onWebUILaunch = function (port, path) {
       Guit3WebUIBridge.whenRouted().then(() => {
-        webuiFrame.src = path;
+        webuiFrame.src = Guit3WebUIBridge.pageUrl(path);
         webuiTitle.textContent = '';
         webuiOverlay.hidden = false;
         webuiFrame.focus();
@@ -305,15 +308,56 @@
     });
   </script>
   <script>
-    if (game)
-      document.write('<script src="' + game.pkg + '"><\/script>');
+    // guit3 runs on pthreads, which need SharedArrayBuffer, which browsers
+    // only allow in a cross-origin-isolated page (COOP/COEP response
+    // headers). A static host such as GitHub Pages can't send those, so
+    // guit3-webui-sw.js adds them to every response it passes through - but
+    // only once it controls this page, which it doesn't on a first visit
+    // (or after a hard reload, which bypasses it). Then reload once, after
+    // the worker is ready; without isolation, don't start guit3 at all.
+    var COI_RELOAD_KEY = 'guit3-coi-reload';
+    function setCoiReload(on) {
+      try {
+        if (on)
+          sessionStorage.setItem(COI_RELOAD_KEY, '1');
+        else
+          sessionStorage.removeItem(COI_RELOAD_KEY);
+      } catch (e) { }
+    }
+    function coiReloaded() {
+      try {
+        return sessionStorage.getItem(COI_RELOAD_KEY) === '1';
+      } catch (e) {
+        return false;
+      }
+    }
+    if (window.crossOriginIsolated) {
+      setCoiReload(false);
+      if (game)
+        document.write('<script src="' + game.pkg + '"><\/script>');
+      document.write(
+        '<script src="guit3fonts.js"><\/script>' +
+        '<script src="guit3charmap.js"><\/script>' +
+        '<script src="guit3engine.js"><\/script>' +
+        '<script src="guit3about.js"><\/script>' +
+        '<script src="guit3soundfont.js"><\/script>' +
+        '<script async src="guit3.js"><\/script>');
+    } else if (!coiReloaded() && 'serviceWorker' in navigator) {
+      Module.setStatus('Setting up...');
+      Guit3WebUIBridge.start().then(() => {
+        setCoiReload(true);
+        location.reload();
+      }, (e) => {
+        Module.setStatus('Cannot start: Service Workers are unavailable here (' + e + ')');
+        spinnerElement.style.display = 'none';
+      });
+    } else {
+      setCoiReload(false);
+      Module.setStatus('Cannot start: this page is not cross-origin isolated'
+        + ' (it needs Service Workers, or COOP/COEP headers from the server)');
+      spinnerElement.style.display = 'none';
+    }
   </script>
-  <script src="guit3fonts.js"></script>
-  <script src="guit3charmap.js"></script>
-  <script src="guit3engine.js"></script>
-  <script src="guit3about.js"></script>
-  <script src="guit3soundfont.js"></script>
-  <script async src="guit3.js"></script>
 </body>
 
 </html>

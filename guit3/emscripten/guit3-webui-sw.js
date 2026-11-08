@@ -19,9 +19,25 @@
  *   hold: a Service Worker can be stopped and restarted by the browser
  *   between events and loses every global when that happens.
  *
- *   Must be served from (and so scoped to) the site root: WebUI pages use
- *   root-absolute URLs (/webui/..., /webuires/...), which only a worker whose
- *   scope is "/" can see.
+ *   Scope and sub-paths: the worker's scope is the directory it's served
+ *   from. At the site root, a VM's URL space is the site's own (its start
+ *   page "/?TADS_session=...", "/webui/getState", ...). Under a sub-path -
+ *   e.g. a GitHub Pages project site, https://<user>.github.io/<repo>/ -
+ *   the VM's URL space is mounted at <scope>vm instead (see MOUNT below):
+ *   VM path /cmdwin.htm is the URL <scope>vm/cmdwin.htm, so its documents
+ *   are navigations inside the scope, which this worker gets to serve.
+ *   Their subresource requests reach this worker whatever their URL (a
+ *   controlled client's fetches all do), so a root-absolute
+ *   "/webui/getState" from a WebUI page still arrives, and is passed to the
+ *   VM as-is. Only *navigations* to root-absolute URLs would escape the
+ *   scope, so NAV_SHIM rewrites those into the mount in the page.
+ *
+ *   Cross-origin isolation: guit3.html needs COOP/COEP for pthreads, and a
+ *   static host like GitHub Pages can't send them. So every same-origin
+ *   response that isn't a VM's - guit3.html and its scripts/data - is
+ *   passed through here with ISOLATION_HEADERS added (the
+ *   coi-serviceworker technique); guit3.html reloads itself once on a first
+ *   visit, when it isn't controlled yet.
  */
 
 "use strict";
@@ -90,6 +106,192 @@ return w;}});})();</script>`;
  */
 const HOSTED_START_SHIM = "<script>/* guit3 WebUI: see guit3-webui-sw.js */window.parent=window;</script>";
 
+/*
+ *   The scope's path ("/" at the site root) and, under a sub-path, the
+ *   mount the VM's URL space appears at ("" at the root, where VM paths
+ *   are site paths).
+ */
+const SCOPE = new URL(self.registration.scope).pathname;
+const MOUNT = SCOPE === "/" ? "" : SCOPE + "vm";
+
+/* the VM's own target (path + query) for a URL a VM request was made to */
+function vmTarget(url) {
+    let path = url.pathname;
+    if (MOUNT && (path === MOUNT || path.startsWith(MOUNT + "/")))
+        path = path.slice(MOUNT.length) || "/";
+    return path + url.search;
+}
+
+/*
+ *   Injected into every WebUI document after FRAME_XHR_SHIM, only under a
+ *   sub-path (MOUNT set): rewrites navigations to same-origin URLs outside
+ *   the scope - the WebUI library's and games' root-absolute paths like
+ *   "/cmdwin.htm" or "/webuires/debuglog.htm" - into the mount, so the
+ *   new document is still served by this worker rather than 404ing on the
+ *   host. There is no single hook for every way a page can navigate, so
+ *   this covers the ones the WebUI library (lib/webuires) and plain HTML
+ *   use: window.open(), an iframe's src (property or attribute), form
+ *   submissions, link clicks, the Navigation API's navigate event for the
+ *   rest (a document assigning its own location) and - for
+ *   frameWindow.location = url on a fresh frame, which the library does
+ *   for its layout windows and file dialogs (layoutwin.js
+ *   createLayoutFrame(), main.js initFileDialog()) and which no event
+ *   reports (the Navigation API stays silent for a frame's initial
+ *   about:blank document) - a Proxy that iframe.contentWindow hands out
+ *   for such a frame, whose location setter maps the URL. Same-origin
+ *   frames' windows get the same treatment when first reached through
+ *   contentWindow, since script-built frames (about:blank, document.write)
+ *   never get a shim of their own.
+ *
+ *   Sent as source (navShim.toString()), so it must stay self-contained.
+ */
+function navShim(S, M) {
+    "use strict";
+    const O = location.origin;
+    const proxies = new WeakMap();
+
+    function map(u, w) {
+        let x;
+        try {
+            x = new URL(String(u), w.document.baseURI);
+        } catch (e) {
+            return u;
+        }
+        if (x.origin !== O || x.pathname.startsWith(S))
+            return u;
+        return O + M + x.pathname + x.search + x.hash;
+    }
+
+    /* the WindowProxy of a fresh frame, with a location setter that maps */
+    function blankProxy(cw) {
+        let p = proxies.get(cw);
+        if (!p) {
+            p = new Proxy(cw, {
+                get(t, k) {
+                    const v = cw[k];
+                    /* methods need the real window as this; constructors keep their statics */
+                    return typeof v === "function" && typeof k === "string" && /^[a-z]/.test(k)
+                        ? v.bind(cw) : v;
+                },
+                set(t, k, v) {
+                    cw[k] = k === "location" ? map(v, cw) : v;
+                    return true;
+                },
+                has(t, k) {
+                    return k in cw;
+                },
+            });
+            proxies.set(cw, p);
+        }
+        return p;
+    }
+
+    function patch(w) {
+        try {
+            /* per document: a frame's first document can reuse its about:blank Window */
+            if (w.document.__guit3Nav)
+                return;
+            w.document.__guit3Nav = true;
+        } catch (e) {
+            return;     /* cross-origin */
+        }
+
+        const open = w.open;
+        w.open = function (u, ...rest) {
+            return open.call(w, u === undefined || u === "" ? u : map(u, w), ...rest);
+        };
+
+        for (const C of [w.HTMLIFrameElement, w.HTMLFrameElement]) {
+            if (!C)
+                continue;
+            const src = Object.getOwnPropertyDescriptor(C.prototype, "src");
+            if (src && src.set && !src.set.__guit3Nav) {
+                const set = function (v) { src.set.call(this, map(v, w)); };
+                set.__guit3Nav = true;
+                Object.defineProperty(C.prototype, "src",
+                    { configurable: true, enumerable: src.enumerable, get: src.get, set });
+            }
+            const cwin = Object.getOwnPropertyDescriptor(C.prototype, "contentWindow");
+            if (cwin && cwin.get && !cwin.get.__guit3Nav) {
+                const get = function () {
+                    const cw = cwin.get.call(this);
+                    if (!cw)
+                        return cw;
+                    patch(cw);
+                    let blank = false;
+                    try {
+                        blank = cw.location.href === "about:blank";
+                    } catch (e) {
+                        /* cross-origin */
+                    }
+                    return blank ? blankProxy(cw) : cw;
+                };
+                get.__guit3Nav = true;
+                Object.defineProperty(C.prototype, "contentWindow",
+                    { configurable: true, enumerable: cwin.enumerable, get });
+            }
+        }
+
+        const setAttribute = w.Element.prototype.setAttribute;
+        if (!setAttribute.__guit3Nav) {
+            const sa = function (n, v) {
+                if (/^src$/i.test(n) && /^i?frame$/i.test(this.localName))
+                    v = map(v, w);
+                return setAttribute.call(this, n, v);
+            };
+            sa.__guit3Nav = true;
+            w.Element.prototype.setAttribute = sa;
+        }
+
+        const fixForm = (f) => {
+            if (f && f.action) {
+                const a = map(f.action, w);
+                if (a !== f.action)
+                    f.action = a;
+            }
+        };
+        const submit = w.HTMLFormElement.prototype.submit;
+        if (!submit.__guit3Nav) {
+            const s = function () { fixForm(this); return submit.call(this); };
+            s.__guit3Nav = true;
+            w.HTMLFormElement.prototype.submit = s;
+        }
+        w.addEventListener("submit", (e) => fixForm(e.target), true);
+
+        const fixLink = (e) => {
+            const a = e.target && e.target.closest && e.target.closest("a[href], area[href]");
+            if (a) {
+                const h = map(a.href, w);
+                if (h !== a.href)
+                    a.href = h;
+            }
+        };
+        w.addEventListener("click", fixLink, true);
+        w.addEventListener("auxclick", fixLink, true);
+
+        if (w.navigation) {
+            w.navigation.addEventListener("navigate", (e) => {
+                const to = e.destination.url;
+                const m = map(to, w);
+                if (m === to || !e.cancelable || e.formData)
+                    return;
+                e.preventDefault();
+                if (e.navigationType === "replace")
+                    w.location.replace(m);
+                else
+                    w.location.assign(m);
+            });
+        }
+    }
+
+    patch(window);
+}
+
+const NAV_SHIM = MOUNT
+    ? "<script>/* guit3 WebUI: see guit3-webui-sw.js */(" + navShim.toString() + ")("
+        + JSON.stringify(SCOPE) + "," + JSON.stringify(MOUNT) + ");</script>"
+    : "";
+
 /* statuses whose Response must have a null body (the constructor throws otherwise) */
 const NULL_BODY_STATUS = new Set([101, 103, 204, 205, 304]);
 
@@ -107,8 +309,9 @@ const NULL_BODY_STATUS = new Set([101, 103, 204, 205, 304]);
  *   - any other request from a client (frame/tab) whose document a VM served
  *     goes to that VM: XHRs, images, scripts, forms, beacons.
  *
- *   Everything else - guit3.html's own page and assets above all - is left
- *   alone and goes to the network untouched, even at a path like /webui/.
+ *   Everything else - guit3.html's own page and assets above all - goes to
+ *   the network, even at a path like /webui/, only gaining the isolation
+ *   headers on the way back (passThrough()).
  *   Keying everything by bridge also keeps two guit3 tabs, each running its
  *   own game, from ever seeing each other's traffic.
  *
@@ -239,9 +442,12 @@ self.addEventListener("fetch", (event) => {
 
     if (restored) {
         const bridgeId = routeFor(req, url, event.clientId);
-        if (bridgeId !== null)
+        if (bridgeId !== null) {
             serve(event, bridgeId, url);
-        /* else not ours - let the network handle it untouched */
+        } else if (!(req.cache === "only-if-cached" && req.mode !== "same-origin")) {
+            /* not ours - from the network, made cross-origin-isolated */
+            event.respondWith(passThrough(req));
+        }
         return;
     }
 
@@ -257,11 +463,34 @@ self.addEventListener("fetch", (event) => {
         const bridgeId = routeFor(req, url, event.clientId);
         if (bridgeId === null) {
             done();
-            return fetch(req);
+            return passThrough(req);
         }
         return reply(req, url, bridgeId, event.resultingClientId, done);
     }));
 });
+
+/*
+ *   A request that isn't a VM's, fetched from the network with
+ *   ISOLATION_HEADERS added where the server didn't send them, so guit3.html
+ *   is cross-origin-isolated even on a host that can't send them itself.
+ */
+async function passThrough(req) {
+    const resp = await fetch(req);
+    /* opaque responses (and redirects of navigations) can't be rebuilt */
+    if (resp.status === 0 || resp.type === "opaque" || resp.type === "opaqueredirect")
+        return resp;
+    const headers = new Headers(resp.headers);
+    let added = false;
+    for (const [k, v] of ISOLATION_HEADERS) {
+        if (!headers.has(k)) {
+            headers.set(k, v);
+            added = true;
+        }
+    }
+    if (!added)
+        return resp;
+    return new Response(resp.body, { status: resp.status, statusText: resp.statusText, headers });
+}
 
 function serve(event, bridgeId, url) {
     let done;
@@ -279,7 +508,7 @@ function reply(req, url, bridgeId, resultingClientId, done) {
             && b.launch.has(url.pathname + url.search)
             && !b.docs.has(req.referrer);
         adopt(bridgeId, resultingClientId, url);
-        const shim = (hostedStart ? HOSTED_START_SHIM : "") + FRAME_XHR_SHIM;
+        const shim = (hostedStart ? HOSTED_START_SHIM : "") + FRAME_XHR_SHIM + NAV_SHIM;
         r = relayToVM(req, url, bridgeId, done).then((resp) => injectShim(resp, shim));
     } else {
         r = relayToVM(req, url, bridgeId, done);
@@ -357,7 +586,7 @@ async function relayToVM(req, url, bridgeId, done) {
     bridge.postMessage({
         type: "guit3-webui-request",
         method: req.method,
-        target: url.pathname + url.search,
+        target: vmTarget(url),
         headers: [...req.headers],
         body,
     }, body ? [ch.port2, body] : [ch.port2]);
