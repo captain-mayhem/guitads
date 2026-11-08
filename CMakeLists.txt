@@ -20,7 +20,7 @@
 # (tads-runner's CMakeLists.txt, which does the CPack setup, reads it from
 # here). Bump it for a release; release.yml checks that the v<version> tag
 # matches.
-set(GUITADS_VERSION 1.0.0)
+set(GUITADS_VERSION 1.0.1)
 set(GUITADS_VERSION ${GUITADS_VERSION} PARENT_SCOPE)
 
 # Captain's Game Engine is a third sibling checkout. guit3 runs on it (the

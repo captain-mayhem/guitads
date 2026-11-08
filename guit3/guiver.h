@@ -11,7 +11,7 @@ Name
  *   The Imgui port build number string.  This should simply be incremented
  *   by one on every public release.  
  */
-#define GUITADS_BUILD  "1"
+#define GUITADS_BUILD  "2"
 
 
 #endif /* GUIVER_H */

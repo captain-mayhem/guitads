@@ -17,6 +17,12 @@ Dear ImGui, the sound (playback, and the WAV, MP3 and Ogg Vorbis decoders), and 
 library (`CGE.dll` and `CGE_GL.dll` next to `guit3.exe` on Windows, `lib/` on Linux) and reads the
 engine's `engine.ini` next to its executable. guitads finds it in `../captainsengine`; set `CGE_DIR` to use another folder.
 
+A web version can be found here:
+[Guitads Web](https://captain-mayhem.github.io/guitads)
+You can load your Tads 3 game with "File", "Open Game from Device..."
+Save games are stored in the browser's persistent storage, you can download/restore your save games with
+"Export saved position" / "Import saved position".
+
 See LICENSE for licensing details
 
 ## How to build
