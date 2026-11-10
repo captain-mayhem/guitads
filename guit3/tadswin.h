@@ -1753,6 +1753,33 @@ public:
     void render_vscrollbar_imgui();
 
     /*
+     *   A finger dragging on the touch screen, which scrolls the window it
+     *   touched down in (a mouse drag selects text instead).  The main
+     *   window's mouse routing (CHtmlSys_mainwin, htmlgui.cpp) decides that
+     *   a touch is a drag and sets this; render_vscrollbar_imgui() of the
+     *   scrolling window under the starting point takes it over in the same
+     *   frame and follows it.
+     */
+    struct touch_scroll_t
+    {
+        /* a finger is dragging */
+        bool active;
+
+        /* where it touched down, in ImGui screen coordinates */
+        float start_x, start_y;
+
+        /* how far it moved down since then, in pixels */
+        float dy;
+
+        /* the window scrolling, nullptr until one took the drag over */
+        CTadsWinScroll *win;
+
+        /* that window's vertical scroll position when it took it over */
+        long start_pos;
+    };
+    static touch_scroll_t touch_scroll_;
+
+    /*
      *   Do scrolling.  If use_pos is true, we'll ignore the scrollbar's
      *   internal control settings and use the pos value; otherwise, we'll
      *   use the scrollbar's settings.  When called directly (rather than

@@ -39,6 +39,7 @@ Modified
 #include <imgui.h>
 #include <imgui_internal.h>
 #include <ui/imgui_impl_cge_render.h>
+#include <platform/systemfonts.h>
 #include <window/window.h>
 
 #include "guiengine.h"
@@ -101,6 +102,7 @@ Modified
 #ifndef GUIOS_H
 #include "guios.h"
 #endif
+#include "websaves.h"
 #ifndef W32SND_H
 #include "guisnd.h"
 #endif
@@ -4426,8 +4428,6 @@ void CHtmlSysWin_win32::inval_more_area()
  */
 void CHtmlSysWin_win32::get_moreprompt_rect(RECT *rc)
 {
-    HDC dc;
-    SIZE txtsiz;
     int x, y;
     SCROLLINFO info;
     long vscroll_max;
@@ -4459,23 +4459,19 @@ void CHtmlSysWin_win32::get_moreprompt_rect(RECT *rc)
     y = doc_to_screen_y(vscroll_max*get_vscroll_units() + rc->bottom);
     x = doc_to_screen_x(0);
 
-    /* set the appropriate font */
-    dc = GetDC(NULL);
-    select_font(dc, get_default_font());
-
-    /* get the size of the prompt */
-    ht_GetTextExtentPoint32(dc, more_prompt_str_.get(),
-                            strlen(more_prompt_str_.get()), &txtsiz);
+    /*
+     *   get the size of the prompt in the default font - with the FreeType
+     *   metrics it's drawn with (measure_text()), not GDI's, which only
+     *   exist on Windows
+     */
+    CHtmlPoint txtsiz = measure_text(get_default_font(), more_prompt_str_.get(),
+                                     strlen(more_prompt_str_.get()), 0);
 
     /*
      *   position it at the bottom of the text area when scrolled all the
-     *   way to the bottom 
+     *   way to the bottom
      */
-    SetRect(rc, x, y - txtsiz.cy, rc->right, y);
-
-    /* done with the device context */
-    ReleaseDC(NULL, dc);
-    ImGui::PopFont();
+    SetRect(rc, x, y - txtsiz.y, rc->right, y);
 }
 
 /*
@@ -5264,7 +5260,8 @@ void CHtmlSysWin_win32::format_after_resize(long new_width)
         /* forget any tracking links */
         status_link_ = track_link_ = 0;
 
-        /* discard all current formatting */
+        /* discard all current formatting, with the margins for the new width */
+        update_text_margins();
         formatter_->start_at_top(FALSE);
 
         /* run the formatter */
@@ -5713,6 +5710,10 @@ void CHtmlSysWin_win32::do_paint_content(HDC dc, const RECT *rc)
     }
 }
 
+/* fill a rectangle in the window's drawing coordinates (defined below) */
+static void fill_local_rect(long left, long top, long right, long bottom,
+                            ImU32 color);
+
 /*
 * paint the window contents
 */
@@ -5839,26 +5840,39 @@ void CHtmlSysWin_win32::do_render_content_begin()
     /* draw our own border, if we're a bordered banner */
     draw_banner_border_imgui();
 
-    /* if we're in "MORE" mode, draw a prompt at the bottom */
+    /*
+     *   if we're in "MORE" mode, draw a prompt at the bottom: the prompt in
+     *   the highlight text color, in the default font, over a bar of the
+     *   highlight color (the in-window style; the other one shows "MORE" in
+     *   the status line)
+     */
     if (more_mode_ && !prefs_->get_alt_more_style())
     {
-        COLORREF oldclr;
-        int oldbkmode;
-#if 0
-        /* write the prompt in white text in the default font */
-        select_font(dc, get_default_font());
-        oldclr = SetTextColor(dc, GetSysColor(COLOR_HIGHLIGHTTEXT));
-        oldbkmode = SetBkMode(dc, TRANSPARENT);
+        /*
+         *   nothing past the prompt shows: the formatter leaves out the
+         *   lines there, but not a table's background reaching below
+         */
+        fill_local_rect(more_rc.left, more_rc.bottom, more_rc.right,
+                        (long)m_size.y, ImGui::GetColorU32(bgcolor_));
+        fill_local_rect(more_rc.left, more_rc.top, more_rc.right,
+                        more_rc.bottom,
+                        ImGui::GetColorU32(HTML_color_to_ImVec4(COLORREF_to_HTML_color(
+                            os_get_sys_color(OS_SYS_COLOR_HIGHLIGHT)))));
 
-        /* write the MORE prompt over a dark gray background */
-        FillRect(dc, &more_rc, GetSysColorBrush(COLOR_HIGHLIGHT));
-        ExtTextOut(dc, more_rc.left, more_rc.top, 0, 0,
-            more_prompt_str_.get(), strlen(more_prompt_str_.get()), 0);
-
-        /* restore the old text color and mode */
-        SetBkMode(dc, oldbkmode);
-        SetTextColor(dc, oldclr);
-#endif
+        CHtmlSysFont *font = get_default_font();
+        const textchar_t *str = more_prompt_str_.get();
+        size_t utf8size = 0;
+        char *utf8data = os_local_to_utf8(font->get_charset().codepage,
+                                          str, strlen(str), &utf8size);
+        static_cast<CHtmlSysFont_win32 *>(font)->push_imgui_font();
+        ImGui::SetCursorPos(ImVec2((float)more_rc.left, (float)more_rc.top));
+        ImGui::PushStyleColor(ImGuiCol_Text,
+                              HTML_color_to_ImVec4(COLORREF_to_HTML_color(
+                                  os_get_sys_color(OS_SYS_COLOR_HIGHLIGHT_TEXT))));
+        ImGui::TextUnformatted(utf8data, utf8data + utf8size);
+        ImGui::PopStyleColor();
+        ImGui::PopFont();
+        th_free(utf8data);
     }
 }
 
@@ -5918,22 +5932,23 @@ CHtmlPoint CHtmlSysWin_win32::measure_text(CHtmlSysFont *font,
                                            const textchar_t *txt, size_t len,
                                            int *ascent)
 {
-    SIZE txtsiz;
     HDC dc;
-    TEXTMETRIC tm;
 
-    /* get my device context */
+    /* get my device context, and select the font (this pushes its ImGui font) */
     dc = GetDC(NULL);
-
-    /* select the font */
     select_font(dc, font);
 
-    /* get the text width */
-    ht_GetTextExtentPoint32(dc, txt, len, &txtsiz);
-
-    /* get the height from the text metrics */
-    GetTextMetrics(dc, &tm);
-    txtsiz.cy = tm.tmHeight;
+    /*
+     *   The height is the font's line height, its ascender plus descender,
+     *   as GDI's tmHeight was in HTML TADS, and the ascent is the font's
+     *   own: both from the FreeType metrics the text is drawn with.  This
+     *   used ImGui's text height, which is only the font's size (the em),
+     *   so lines sat closer than the font asks for - 19 pixels instead of
+     *   26 for Thaumistry's Open Sans at 18 - and the ascent came from GDI
+     *   (on a GDI font that need not be the one drawn; nothing off Windows).
+     */
+    CHtmlFontMetrics metrics;
+    font->get_font_metrics(&metrics);
 
     /*
      *   Convert the engine's local-codepage bytes to the UTF-8 Dear ImGui
@@ -5955,7 +5970,7 @@ CHtmlPoint CHtmlSysWin_win32::measure_text(CHtmlSysFont *font,
 
     /* return the ascender height if the caller wants it */
     if (ascent != 0)
-        *ascent = tm.tmAscent;
+        *ascent = metrics.ascender_height;
 
     /* done with the DC */
     ReleaseDC(NULL, dc);
@@ -5963,7 +5978,7 @@ CHtmlPoint CHtmlSysWin_win32::measure_text(CHtmlSysFont *font,
     ImGui::PopFont();
 
     /* return the value, reinterpreted into our own Point type */
-    return CHtmlPoint(size.x, size.y/*txtsiz.cx, txtsiz.cy*/);
+    return CHtmlPoint((long)size.x, metrics.total_height);
 }
 
 /*
@@ -6251,6 +6266,22 @@ void CHtmlSysWin_win32::draw_text_clip(int hilite, long x, long y,
         char *utf8data = os_local_to_utf8(
             font->get_charset().codepage, str, len, &utf8size);
 
+        /*
+         *   ExtTextOut()'s ETO_CLIPPED: draw_text_space() fills a gap with
+         *   whole spaces and clips the last one to the gap, so a selection
+         *   highlight or an underline doesn't run on into the next word
+         */
+        bool clipped = (flags & ETO_CLIPPED) != 0 && doc_cliprect != 0;
+        if (clipped)
+        {
+            ImVec2 win = ImGui::GetWindowPos();
+            float ox = win.x - ImGui::GetScrollX();
+            float oy = win.y - ImGui::GetScrollY();
+            ImGui::PushClipRect(ImVec2(ox + cliprect.left, oy + cliprect.top),
+                                ImVec2(ox + cliprect.right, oy + cliprect.bottom),
+                                true);
+        }
+
         ImGui::SetCursorPos(ImVec2(x, y));
         ImGui::PushStyleColor(ImGuiCol_Text, textColor);
         if (font->get_font_desc_ref()->underline || drawBackground) {
@@ -6272,6 +6303,8 @@ void CHtmlSysWin_win32::draw_text_clip(int hilite, long x, long y,
         ImGui::SetCursorPos(ImVec2(x, y));
         ImGui::TextUnformatted(utf8data, utf8data + utf8size);
         ImGui::PopStyleColor();
+        if (clipped)
+            ImGui::PopClipRect();
         th_free(utf8data);
     }
     ImGui::PopFont();
@@ -6527,176 +6560,106 @@ void CHtmlSysWin_win32::unregister_timer_func(void (*timer_func)(void *),
 }
 
 /*
- *   draw a horizontal rule 
+ *   Fill a rectangle given in the window's drawing coordinates (the x/y
+ *   draw_text() hands ImGui::SetCursorPos()), for the current frame.  The
+ *   rules and the tables' backgrounds and borders below still filled GDI
+ *   rectangles on hdc_, which draws nothing in guit3: tables had no
+ *   background (Thaumistry's letter, <table bgcolor=statusbg>) and no
+ *   borders, and <hr> was invisible.  The formatter draws a table before its
+ *   cells' contents, so the background ends up behind the text.
+ */
+static void fill_local_rect(long left, long top, long right, long bottom,
+                            ImU32 color)
+{
+    if (ImGui::GetCurrentContext()->CurrentWindow == nullptr
+        || right <= left || bottom <= top)
+        return;
+    ImVec2 win = ImGui::GetWindowPos();
+    float ox = win.x - ImGui::GetScrollX();
+    float oy = win.y - ImGui::GetScrollY();
+    ImGui::GetWindowDrawList()->AddRectFilled(
+        ImVec2(ox + left, oy + top), ImVec2(ox + right, oy + bottom), color);
+}
+
+/*
+ *   The classic 3D colors of rules and table borders (COLOR_3DSHADOW,
+ *   COLOR_3DFACE, COLOR_3DHILIGHT): GetSysColor() only exists on Windows,
+ *   and these are its usual values
+ */
+static const ImU32 rule_shadow = IM_COL32(160, 160, 160, 255);
+static const ImU32 rule_face = IM_COL32(240, 240, 240, 255);
+static const ImU32 rule_hilite = IM_COL32(255, 255, 255, 255);
+
+/*
+ *   draw a horizontal rule
  */
 void CHtmlSysWin_win32::draw_hrule(const CHtmlRect *pos, int shade)
 {
-    HBRUSH shadow;
-    HBRUSH hilite;
-    RECT rc;
-    CHtmlRect scrpos;
-
     /* convert the position to absolute coordinates */
-    scrpos = doc_to_screen(*pos);
+    CHtmlRect rc = doc_to_screen(*pos);
 
-    /* set up a windows RECT structure for the position */
-    SetRect(&rc, scrpos.left, scrpos.top, scrpos.right, scrpos.bottom);
-
-    /* get system brushes for shadow and highlight colors */
-    shadow = GetSysColorBrush(COLOR_3DSHADOW);
-    hilite = GetSysColorBrush(COLOR_3DHILIGHT);
-
-    /* see if we're shading */
     if (shade)
     {
-        RECT lrc;
-        
-        /* fill the top line with shadow color */
-        SetRect(&lrc, rc.left, rc.top, rc.right, rc.top + 1);
-        FillRect(hdc_, &lrc, shadow);
-
-        /* draw the left edge with shadow color */
-        SetRect(&lrc, rc.left, rc.top, rc.left + 1, rc.bottom - 1);
-        FillRect(hdc_, &lrc, shadow);
-
-        /* fill the bottom line with hilite color */
-        SetRect(&lrc, rc.left, rc.bottom - 1, rc.right, rc.bottom);
-        FillRect(hdc_, &lrc, hilite);
-
-        /* fill the right line with hilite color */
-        SetRect(&lrc, rc.right - 1, rc.top, rc.right, rc.bottom);
-        FillRect(hdc_, &lrc, hilite);
+        /* engraved: shadow on the top and left, highlight bottom and right */
+        fill_local_rect(rc.left, rc.top, rc.right, rc.top + 1, rule_shadow);
+        fill_local_rect(rc.left, rc.top, rc.left + 1, rc.bottom - 1, rule_shadow);
+        fill_local_rect(rc.left, rc.bottom - 1, rc.right, rc.bottom, rule_hilite);
+        fill_local_rect(rc.right - 1, rc.top, rc.right, rc.bottom, rule_hilite);
     }
     else
     {
         /* not shading - fill in the rectangle with the shadow color */
-        FillRect(hdc_, &rc, shadow);
+        fill_local_rect(rc.left, rc.top, rc.right, rc.bottom, rule_shadow);
     }
 }
 
 /*
- *   Draw a table/cell background 
+ *   Draw a table/cell background
  */
 void CHtmlSysWin_win32::draw_table_bkg(const CHtmlRect *pos,
                                        HTML_color_t bgcolor)
 {
-    HBRUSH hbr;
-    LOGBRUSH lbr;
-    RECT rc;
-    CHtmlRect scrpos;
-
-    /* create a brush with the given color */
-    lbr.lbStyle = BS_SOLID;
-    lbr.lbColor = HTML_color_to_COLORREF(bgcolor);
-    lbr.lbHatch = 0;
-    hbr = CreateBrushIndirect(&lbr);
-
-    /* set up a Windows RECT structure in screen coordinates */
-    scrpos = doc_to_screen(*pos);
-    SetRect(&rc, scrpos.left, scrpos.top, scrpos.right, scrpos.bottom);
-
-    /* fill the area with the given brush */
-    FillRect(hdc_, &rc, hbr);
-
-    /* we're done with the brush */
-    DeleteObject(hbr);
+    CHtmlRect rc = doc_to_screen(*pos);
+    fill_local_rect(rc.left, rc.top, rc.right, rc.bottom,
+                    ImGui::GetColorU32(HTML_color_to_ImVec4(bgcolor)));
 }
 
 /*
- *   Draw a table/cell border 
+ *   Draw a table/cell border
  */
 void CHtmlSysWin_win32::draw_table_border(const CHtmlRect *pos, int width,
                                           int cell)
 {
-    HBRUSH shadow;
-    HBRUSH hilite;
-    HBRUSH tl_brush, br_brush;
-    RECT rc;
-    RECT lrc;
-    CHtmlRect scrpos;
+    CHtmlRect rc = doc_to_screen(*pos);
 
-    /* convert the position to absolute coordinates */
-    scrpos = doc_to_screen(*pos);
-
-    /* set up a windows RECT structure for the position */
-    SetRect(&rc, scrpos.left, scrpos.top, scrpos.right, scrpos.bottom);
-
-    /* get system brushes for shadow and highlight colors */
-    shadow = GetSysColorBrush(COLOR_3DSHADOW);
-    hilite = GetSysColorBrush(COLOR_3DFACE);
-
-    /* 
-     *   select the drawing scheme according to whether we're drawing a table
-     *   or a cell 
+    /*
+     *   a cell looks indented (shadow on the top and left), the table
+     *   embossed (the other way round)
      */
-    if (cell)
+    ImU32 tl = cell ? rule_shadow : rule_face;
+    ImU32 br = cell ? rule_face : rule_shadow;
+
+    /* the top and left lines */
+    fill_local_rect(rc.left, rc.top, rc.right - width, rc.top + width, tl);
+    fill_local_rect(rc.left, rc.top, rc.left + width, rc.bottom - width, tl);
+
+    /* the bottom and right lines, over the corners */
+    fill_local_rect(rc.left, rc.bottom - width, rc.right, rc.bottom, br);
+    fill_local_rect(rc.right - width, rc.top, rc.right, rc.bottom, br);
+
+    /* a wide table border: the edges meet diagonally in the corners */
+    if (!cell && width > 1 && ImGui::GetCurrentContext()->CurrentWindow != nullptr)
     {
-        /* 
-         *   cell - make these look indented, so use the shadow color for the
-         *   top and left edges, and the highlight color for the bottom and
-         *   right edges 
-         */
-        tl_brush = shadow;
-        br_brush = hilite;
-    }
-    else
-    {
-        /* 
-         *   table - make the whole table look embossed, so use the highlight
-         *   color for the top and left edges, and the shadow color for the
-         *   bottom and right edges 
-         */
-        tl_brush = hilite;
-        br_brush = shadow;
-    }
-
-    /* draw the top and left lines in highlight color */
-    SetRect(&lrc, rc.left, rc.top, rc.right - width, rc.top + width);
-    FillRect(hdc_, &lrc, tl_brush);
-    SetRect(&lrc, rc.left, rc.top, rc.left + width, rc.bottom - width);
-    FillRect(hdc_, &lrc, tl_brush);
-
-    /* draw the right and bottom lines in shadow color */
-    SetRect(&lrc, rc.left, rc.bottom - width, rc.right, rc.bottom);
-    FillRect(hdc_, &lrc, br_brush);
-    SetRect(&lrc, rc.right - width, rc.top, rc.right, rc.bottom);
-    FillRect(hdc_, &lrc, br_brush);
-
-    /* 
-     *   If the width is greater than 1, fill in the corners to make the
-     *   edges meet diagonally.  We've already drawn the bottom and right
-     *   lines so they fully overlap the corners, so just add little
-     *   triangles extending from the left and bottom edges.  
-     */
-    if (!cell && width > 1)
-    {
-        HPEN null_pen;
-        HPEN old_pen;
-        HBRUSH old_brush;
-        POINT pts[3];
-
-        /* set up and select an empty pen */
-        null_pen = CreatePen(PS_NULL, 0, 0);
-        old_pen = (HPEN)SelectObject(hdc_, null_pen);
-
-        /* select the top/left brush */
-        old_brush = (HBRUSH)SelectObject(hdc_, tl_brush);
-
-        /* draw the top right corner */
-        pts[0].x = rc.right - width;  pts[0].y = rc.top;
-        pts[1].x = rc.right;          pts[1].y = rc.top;
-        pts[2].x = rc.right - width;  pts[2].y = rc.top + width;
-        Polygon(hdc_, pts, 3);
-
-        /* draw the bottom left corner */
-        pts[0].x = rc.left;           pts[0].y = rc.bottom - width;
-        pts[1].x = rc.left;           pts[1].y = rc.bottom;
-        pts[2].x = rc.left + width;   pts[2].y = rc.bottom - width;
-        Polygon(hdc_, pts, 3);
-
-        /* restore the old pen and brush */
-        SelectObject(hdc_, old_pen);
-        SelectObject(hdc_, old_brush);
+        ImVec2 win = ImGui::GetWindowPos();
+        float ox = win.x - ImGui::GetScrollX();
+        float oy = win.y - ImGui::GetScrollY();
+        ImDrawList *dl = ImGui::GetWindowDrawList();
+        dl->AddTriangleFilled(ImVec2(ox + rc.right - width, oy + rc.top),
+                              ImVec2(ox + rc.right, oy + rc.top),
+                              ImVec2(ox + rc.right - width, oy + rc.top + width), tl);
+        dl->AddTriangleFilled(ImVec2(ox + rc.left, oy + rc.bottom - width),
+                              ImVec2(ox + rc.left, oy + rc.bottom),
+                              ImVec2(ox + rc.left + width, oy + rc.bottom - width), tl);
     }
 }
 
@@ -7104,7 +7067,8 @@ void CHtmlSysWin_win32::do_reformat(int show_status, int freeze_display,
     /* we're obviously not in MORE mode yet */
     set_more_mode(FALSE);
 
-    /* restart the formatter */
+    /* restart the formatter, with the margins for the current theme */
+    update_text_margins();
     formatter_->start_at_top(reset_sounds);
 
     /* make sure we redraw everything */
@@ -8290,6 +8254,33 @@ int CHtmlSysWin_win32_Input::do_user_message(
 
     /* inherit default handling */
     return CHtmlSysWin_win32::do_user_message(msg, wpar, lpar);
+}
+
+/*
+ *   Center the main text in a column of the theme's maximum text width (in
+ *   average characters of the main font, like QTads' "line width" setting;
+ *   Thaumistry's interpreter uses 80): in a wider window the left and right
+ *   margins take up the rest.  The margins are otherwise the 8 pixels the
+ *   constructor sets.  A table or picture wider than the column still fits
+ *   in it as it would in a narrow window.
+ */
+void CHtmlSysWin_win32_Input::update_text_margins()
+{
+    const long base = 8;
+    long side = base;
+    long chars = prefs_ != 0 ? prefs_->get_max_text_width() : 0;
+    if (chars > 0 && disp_width_ > 0)
+    {
+        static const textchar_t alphabet[] = "abcdefghijklmnopqrstuvwxyz";
+        CHtmlPoint size = measure_text(get_default_font(), alphabet,
+                                       sizeof(alphabet) - 1, 0);
+        long column = chars * size.x / (long)(sizeof(alphabet) - 1);
+        if (column > 0 && disp_width_ - 2 * base > column)
+            side = (disp_width_ - column) / 2;
+    }
+
+    CHtmlRect m = formatter_->get_phys_margins();
+    formatter_->set_phys_margins(side, m.top, side, m.bottom);
 }
 
 /*
@@ -10329,8 +10320,11 @@ void CHtmlSys_framewin::set_winpos_prefs()
     /* get the frame coordinates */
     hwnd = get_frame_pos(&rc);
 
-    /* if the window isn't iconic, remember its current position */
-    if (!IsIconic(hwnd))
+    /*
+     *   if the window isn't iconic, remember its current position - not an
+     *   empty one (minimized, or no window of its own: get_frame_pos())
+     */
+    if (!IsIconic(hwnd) && rc.right > rc.left && rc.bottom > rc.top)
     {
         CHtmlRect winpos;
 
@@ -10614,30 +10608,25 @@ CHtmlSys_mainwin::CHtmlSys_mainwin(CHtmlFormatterInput *formatter,
      */
     CHtmlDisp::set_image_scale(CTadsFont::get_dpi_scale());
 
-    bool lightColors = true;
-    // Setup Dear ImGui style
-    if (lightColors) {
-        ImGui::StyleColorsLight();
+    /*
+     *   How far the mouse or a finger moves before it's a drag, not a
+     *   click: ImGui's 6 pixels at 100%, scaled like the rest.  A finger
+     *   wobbles more than a mouse, and a drag on the touch screen scrolls
+     *   instead of tapping (CHtmlSys_mainwin::event_loop()), so Android
+     *   takes its own touch slop, 8dp.
+     */
+#ifdef ANDROID
+    io.MouseDragThreshold = 8.0f * CTadsFont::get_dpi_scale();
+#else
+    io.MouseDragThreshold = 6.0f * CTadsFont::get_dpi_scale();
+#endif
 
-        /*
-         *   Match the window chrome (menu bar, toolbar, dropdown/context menus,
-         *   and by extension every plain ImGui::Begin() window, i.e. dialogs) to
-         *   the status bar's classic grey (see CTadsStatusline::render() in
-         *   tadsstat.cpp) instead of the light theme's near-white default, so
-         *   the whole UI - menu bar, toolbar, status bar, and any popup menu -
-         *   reads as one consistent Win32-chrome grey without each call site
-         *   needing its own PushStyleColor(WindowBg/MenuBarBg/PopupBg) override.
-         */
-        ImGuiStyle& style = ImGui::GetStyle();
-        const ImVec4 chrome_bg(212.0f / 255.0f, 212.0f / 255.0f, 212.0f / 255.0f, 1.0f);
-        const ImVec4 chrome_bg_transp(232.0f / 255.0f, 232.0f / 255.0f, 232.0f / 255.0f, 0.94f);
-        style.Colors[ImGuiCol_WindowBg] = chrome_bg;
-        style.Colors[ImGuiCol_MenuBarBg] = chrome_bg_transp;
-        style.Colors[ImGuiCol_PopupBg] = chrome_bg_transp;
-    }
-    else {
-        ImGui::StyleColorsDark();
-    }
+    /*
+     *   Set up the Dear ImGui style: light chrome to start with; do_render()
+     *   switches to the dark chrome for a theme with "Dark Window Frame"
+     *   set (the Dark theme's default).
+     */
+    apply_chrome_style(false);
 
     /* create the main HTML display panel window */
     main_panel_ = new CHtmlSysWin_win32_Input(
@@ -10708,6 +10697,7 @@ CHtmlSys_mainwin::CHtmlSys_mainwin(CHtmlFormatterInput *formatter,
     /* no pending new-game or quit confirmation dialogs yet */
     pending_new_game_confirm_ = FALSE;
     pending_new_game_is_recent_ = FALSE;
+    pending_new_game_is_upload_ = FALSE;
     pending_new_game_recent_idx_ = 0;
     new_game_confirm_opened_ = FALSE;
     pending_quit_confirm_ = FALSE;
@@ -11478,7 +11468,66 @@ int CHtmlSys_mainwin::do_timer(int timer_id)
     }
 }
 
+/*
+ *   Set the Dear ImGui style for the window chrome (menu bar, toolbar,
+ *   dialogs, popup menus) and tell the hand-drawn chrome (status bar, main
+ *   panel frame, toolbar buttons) which palette to use.
+ */
+void CHtmlSys_mainwin::apply_chrome_style(bool dark)
+{
+    ImGuiStyle &style = ImGui::GetStyle();
+
+    if (dark)
+    {
+        ImGui::StyleColorsDark();
+
+        /*
+         *   Dark slate rather than the dark style's near-black, matching
+         *   the status bar's dark color (CTadsStatusline::render()).
+         */
+        const ImVec4 chrome_bg(32.0f / 255.0f, 38.0f / 255.0f, 43.0f / 255.0f, 1.0f);
+        const ImVec4 chrome_bg_transp(38.0f / 255.0f, 45.0f / 255.0f, 51.0f / 255.0f, 0.94f);
+        style.Colors[ImGuiCol_WindowBg] = chrome_bg;
+        style.Colors[ImGuiCol_MenuBarBg] = chrome_bg_transp;
+        style.Colors[ImGuiCol_PopupBg] = chrome_bg_transp;
+    }
+    else
+    {
+        ImGui::StyleColorsLight();
+
+        /*
+         *   Match the window chrome (menu bar, toolbar, dropdown/context menus,
+         *   and by extension every plain ImGui::Begin() window, i.e. dialogs) to
+         *   the status bar's classic grey (see CTadsStatusline::render() in
+         *   tadsstat.cpp) instead of the light theme's near-white default, so
+         *   the whole UI - menu bar, toolbar, status bar, and any popup menu -
+         *   reads as one consistent Win32-chrome grey without each call site
+         *   needing its own PushStyleColor(WindowBg/MenuBarBg/PopupBg) override.
+         */
+        const ImVec4 chrome_bg(212.0f / 255.0f, 212.0f / 255.0f, 212.0f / 255.0f, 1.0f);
+        const ImVec4 chrome_bg_transp(232.0f / 255.0f, 232.0f / 255.0f, 232.0f / 255.0f, 0.94f);
+        style.Colors[ImGuiCol_WindowBg] = chrome_bg;
+        style.Colors[ImGuiCol_MenuBarBg] = chrome_bg_transp;
+        style.Colors[ImGuiCol_PopupBg] = chrome_bg_transp;
+    }
+
+    CTadsStatusline::set_dark_chrome(dark);
+    gui_set_dark_title_bar(dark);
+    dark_chrome_ = dark;
+}
+
 int CHtmlSys_mainwin::do_render() {
+    /*
+     *   Follow the active theme's "Dark Window Frame" setting with the chrome
+     *   style.  Checked every frame instead of at each place the active
+     *   profile or the setting can change (Themes menu, toolbar dropdown,
+     *   Options and Customize Theme dialogs, per-game profile on game load,
+     *   profile deletion), since it costs only a lookup.
+     */
+    bool want_dark = (prefs_->get_dark_chrome() != 0);
+    if (want_dark != dark_chrome_)
+        apply_chrome_style(want_dark);
+
     /*
      *   draw the menu bar first, so its height is up to date before we
      *   compute the layout for everything below it (recalc_banner_layout(),
@@ -11670,9 +11719,18 @@ void CHtmlSys_mainwin::render_menu_bar()
     if (menu_mnem("File", 'F'))
     {
         item(ID_FILE_LOADGAME, "Open New Game...", "Ctrl+O");
+#ifdef __EMSCRIPTEN__
+        /* a game file from the device, uploaded (websaves.h) */
+        item(ID_FILE_UPLOADGAME, "Open Game from Device...");
+#endif
         ImGui::Separator();
         item(ID_FILE_SAVEGAME, "Save Position...", "Ctrl+S");
         item(ID_FILE_RESTOREGAME, "Restore Position...", "Ctrl+R");
+#ifdef __EMSCRIPTEN__
+        /* the browser's storage <-> downloads and uploads (websaves.h) */
+        item(ID_FILE_EXPORTSAVE, "Export Saved Position...");
+        item(ID_FILE_IMPORTSAVE, "Import Saved Position...");
+#endif
         item(ID_FILE_QUIT, "Quit Game", "Ctrl+Q");
         ImGui::Separator();
 
@@ -11921,9 +11979,13 @@ void CHtmlSys_mainwin::render_panel_bevel()
     ImDrawList *dl = ImGui::GetWindowDrawList();
     dl->PushClipRectFullScreen();
 
-    const ImU32 black = IM_COL32(0, 0, 0, 255);
-    const ImU32 white = IM_COL32(255, 255, 255, 255);
-    const ImU32 ltgray = IM_COL32(212, 212, 212, 255);
+    /* classic sunken-frame colors, or their dark-chrome counterparts */
+    const ImU32 black = dark_chrome_ ? IM_COL32(16, 20, 23, 255)
+                                     : IM_COL32(0, 0, 0, 255);
+    const ImU32 white = dark_chrome_ ? IM_COL32(58, 68, 76, 255)
+                                     : IM_COL32(255, 255, 255, 255);
+    const ImU32 ltgray = dark_chrome_ ? IM_COL32(32, 38, 43, 255)
+                                      : IM_COL32(212, 212, 212, 255);
 
     /* black line along the top edge, and down the left edge */
     dl->AddLine(ImVec2(left, top), ImVec2(right, top), black);
@@ -12138,6 +12200,12 @@ void CHtmlSys_mainwin::render_new_game_confirm()
 
     if (result == IDYES)
     {
+#ifdef __EMSCRIPTEN__
+        /* the Yes click also lets the browser open its file picker */
+        if (pending_new_game_is_upload_)
+            websaves_upload_game(this);
+        else
+#endif
         if (pending_new_game_is_recent_)
             do_load_recent_game(pending_new_game_recent_idx_);
         else
@@ -12365,8 +12433,16 @@ void CHtmlSys_mainwin::render_toolbar()
      *   to indicate state.
      */
     ImGui::PushStyleColor(ImGuiCol_Button, ImVec4(0.0f, 0.0f, 0.0f, 0.0f));
-    ImGui::PushStyleColor(ImGuiCol_ButtonHovered, ImVec4(0.75f, 0.75f, 0.75f, 1.0f));
-    ImGui::PushStyleColor(ImGuiCol_ButtonActive, ImVec4(0.65f, 0.65f, 0.65f, 1.0f));
+    if (dark_chrome_)
+    {
+        ImGui::PushStyleColor(ImGuiCol_ButtonHovered, ImVec4(0.30f, 0.34f, 0.38f, 1.0f));
+        ImGui::PushStyleColor(ImGuiCol_ButtonActive, ImVec4(0.38f, 0.43f, 0.48f, 1.0f));
+    }
+    else
+    {
+        ImGui::PushStyleColor(ImGuiCol_ButtonHovered, ImVec4(0.75f, 0.75f, 0.75f, 1.0f));
+        ImGui::PushStyleColor(ImGuiCol_ButtonActive, ImVec4(0.65f, 0.65f, 0.65f, 1.0f));
+    }
 
     bool open = ImGui::BeginViewportSideBar("##Toolbar", ImGui::GetMainViewport(),
                                             ImGuiDir_Up, height, flags);
@@ -12457,8 +12533,11 @@ void CHtmlSys_mainwin::render_toolbar()
                     ImVec2(c.x - ah, c.y - ah * 0.5f),
                     ImVec2(c.x + ah, c.y - ah * 0.5f),
                     ImVec2(c.x, c.y + ah * 0.7f),
-                    enabled ? IM_COL32(32, 32, 32, 255)
-                            : IM_COL32(150, 150, 150, 255));
+                    dark_chrome_
+                    ? (enabled ? IM_COL32(220, 220, 220, 255)
+                               : IM_COL32(110, 110, 110, 255))
+                    : (enabled ? IM_COL32(32, 32, 32, 255)
+                               : IM_COL32(150, 150, 150, 255)));
 
                 if (arrow_clicked)
                     ImGui::OpenPopup("##ToolbarThemesDropdown");
@@ -12764,6 +12843,7 @@ void CHtmlSys_mainwin::load_recent_game(int idx)
     {
         pending_new_game_confirm_ = TRUE;
         pending_new_game_is_recent_ = TRUE;
+        pending_new_game_is_upload_ = FALSE;
         pending_new_game_recent_idx_ = idx;
         return;
     }
@@ -13757,7 +13837,17 @@ int CHtmlSys_mainwin::do_command(int notify_code,
 
         /* handled */
         return TRUE;
-        
+
+#ifdef __EMSCRIPTEN__
+    case ID_FILE_EXPORTSAVE:
+        websaves_export(this);
+        return TRUE;
+
+    case ID_FILE_IMPORTSAVE:
+        websaves_import(this);
+        return TRUE;
+#endif
+
     case ID_GO_TO_GAME_CHEST:
         /* 
          *   If a game is running, make sure they know that this will quit
@@ -13883,6 +13973,17 @@ int CHtmlSys_mainwin::do_command(int notify_code,
 
         /* handled */
         return TRUE;
+
+#ifdef __EMSCRIPTEN__
+    case ID_FILE_UPLOADGAME:
+        /* the same conditions as ID_FILE_LOADGAME */
+        if (!standalone_exe_
+            && !in_debugger_
+            && main_panel_ != 0
+            && !main_panel_->get_exit_pause())
+            load_uploaded_game();
+        return TRUE;
+#endif
 
     case ID_FILE_RECENT_1:
     case ID_FILE_RECENT_2:
@@ -14074,7 +14175,14 @@ TadsCmdStat_t CHtmlSys_mainwin::check_command(const check_cmd_info *info)
     case ID_FILE_EXIT:
         /* we can always exit the application */
         return TADSCMD_ENABLED;
-        
+
+#ifdef __EMSCRIPTEN__
+    case ID_FILE_EXPORTSAVE:
+    case ID_FILE_IMPORTSAVE:
+        /* file transfers only, so they're always available */
+        return TADSCMD_ENABLED;
+#endif
+
     case ID_GO_TO_GAME_CHEST:
         /* 
          *   allow going to the game chest if we're not already there;
@@ -14131,7 +14239,10 @@ TadsCmdStat_t CHtmlSys_mainwin::check_command(const check_cmd_info *info)
         return TADSCMD_DISABLED;
 
     case ID_FILE_LOADGAME:
-        /* 
+#ifdef __EMSCRIPTEN__
+    case ID_FILE_UPLOADGAME:
+#endif
+        /*
          *   we can load a new game only in the normal interpreter, not in
          *   the debugger - the debugger has control over this when we're
          *   running under it
@@ -14255,11 +14366,27 @@ void CHtmlSys_mainwin::load_new_game()
     {
         pending_new_game_confirm_ = TRUE;
         pending_new_game_is_recent_ = FALSE;
+        pending_new_game_is_upload_ = FALSE;
         return;
     }
 
     do_load_new_game_prompt();
 }
+
+#ifdef __EMSCRIPTEN__
+void CHtmlSys_mainwin::load_uploaded_game()
+{
+    if (!main_panel_->get_eof_flag())
+    {
+        pending_new_game_confirm_ = TRUE;
+        pending_new_game_is_recent_ = FALSE;
+        pending_new_game_is_upload_ = TRUE;
+        return;
+    }
+
+    websaves_upload_game(this);
+}
+#endif
 
 /*
  *   Show the ImGui file-open dialog and load the chosen game.  Split out of
@@ -15972,19 +16099,92 @@ int CHtmlSys_mainwin::event_loop(int* flag) {
             : mouse_over_dbgwin
             ? static_cast<CTadsWin *>(dbgwin_) : static_cast<CTadsWin *>(this);
 
+        /*
+         *   The touch screen (the engine makes the first finger ImGui's left
+         *   mouse button; io.MouseSource tells it from a mouse): a finger
+         *   dragging scrolls the content under it
+         *   (CTadsWinScroll::touch_scroll_) instead of selecting text the
+         *   way a mouse drag does, a tap is a click, and a double tap starts
+         *   selecting - by words, like a double click; keeping the finger
+         *   down after the second tap and dragging selects more.  So a
+         *   touch only becomes a click when it's lifted without having
+         *   moved further than io.MouseDragThreshold, except for a double
+         *   tap's second touch, which is a double click at once.
+         */
+        enum touch_mode_t { TOUCH_NONE, TOUCH_PENDING, TOUCH_SCROLL,
+                            TOUCH_SELECT };
+        static touch_mode_t touch_mode = TOUCH_NONE;
+        static ImVec2 touch_start;
+        static double last_tap_time = -1.0;
+        static ImVec2 last_tap_pos;
+        CTadsWinScroll::touch_scroll_t &touch_scroll =
+            CTadsWinScroll::touch_scroll_;
+
         if (mouse_over_topdlg || mouse_over_dbgwin
             || (topdlg == nullptr && !io.WantCaptureMouse)) {
+            bool touch = io.MouseSource == ImGuiMouseSource_TouchScreen;
             if (ImGui::IsMouseClicked(ImGuiMouseButton_Left)) {
-                uncaptured_target->do_leftbtn_down(1, io.MousePos.x, io.MousePos.y, ImGui::GetMouseClickedCount(ImGuiMouseButton_Left));
-            }
-            if (ImGui::IsMouseReleased(ImGuiMouseButton_Left)) {
-                CTadsWin* capture_win = CTadsApp::get_app()->getMouseCapture();
-                if (capture_win) {
-                    capture_win->do_leftbtn_up(1, io.MousePos.x, io.MousePos.y);
+                float tdx = io.MousePos.x - last_tap_pos.x;
+                float tdy = io.MousePos.y - last_tap_pos.y;
+                float slop = 4.0f * io.MouseDragThreshold;
+                if (!touch) {
+                    touch_mode = TOUCH_NONE;
+                    uncaptured_target->do_leftbtn_down(1, io.MousePos.x, io.MousePos.y, ImGui::GetMouseClickedCount(ImGuiMouseButton_Left));
+                }
+                else if (last_tap_time >= 0.0
+                         && ImGui::GetTime() - last_tap_time
+                            <= io.MouseDoubleClickTime
+                         && tdx * tdx + tdy * tdy <= slop * slop) {
+                    /* a double tap: select */
+                    touch_mode = TOUCH_SELECT;
+                    last_tap_time = -1.0;
+                    uncaptured_target->do_leftbtn_down(1, io.MousePos.x, io.MousePos.y, 2);
                 }
                 else {
-                    uncaptured_target->do_leftbtn_up(1, io.MousePos.x, io.MousePos.y);
+                    /* a tap or a drag, which only moving tells apart */
+                    touch_mode = TOUCH_PENDING;
+                    touch_start = io.MousePos;
                 }
+            }
+
+            /* a touch moving too far for a tap scrolls */
+            if (touch_mode == TOUCH_PENDING
+                && ImGui::IsMouseDragging(ImGuiMouseButton_Left)) {
+                touch_mode = TOUCH_SCROLL;
+                touch_scroll.active = true;
+                touch_scroll.start_x = touch_start.x;
+                touch_scroll.start_y = touch_start.y;
+                touch_scroll.dy = 0.0f;
+                touch_scroll.win = nullptr;
+                last_tap_time = -1.0;
+            }
+            if (touch_mode == TOUCH_SCROLL && ImGui::IsMousePosValid())
+                touch_scroll.dy = io.MousePos.y - touch_start.y;
+
+            if (ImGui::IsMouseReleased(ImGuiMouseButton_Left)) {
+                if (touch_mode == TOUCH_PENDING) {
+                    /* a tap: a click where the finger touched down */
+                    uncaptured_target->do_leftbtn_down(1, touch_start.x, touch_start.y, 1);
+                    CTadsWin* capture_win = CTadsApp::get_app()->getMouseCapture();
+                    if (capture_win) {
+                        capture_win->do_leftbtn_up(1, touch_start.x, touch_start.y);
+                    }
+                    else {
+                        uncaptured_target->do_leftbtn_up(1, touch_start.x, touch_start.y);
+                    }
+                    last_tap_time = ImGui::GetTime();
+                    last_tap_pos = touch_start;
+                }
+                else if (touch_mode != TOUCH_SCROLL) {
+                    CTadsWin* capture_win = CTadsApp::get_app()->getMouseCapture();
+                    if (capture_win) {
+                        capture_win->do_leftbtn_up(1, io.MousePos.x, io.MousePos.y);
+                    }
+                    else {
+                        uncaptured_target->do_leftbtn_up(1, io.MousePos.x, io.MousePos.y);
+                    }
+                }
+                touch_mode = TOUCH_NONE;
             }
             if (ImGui::IsMouseClicked(ImGuiMouseButton_Right)) {
                 uncaptured_target->do_rightbtn_down(1, io.MousePos.x, io.MousePos.y, ImGui::GetMouseClickedCount(ImGuiMouseButton_Right));
@@ -16018,6 +16218,14 @@ int CHtmlSys_mainwin::event_loop(int* flag) {
             }
         }
 
+        /* the finger is up: a touch is over, even if we didn't see it lifted */
+        if (!ImGui::IsMouseDown(ImGuiMouseButton_Left))
+            touch_mode = TOUCH_NONE;
+        if (touch_mode != TOUCH_SCROLL) {
+            touch_scroll.active = false;
+            touch_scroll.win = nullptr;
+        }
+
         main_win_->do_render();
 
         if (dbgwin_) {
@@ -16043,6 +16251,16 @@ int CHtmlSys_mainwin::event_loop(int* flag) {
          *   not happen mid-frame.
          */
         run_pending_deferred_dialogs();
+
+#ifdef __EMSCRIPTEN__
+        /*
+         *   Commit a saved position to IndexedDB (the game has finished
+         *   writing it by now) and report a finished import - before the
+         *   next iteration's run_pending_deferred_dialogs() shows its
+         *   message box (websaves.h)
+         */
+        websaves_poll(this);
+#endif
 
         /*
          *   Run any pending audio 'done' callbacks on the main thread.  The
@@ -16547,6 +16765,21 @@ void CHtmlSys_mainwin::notify_load_game(const char *fname)
     /* make sure we've loaded the correct preferences profile for the game */
     if (fname != 0 && fname[0] != '\0')
     {
+        /*
+         *   The fonts the game brings along in a "fonts" folder next to it
+         *   (Thaumistry does): available to this process from now on, like
+         *   installed ones.  Before the profile, whose fonts may be among
+         *   them - a font asked for before is cached with the substitute
+         *   the system found then (Arial for Thaumistry's Open Sans).
+         */
+        {
+            char dir[OSFNMAX], fonts[OSFNMAX];
+            os_get_path_name(dir, sizeof(dir), fullname);
+            os_build_full_path(fonts, sizeof(fonts), dir, "fonts");
+            if (osfacc(fonts) == 0)
+                CGE::SystemFonts::addFolder(fonts);
+        }
+
         /* load the game's preferred profile */
         load_game_specific_profile(fullname);
 
@@ -16596,8 +16829,24 @@ void CHtmlSys_mainwin::set_game_specific_profile(const char *profile)
 }
 
 /*
+ *   Use a profile for the current game unless it has one already
+ */
+void CHtmlSys_mainwin::suggest_game_profile(const char *profile)
+{
+    char current[128];
+
+    /* no game, an unknown profile, or the player chose one: leave it */
+    if (profile_game_.get() == 0 || profile_game_.get()[0] == '\0'
+        || !CHtmlPreferences::profile_exists(profile)
+        || get_profile_assoc(profile_game_.get(), current, sizeof(current)))
+        return;
+
+    set_game_specific_profile(profile);
+}
+
+/*
  *   Get the game-specific profile for the given game file.
- *   
+ *
  *   If we've remembered a specific profile setting for this game, we'll load
  *   the saved profile.  If not, we'll look for a GameInfo record, and check
  *   to see if it has a PresentationProfile setting; if so, use the profile
@@ -19423,6 +19672,20 @@ void CHtmlSys_popup_menu_win::do_paint_content(HDC win_dc, const RECT *rc)
 
     /* draw a one-pixel border */
     FrameRect(win_dc, rc, (HBRUSH)GetStockObject(LTGRAY_BRUSH));
+}
+
+/*
+ *   The same one-pixel light gray frame for guit3, after the children: the
+ *   HTML panel fills the whole menu (set_phys_margins(1, ...) leaves its
+ *   text the pixel for the frame), so the frame goes on the foreground draw
+ *   list, over it - the menu is the topmost thing while it's open anyway
+ */
+void CHtmlSys_popup_menu_win::do_render_content_end()
+{
+    ImGui::GetForegroundDrawList()->AddRect(
+        m_pos, ImVec2(m_pos.x + m_size.x, m_pos.y + m_size.y),
+        IM_COL32(192, 192, 192, 255));
+    CHtmlSys_top_win::do_render_content_end();
 }
 
 /*

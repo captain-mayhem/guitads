@@ -19,6 +19,13 @@
 #include <ui/imgui_impl_cge_platform.h>
 #include <window/window.h>
 
+#ifdef _WIN32
+#ifndef NOMINMAX
+#define NOMINMAX
+#endif
+#include <windows.h>
+#endif
+
 #ifdef ANDROID
 #include <jni.h>
 #include <android_native_app_glue.h>
@@ -26,18 +33,26 @@
 
 #include "guiengine.h"
 
-#if defined(_WIN32) && defined(T3_DEBUG)
+#if defined(T3_DEBUG)
 #include <cstdlib>
 #include <new>
 
 /*
  *   The plain global new and delete, in place of the T3 debug heap's
  *   (tads3/std_dbg.cpp, which the linker leaves out of t3htm once these
- *   exist).  On Windows a replacement only applies to the module that
- *   defines it, and the engine's DLLs hand guit3 memory they allocated
- *   (a std::string's buffer from CGE::Platform::getClipboardText(), for
- *   one) for guit3 to free: t3free() on such a block reads a header that
- *   isn't there and crashes.  The T3 debug heap still serves t3malloc().
+ *   exist).  The T3 debug heap still serves t3malloc().
+ *
+ *   Windows: a replacement only applies to the module that defines it, and
+ *   the engine's DLLs hand guit3 memory they allocated (a std::string's
+ *   buffer from CGE::Platform::getClipboardText(), for one) for guit3 to
+ *   free: t3free() on such a block reads a header that isn't there and
+ *   crashes.
+ *
+ *   Linux (and the other ELF platforms): the other way round - the
+ *   executable's new and delete replace every shared library's, so the
+ *   system's libraries got blocks with the debug heap's header too, and
+ *   Mesa's LLVM, loaded while the engine opens EGL, freed one with free():
+ *   "double free or corruption" before the window even opened.
  */
 void *operator new(size_t siz)
 {
@@ -250,6 +265,47 @@ float gui_content_scale()
     return (s > 0.0f ? s : 1.0f);
 }
 
+void gui_set_dark_title_bar(bool dark)
+{
+#ifdef _WIN32
+    CGE::Engine *engine = CGE::Engine::instance();
+    HWND hwnd = (engine != nullptr && engine->getWindow() != nullptr
+                 ? (HWND)engine->getWindow()->getHandle() : nullptr);
+    if (hwnd == nullptr)
+        return;
+
+    /*
+     *   DwmSetWindowAttribute() looked up at run time rather than linked,
+     *   so guit3 needs no dwmapi.lib.  The attribute is
+     *   DWMWA_USE_IMMERSIVE_DARK_MODE: 20 from Windows 10 20H1 on, 19 on
+     *   1809-1909 (the older SDKs don't define it at all).
+     */
+    typedef HRESULT (WINAPI *dwm_set_attr_t)(HWND, DWORD, LPCVOID, DWORD);
+    static dwm_set_attr_t set_attr = []() -> dwm_set_attr_t {
+        HMODULE dwm = LoadLibraryA("dwmapi.dll");
+        return dwm != nullptr
+            ? (dwm_set_attr_t)(void *)GetProcAddress(dwm, "DwmSetWindowAttribute")
+            : nullptr;
+    }();
+    if (set_attr == nullptr)
+        return;
+
+    BOOL value = dark ? TRUE : FALSE;
+    if (FAILED(set_attr(hwnd, 20, &value, sizeof(value))))
+        set_attr(hwnd, 19, &value, sizeof(value));
+
+    /*
+     *   Windows 11 repaints the caption at once; Windows 10 only on the
+     *   next non-client paint, so ask for one.
+     */
+    SetWindowPos(hwnd, nullptr, 0, 0, 0, 0,
+                 SWP_FRAMECHANGED | SWP_NOMOVE | SWP_NOSIZE | SWP_NOZORDER
+                 | SWP_NOACTIVATE | SWP_NOOWNERZORDER);
+#else
+    (void)dark;
+#endif
+}
+
 CGE::Gfx::RenderDevice *gui_render_device()
 {
     return CGE::Engine::instance()->getRenderDevice();
@@ -313,10 +369,13 @@ void gui_update_text_input(bool want)
     /*
      *   A dialog's text field hides the keyboard when it closes (ImGui's
      *   backend), though the game still reads; and a tap outside of the
-     *   controls brings back a keyboard the user closed
+     *   controls brings back a keyboard the user closed - a tap, not a
+     *   drag, which scrolls (CHtmlSys_mainwin::event_loop())
      */
     if (!CGE::Platform::isTextInputActive()
         || (io.MouseReleased[ImGuiMouseButton_Left]
+            && io.MouseDragMaxDistanceSqr[ImGuiMouseButton_Left]
+               < io.MouseDragThreshold * io.MouseDragThreshold
             && !ImGui::IsAnyItemHovered()))
         CGE::Platform::startTextInput();
 #else

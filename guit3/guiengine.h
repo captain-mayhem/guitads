@@ -69,6 +69,13 @@ void gui_release_window();
 /* the window's content scale (1 at 96 DPI), 1 before the engine runs */
 float gui_content_scale();
 
+/*
+ *   Draw the main window's OS title bar dark or light, to match the ImGui
+ *   chrome (the "Dark" theme).  Windows 10 1809 and later; a no-op on other
+ *   platforms and older Windows versions, and before the window exists.
+ */
+void gui_set_dark_title_bar(bool dark);
+
 /* the render device */
 CGE::Gfx::RenderDevice *gui_render_device();
 

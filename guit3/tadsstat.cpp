@@ -302,15 +302,19 @@ void CTadsStatusline::render(float x, float y, float width)
      *   Draw directly into the foreground draw list, on top of every
      *   window, rather than opening our own ImGui window: this is a fixed
      *   piece of chrome that should always be visible and look the same
-     *   (classic status-bar grey), regardless of the app's theme, of
-     *   window z-order, or of any style push/pop imbalance elsewhere in
-     *   the not-yet-fully-ported window tree.
+     *   (classic status-bar grey, or its dark counterpart when the chrome
+     *   is dark - see set_dark_chrome()), regardless of window z-order or
+     *   of any style push/pop imbalance elsewhere in the not-yet-fully-
+     *   ported window tree.
      */
     ImDrawList *draw_list = ImGui::GetForegroundDrawList();
 
-    const ImU32 bg_col = IM_COL32(212, 212, 212, 255);
-    const ImU32 text_col = IM_COL32(0, 0, 0, 255);
-    const ImU32 border_col = IM_COL32(128, 128, 128, 255);
+    const ImU32 bg_col = dark_chrome_ ? IM_COL32(32, 38, 43, 255)
+                                      : IM_COL32(212, 212, 212, 255);
+    const ImU32 text_col = dark_chrome_ ? IM_COL32(216, 216, 216, 255)
+                                        : IM_COL32(0, 0, 0, 255);
+    const ImU32 border_col = dark_chrome_ ? IM_COL32(74, 85, 96, 255)
+                                          : IM_COL32(128, 128, 128, 255);
 
     draw_list->AddRectFilled(ImVec2(wp.x, wp.y),
                               ImVec2(wp.x + width, wp.y + height_), bg_col);
@@ -351,3 +355,5 @@ void CTadsStatusline::render(float x, float y, float width)
  */
 
 textchar_t CTadsStatusSource::OWNER_DRAW[1] = "";
+
+bool CTadsStatusline::dark_chrome_ = false;

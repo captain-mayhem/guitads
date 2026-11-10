@@ -152,6 +152,15 @@ cge_add_application(guit3
 	t3main.cpp
 	t3main.h
 	guit3.cpp
+
+	# The "bodgers/002" function set of Thaumistry's front end and its map
+	# screen, linked through guit3's own copy of the function set registry
+	# (which keeps the linker from taking t3htm's) - see migration.md 5.37
+	vmbifreg_guit3.cpp
+	guibodgers.cpp
+	guibodgers.h
+	guimap.cpp
+	guimap.h
 )
 
 if (WIN32)
@@ -305,6 +314,10 @@ endif()
 
 if (EMSCRIPTEN)
 	target_compile_options(guit3 PRIVATE -pthread)
+
+	# saved positions in IndexedDB, exported/imported as browser
+	# downloads/uploads (migration.md 5.35)
+	target_sources(guit3 PRIVATE websaves.cpp websaves.h)
 
 	# Link flags verified to compile and link as of migration.md 5.7; the
 	# -sPROXY_TO_PTHREAD/-sPROXY_POSIX_SOCKETS pairing (needed - and correct

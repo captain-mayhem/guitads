@@ -170,7 +170,19 @@ public:
     /* current status line height in pixels, valid after the first render() */
     float get_height() const { return height_; }
 
+    /*
+     *   Light or dark window chrome.  The status bar and the other
+     *   hand-drawn chrome (main panel frame lines, toolbar button states)
+     *   use fixed colors rather than ImGui style colors - see render() -
+     *   so they need to be told which palette matches the current ImGui
+     *   style.  Set by CHtmlSys_mainwin::apply_chrome_style().
+     */
+    static void set_dark_chrome(bool dark) { dark_chrome_ = dark; }
+    static bool is_dark_chrome() { return dark_chrome_; }
+
 private:
+    static bool dark_chrome_;
+
     /*
      *   Remove a source from the list, returning a pointer to the list
      *   item container for the source item.  This doesn't delete

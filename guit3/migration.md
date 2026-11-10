@@ -3706,7 +3706,11 @@ output, 80 lines, five `inputLine()`s that echo the line and its length, run wit
 - **`//tmp` in the file dialog.** A name typed into the File name field was joined to the folder with
   `os_build_full_path()`, so `/tmp` in `/` became `//tmp`, and `realpath()` keeps that (Emscripten's does).
   An absolute name now stands on its own, and `navigate_to()` collapses doubled separators (on Windows not
-  the leading pair of a UNC name). Found along the way:
+  the leading pair of a UNC name). **Follow-up (2026-11-06):** that collapse first counted every
+  `OSPATHALT` character as a separator, and on Windows `OSPATHALT` is `"/:"`, so the drive letter's `:` and
+  the `\` after it were taken for a pair: `C:\games` became the drive-relative `C:games`. Every file dialog on
+  Windows opened on that broken path (with an empty list), and Up worked from it. Only `\` and `/` count now.
+  Found along the way:
   - tads-runner's Unix `os_get_root_name()` (`tads2/unix/osunixt.c`) didn't skip a separator at the start, so
     the default save name of a game at the root of the web's file system, `/ditch3.t3v`, stayed absolute,
     and the dialog showed it with its slash.
@@ -3958,6 +3962,296 @@ Gotchas:
   window of its own. And a WebView ignores its own padding: the insets go on a frame around it.
 - **The emulator's ANR traces (`/data/anr`) can't be read** on a Google Play image (no `adb root`).
 
+### 5.35 Saved positions on the web: IndexedDB, export and import
+
+Before, the web's Save/Restore dialog (`askfile_hook()` → `CTadsFileDialog`) worked in the in-memory file
+system (the game's folder `/`, or `/tmp`), so every saved position was lost on a reload. Now (all in
+`websaves.cpp`/`websaves.h`, Emscripten only, plus `#ifdef __EMSCRIPTEN__` call sites):
+- **The saves folder** is `/IDBFS/guit3/saves` (`CGE::UserDirs::getDataDir()` + `/saves`), in the engine's
+  IndexedDB mount. `askfile_hook()` calls `websaves_fix_default_name()` first: a default name outside
+  `/IDBFS` (the game's folder) keeps only its file name and moves into the saves folder; one already in
+  `/IDBFS` (the last save, which `os_askfile()` remembers) stays.
+- **The commit:** `os_askfile()` returns *before* the game writes the file, so the hook only notes the save
+  (`websaves_note_saved()`), and `websaves_poll()`, called by `event_loop()` between frames, runs
+  `UserDirs::commit()` (`FS.syncfs(false)`). event_loop() only runs once the game is waiting again, so the
+  file is complete. The engine's own per-frame settings save doesn't help: it syncs only when the settings
+  changed.
+- **File > Export Saved Position...** opens the deferred `CTadsFileDialog` in the saves folder; the chosen
+  file is read with `FS.readFile()` and downloaded with a Blob URL and an `<a download>` click.
+- **File > Import Saved Position...** opens a hidden `<input type=file accept=".t3v,.sav">`; the chosen file
+  is written into the saves folder, with `" (2)"`, `" (3)"`... before the extension if the name is taken,
+  and committed. The JS side leaves the outcome in `Module.guit3SaveImport`; `websaves_poll()` reads it
+  while an import is open and queues a message box with the new name (or the failure). New command ids
+  `ID_FILE_EXPORTSAVE`/`ID_FILE_IMPORTSAVE` (40389/40390, `htmlres.h`), in the File menu on the web only.
+
+Gotchas:
+- **A file picker needs transient user activation** (a click or key within about 5 s in Chrome). The menu
+  click normally still counts, since ImGui handles it on the next frame. If it doesn't
+  (`navigator.userActivation.isActive` is false), `websaves_import()` shows an OK/Cancel box first, and the
+  OK click gives a fresh activation. Downloads don't need one.
+- **`EM_JS` stringifies its body:** a regex with backslashes (`/[\/\\]/`) and `''` gave preprocessor
+  warnings and mangled code. Use `""`, and `String.fromCharCode(92)` for a backslash.
+- **Don't touch `Module.FS` from a test page:** with `ASSERTIONS=1` that aborts the app ("'FS' was not
+  exported"). The global `FS` works.
+- `FS.syncfs` may print "2 FS.syncfs operations in flight at once" (this commit and the engine's settings
+  save); harmless.
+- The Restore dialog's name field starts empty: `osunixt.c`'s `os_askfile()` clears a default that doesn't
+  exist *next to the game* before the hook runs (the same as on the desktop). The saves folder's list shows
+  the file.
+- The import's message box draws over a blank screen (`tadswin_message_box()` from
+  `queue_deferred_dialog()` has no background callback, like the sound warning).
+
+**File > Open Game from Device...** (web only, `ID_FILE_UPLOADGAME` 40391, below Open New Game...) uploads a
+game file (`.t3`, `.gam`) the same way into `/IDBFS/guit3/games` and loads it with `load_new_game(path)` from
+`websaves_poll()`. `CHtmlSys_mainwin::load_uploaded_game()` asks "end the current game?" first, like
+`load_new_game()` (the new `pending_new_game_is_upload_` flag picks the branch in
+`render_new_game_confirm()`). The Yes click is also the user activation the file picker needs. The game stays
+in IndexedDB, so its Recent Games entry and Open New Game...'s dialog still find it after a reload. Unlike a
+saved position, an upload with a taken name *replaces* the file (most likely a newer release of the same
+game). It's written under `.upload.tmp` and renamed, so a game still reading the old file keeps its old
+node until it ends. `websaves.cpp`'s picker is shared by both uploads (`upload_kind_t`,
+`Module.guit3Upload`).
+
+**Not covered:** files a game writes by itself (`FileName`/`File` I/O, autosaves without a dialog) still go to
+the working directory in memory. WebUI games are unchanged (their own download/upload, §5.6). There's no way
+to delete uploaded games or saves from the browser's storage within guit3 (the file dialog doesn't delete);
+clearing the site's data removes them all.
+
+**How it was verified** (headless Chrome, jewelhunter's `tools/webtest.mjs --isolate`, `ditch3.t3`): SAVE
+opens the dialog in `/IDBFS/guit3/saves` with `ditch3.t3v`; after a reload the file is there (249003 bytes)
+and RESTORE brings the position back; Import (the input's `click()` stubbed to set a `File` through
+`DataTransfer` and fire `change`) adds `ditch3 (2).t3v` and shows the message box; Export (the anchor's
+`click()` stubbed) downloads `ditch3.t3v` with 249003 bytes; after a second reload both files are there. Open
+Game from Device... during a game asks to end it; after Yes the (stubbed) picker gets `accept=".t3,.gam"`, a
+copy of `ditch3.t3` named `uploaded.t3` lands in `/IDBFS/guit3/games` (2141661 bytes) and the game starts
+over; after a reload the file and its Recent Games entry are still there. (Enter doesn't answer that Yes/No
+popup; the test clicks Yes.) The Windows desktop build still builds.
+
+### 5.36 The "Dark" theme and dark window chrome
+
+A fourth standard theme, **Dark**, next to Multimedia/Web Style/Plain Text: light text `#D7F6F2` on
+`#062B3D`, status line `#D8D8D8` on `#031C2A`, input `#BBD5D1`, gold links (`#DAC060`, hover `#FFE070`,
+clicked `#FFFF96`), not underlined but hover-highlighted — the palette Thaumistry's own QTads-based front end
+stores as its default. It is a standard profile like the other three (`set_theme_defaults()`,
+`init_standard_profiles()` — which creates it for existing installs too, since it only creates missing
+profiles — `set_std_profile_desc()`/`IDS_THEMEDESC_DARK`, `is_standard_profile()`), so it can't be deleted
+and "Reset to Defaults" restores it.
+
+**The ImGui chrome follows it.** `CHtmlSys_mainwin::apply_chrome_style(bool dark)` holds what used to be
+the inline `StyleColorsLight()` + grey `WindowBg`/`MenuBarBg`/`PopupBg` block in the constructor, plus a
+dark branch (`StyleColorsDark()` with a dark-slate `WindowBg` matching the status bar). `do_render()`
+checks the active theme's **"Dark Window Frame"** setting (`HTML_PREF_DARK_CHROME`,
+`get_dark_chrome()`) each frame and calls it when that changes — a lookup, instead of hooking every path
+that can change the active profile or the setting (Themes menu, toolbar dropdown, Options and Customize
+Theme dialogs, per-game profile on load, profile deletion). It is a per-theme setting, on in the Dark
+theme's defaults and in the Thaumistry theme (5.37), with a checkbox on Customize Theme's Colors tab
+("Dark window frame (menus, toolbar, dialogs)"). The first version keyed on the theme's **name**
+`"Dark"`; deriving it from the background brightness was rejected because it would also flip Plain Text
+(white on navy).
+
+**Gotcha — a setting a profile doesn't have keeps the previous profile's value.** `restore_as()` reads
+each property only if the profile has it (`read_from_registry()` keeps the in-memory value otherwise), so
+profiles saved before the setting existed would have taken the dark chrome from whichever theme was
+active before. `restore_as()` now resets it to off before reading, and `init_standard_profiles()` gives an
+existing Dark profile without the value the setting once (restoring it, so the player's changes stay).
+
+**Gotcha — the hand-drawn chrome doesn't use style colors.** The status bar
+(`CTadsStatusline::render()`), the main panel's sunken frame lines (`CHtmlSys_mainwin::render_panel_bevel()`), the toolbar's button hover/press greys and the themes
+dropdown arrow all use fixed `IM_COL32`s, so switching the ImGui style alone left a light-grey status bar
+and white frame lines. They now pick a dark set from `CTadsStatusline::is_dark_chrome()` (a static set by
+`apply_chrome_style()`) / `dark_chrome_`.
+
+**The OS title bar follows too (Windows).** `apply_chrome_style()` calls `gui_set_dark_title_bar()`
+(`guiengine.cpp`), which sets `DWMWA_USE_IMMERSIVE_DARK_MODE` on the engine window's `HWND`
+(`AppWindow::getHandle()`). `DwmSetWindowAttribute` is looked up with `LoadLibrary`/`GetProcAddress`, so no
+`dwmapi.lib` link dependency; attribute 20 first, 19 as the fallback for Windows 10 1809–1909. Windows 10
+doesn't repaint the caption by itself, hence the `SetWindowPos(SWP_FRAMECHANGED)` after it. No-op on the
+other platforms.
+
+Not done: the toolbar icon strip is drawn for a light background — the darker icons (undo, the arrows) are
+faint on the dark toolbar.
+
+**How it was verified**: Windows build, `settings.ini` with `Thaumistry.t3=Dark` under Game Profiles,
+fresh `guit3.exe Thaumistry.t3`, screenshot of its own window: dark menu bar, toolbar and status bar, Dark
+colors in the main panel and the game's status banner.
+
+### 5.37 Thaumistry's front end: the "bodgers" function set, the map, the game's fonts
+
+*Thaumistry: In Charm's Way* (Bob Bates, 2017; Steam) ships its own interpreter, `Thaumistry.exe`, a
+QTads 1.3 fork built from "qtads-bodgers", next to two builds of the game: **`Thaumistry.t3`**, a fallback
+for other interpreters (only the standard function sets; the front end's functions are stubs in the game
+code), and **`vmimage.bin`**, the real one, which requires the function set **`bodgers/002`** and so
+didn't load anywhere else. The front end adds a map screen (pictures in `maps.bin`), Steam achievements,
+its own main menu and save manager, a credits screen, a screen reader mode, and a look of its own (the
+dark-teal palette of 5.36's Dark theme and the TTFs in the game's `fonts/` folder). The files guit3 needs:
+`vmimage.bin`, `maps.bin`, `patch_bootstrap.t`, `patch.t`, `credits_patch.t`, `fonts/`.
+
+**Where the facts come from** — the front end's source isn't published; everything below was read from
+the game's byte code and from the shipped files (scratch scripts, not kept): the function names and
+numbers from `vmimage.bin`'s reflection symbol table (the `qtads_*` names resolve to `VM_BIFPTR` values
+set 3, function 0–13), the argument counts and uses from the call sites (a small T3 disassembler over the
+code pool), `maps.bin`'s layout from its Qt resource header, and the room and area positions from a table
+in `Thaumistry.exe`'s `.rdata` (records of name length, name pointer, x, y — checked against the pictures:
+the clouds land on the rooms, the pins on the right parts of Manhattan).
+
+**The function set** — `guibodgers.h/.cpp` (`CVmBifBodgers`); the table in `guibodgers.h` lists what each
+function does and what guit3 does for it. The ones that matter: `qtads_update_map(json)` (every turn: a
+flat JSON object with `current_section`, `current_room` and `true`/`false` per `rm_*` room and `map_*`
+area), `qtads_show_map()` (the MAP command and the status line's [Map] link; the game only calls it when
+`systemInfo(SysInfoInterpClass)` is HTML), `qtads_patches_path()` (the game compiles
+`<path>patch_bootstrap.t` with `Compiler.compile` at start, so the result needs the trailing separator),
+`qtads_saves_path()` (the game autosaves `new FileName(<path>, 'Autosave')`: the game's folder, which the
+file safety sandbox lets it write to), `qtads_platform()` (the game treats 100 and above as a phone and
+drops the commands that need a file dialog: 0 here). The rest return nil; the credits are printed by
+`credits_patch.t`, which replaces the method that calls `qtads_show_credits()`.
+`CVmBifBodgers::attach()` runs while the image loads (after `set_image_name()` picked the game's theme,
+and while `G_image_loader` still exists — it's reset once loading ends, so the game's folder is taken
+here): it registers `fonts/` with `CGE::SystemFonts::addFolder()` (new in the engine: GDI private fonts,
+fontconfig application fonts, or the Android/web index), creates the **Thaumistry** theme once (the Dark
+theme's colors with Open Sans, Cousine, Gunny Rewritten for TADS-Serif, Mrs Saint Delafield for
+TADS-Script, Erica Type for TADS-Typewriter, at the front end's default sizes), and gives it to the game
+if the player hasn't chosen a theme for it (`CHtmlSys_mainwin::suggest_game_profile()`).
+
+**Linking the set** — a host's extra function set goes into the host's own copy of the registry
+(`vmbifreg.cpp`'s own instructions): `vmbifreg_guit3.cpp` is `vmbifregxn.cpp`/`vmbifregx.cpp` (by
+`TADSNET`) plus `bodgers/002`. It defines `G_bif_reg_table` and every set's `bif_table`, so the linker never
+takes `t3htm`'s registry object, and `t3htm` stays shared with htmlt3/htmltdb3 unchanged. Keep its list in
+step with `vmbifregxn.cpp`.
+
+**The map screen** — `guimap.h/.cpp`. `maps.bin` is a Qt resource file ("qres" v1: header, data, names in
+UTF-16, a tree of 14-byte nodes; 22 bytes from v2 on), read with `osfoprb`/`osfseek` — the index once,
+each picture when needed. The pictures are TIFFs (RGBA, Deflate with the horizontal predictor), decoded
+with the engine's new TIFF codec (`CGE::ImageLoader::TIFF`, `Engine/image/tiff.cpp`, with unit tests). The
+screen copies the original's: `background.tif` fills the window; the area's `map.tif` (3530×3140) with a
+cloud (`<area>/rm_*.tif`) over every room not visited and a pulsing `dot.tif` on the current one, or
+`map_overview.tif` (4000×3000) with a pin (`label_<area>.tif`, kept at a fixed screen size and anchored by
+its tip) for every area reached; the area's `title.tif` at the top, `compass_*` and `legend_*` (the
+`legend_mobile*` ones on Android) in the corners, picked by size. Drag/arrows pan, wheel/±/pinch zoom,
+Tab or a double click switches area/world, Esc/Back closes; buttons do the same. It runs its own frames
+like `tadswin_message_box()` (the VM waits inside `qtads_show_map()`, so the game gets no keys). The big
+pictures are uploaded with halved copies down to 256 px and the copy nearest the drawn size is used (ImGui
+images have no mipmaps); everything is freed when the map closes, and the textures are tracked for
+Android's device loss. Section names that aren't pins: `map_overview` (the lab, which has no area map —
+the world map shows, the dot on `map_lab`) and `map_tech_museum_basement` (the museum's pin).
+
+**Opening it** — the open dialog's filter is `*.t3;vmimage.bin` (`w32_opendlg_filter`, guitrt3.cpp).
+
+**Fixed along the way — the window shrank at every start** (older than this; the build of Nov 1 did it
+too). `CHtmlSys_framewin::set_winpos_prefs()` (on every `do_resize()`, which `do_render()` calls with the
+ImGui work area) saved `CTadsWin::get_frame_pos()`, which called `GetWindowRect()` on `handle_` — a token,
+not a window: on Windows the call failed and left the `RECT` uninitialized (it held the work area of an
+earlier call: the client area less the menu bar and toolbar, 83 px), elsewhere the stand-in returned an
+empty one. The next start created the window with that as its size, `prefs_->save()` during the game's
+profile load wrote the new, smaller work area, and so on. `get_frame_pos()` now reports the engine window's
+content size in logical pixels — what `syswin_create_system_window()` passes to `changeSize()` — at 0,0
+(the position isn't used), and `set_winpos_prefs()` doesn't save an empty rectangle (minimized, or a
+window without the engine window, like the debug log). Checked: three starts from an unset setting all
+save and open 1426×746. The preferences reach the settings file on `prefs_->save()` (exit, profile
+changes), so a size set by resizing persists after a normal exit, not after the process is killed.
+
+**Fixed along the way — the Linux Debug build aborted at start** ("double free or corruption" /
+"munmap_chunk(): invalid pointer", in Mesa's LLVM while the engine opens EGL). With `T3_DEBUG`,
+`tads3/std_dbg.cpp` replaces the global `new`/`delete` with the T3 debug heap's, which put a header in
+front of every block; an ELF executable's operators replace those of *every* shared library in the process,
+so the system's libraries got such blocks too, and LLVM freed one with `free()`. `guiengine.cpp`'s plain
+`new`/`delete` (malloc/free), which keep `std_dbg.o` out of the link, were only there for Windows (for the
+opposite reason: there a replacement is per module, and the engine's DLLs handed guit3 blocks without
+the header); they are now there for every platform. The debug heap still serves `t3malloc()`. Checked:
+the Linux Debug build opens Thaumistry and its map.
+
+**How it was verified**: Windows build, `guit3.exe vmimage.bin`: the startup banner and the game run, the
+Thaumistry theme is chosen with the game's fonts (the letter's signature in Mrs Saint Delafield); the map
+opened from a command script (`-i`, `>map`) shows the world map with the lab's pin; with a test state
+(temporary hook, removed) the zoo's map shows clouds exactly over the unvisited rooms and the dot on the
+current one. Engine: the TIFF and `addFolder()` unit tests, the whole suite.
+
+**Matching the original's look** (compared with a screenshot of `Thaumistry.exe`) took four more fixes, the
+last three of them for every game:
+- **The text column.** QTads has a "line width" setting (the front end's is 80): the text is at most
+  that many average characters of the main font wide, centered. guit3's theme setting **Maximum Text
+  Width** (`HTML_PREF_MAX_TEXT_WIDTH`, 0 = the window's width; Customize Theme, More tab; 80 in the
+  Thaumistry theme). `CHtmlSysWin_win32_Input::update_text_margins()` sets the formatter's left and
+  right physical margins right before each full reformat (`do_reformat()`, `format_after_resize()`,
+  through the virtual `CHtmlSysWin_win32::update_text_margins()`, empty for banners); the margins are
+  otherwise the constructor's 8 px. Like the dark chrome, `restore_as()` resets it before reading.
+- **Table backgrounds, borders and rules weren't drawn at all.** `draw_table_bkg()`,
+  `draw_table_border()` and `draw_hrule()` still filled GDI rectangles on `hdc_`. The game prints
+  documents like the opening letter as `<table align=center cellpadding=28 bgcolor=statusbg>` (inside
+  its own `<bq>` style tag) — the box was missing. They now fill rectangles in the ImGui draw list
+  (`fill_local_rect()`, in the same window-local coordinates `draw_text()` uses: window position minus
+  scroll); the 3D border colors are the usual `COLOR_3DSHADOW/3DFACE/3DHILIGHT` values, as
+  `GetSysColor()` only exists on Windows.
+- **Lines were too close together.** `measure_text()` returned ImGui's text height — the font's size,
+  the em — as the line height, and GDI's `tmAscent` (nothing off Windows) as the ascent. HTML TADS used
+  `tmHeight`, the ascender plus the descender. It now returns the font's own FreeType metrics
+  (`get_font_metrics()`: `total_height`, `ascender_height`), the ones the text is drawn with: Open Sans
+  at 18 px lines up 26 px apart, as in the original (it was 19); Times New Roman at 16 px, 19 (was 16).
+- **The game's regular Open Sans came out as Arial** after the first start. Once the Thaumistry theme
+  exists it is chosen when the game's name is set (`notify_load_game()`), before the image loads and
+  the function set's `attach()` registered the fonts — the font was asked for before it was available,
+  GDI gave its substitute, and guit3's font cache kept it. `notify_load_game()` now adds a `fonts`
+  folder next to any game before loading its profile (`attach()` no longer does).
+
+**The last GDI drawing, ported** (a search of every GDI drawing call in the built sources; what is left
+is in code guit3 never runs: the `do_paint()`/`do_paint_content()`/`do_erase_bkg()` handlers, which only
+a `WM_PAINT` reaches, `CTadsCaret::invert()` — `draw_caret_imgui()` draws the caret — `draw_hbitmap()`,
+used only by the unbuilt `tadstab.cpp`, the native Game Chest dialogs, where GDI works, and the
+`ExtTextOut()` in `draw_text_clip()` next to its ImGui path):
+- **The in-window MORE prompt** ("Show a MORE prompt in the game window" on Customize Theme's More tab;
+  the standard themes use the status line) was `#if 0` in `CHtmlSysWin_win32::do_render_content_begin()`:
+  the text stopped at the prompt's line and nothing showed. It's the highlight-colored bar with the
+  prompt in the highlight text color again, and the window's background below it (the formatter leaves
+  out the lines past the prompt, but not a table background reaching there). `get_moreprompt_rect()`
+  measured the prompt with GDI (nothing off Windows); it uses `measure_text()` now.
+- **Clipped text**: `draw_text_clip()`'s ImGui path ignored `ETO_CLIPPED`, which only
+  `draw_text_space()` uses, for the last of the spaces it fills a gap with: a selection highlight or an
+  underline over a gap ran up to a space's width on. It pushes the clip rectangle now.
+- **The popup menu's frame** (`CHtmlSys_popup_menu_win`, the menus of `show_popup_menu()`): the one-pixel
+  light gray frame `set_phys_margins(1, ...)` leaves room for was only drawn by its GDI
+  `do_paint_content()`; `do_render_content_end()` draws it now, on the foreground draw list, since the
+  HTML panel fills the whole menu. (Not seen on screen: no game here opens one; the prompt was.)
+
+### 5.38 GitHub Pages: a sub-path, and no COOP/COEP from the host
+
+The release workflow (`.github/workflows/release.yml`, job `pages`) publishes the Emscripten zip's contents
+as a GitHub Pages project site (`guit3.html` also as `index.html`) on a tag push, a manual non-draft
+release, or a manual run with `pages_only` (which builds only the web version and makes no release). Two
+things a static project site can't do had to move into the Service Worker (`guit3-webui-sw.js`):
+
+- **No custom headers, so no COOP/COEP.** Without them there is no `SharedArrayBuffer` and guit3's pthreads
+  can't start (silently, see 5.8). The worker now passes every same-origin request that isn't a VM's
+  through `passThrough()`, adding `ISOLATION_HEADERS` where the server didn't send them - the
+  coi-serviceworker technique. On a first visit (or a hard reload, which bypasses the worker) the page isn't
+  controlled yet, so `guit3.html` only loads guit3 and its packages when `crossOriginIsolated`; otherwise it
+  waits for `Guit3WebUIBridge.start()` and reloads once (a `sessionStorage` flag stops a reload loop and
+  shows an error instead).
+- **A sub-path (`/<repo>/`), so the worker's scope isn't `/`.** Scope only matters for navigations: a
+  controlled document's subresource requests (XHR, images, scripts, beacons) reach the worker whatever their
+  URL, so root-absolute `/webui/...` requests were never the problem. Navigations outside the scope (the
+  layout windows' `/cmdwin.htm`, the debug log's `/webuires/debuglog.htm`, downloads in `/clienttmp/...`)
+  would go to the host and 404. So under a sub-path the VM's URL space is mounted at `<scope>vm`
+  (`MOUNT`; VM path `/x` is `<scope>vm/x`, `vmTarget()` strips it again), the bridge announces and
+  `guit3.html` loads the start page there (`Guit3WebUIBridge.pageUrl()`), and `NAV_SHIM` (injected into
+  every VM document, only under a sub-path) rewrites out-of-scope same-origin navigations into the mount:
+  `window.open()`, iframe `src` (property and attribute), form submissions, link clicks, and the Navigation
+  API's `navigate` event for the rest. At the site root nothing changes (`MOUNT` is empty).
+- **Gotcha: `frameWindow.location = url` on a fresh iframe has no hook.** The library does this for its
+  layout windows and file dialog (`createLayoutFrame()`, `initFileDialog()`). `location` is unforgeable, and
+  the Navigation API fires no `navigate` event for a frame's initial `about:blank` document. The shim's
+  `contentWindow` getter therefore hands out a `Proxy` for a frame still at `about:blank`, whose `location`
+  setter maps the URL (methods are bound to the real window; capitalized names, i.e. constructors, are
+  returned as-is so their statics survive). Code comparing such a frame's `contentWindow` to a real window
+  by identity would see a difference; the library doesn't, while the frame is still blank.
+
+**Verified** in headless Chrome (CDP, driven from Node's built-in `WebSocket`) against a plain static server
+that serves the build only under `/guitads/` and sends no COOP/COEP: the page reloaded once and became
+cross-origin isolated; `?game=webtest`'s WebUI loaded at `/guitads/vm/?TADS_session=...` with its layout
+frames at `/guitads/vm/cmdwin.htm` and `/statwin.htm`; `x chair` got the game's reply; `debugLog()` opened
+`/guitads/vm/webuires/debuglog.htm`; `save` downloaded a real `Save1.t3v` through
+`/guitads/vm/clienttmp/Save1.t3v`; and the server saw no request outside `/guitads/` (bar `favicon.ico`).
+The same run at the site root (no mount) still passes. **Not tested:** restore (the upload form's
+`submit()` path) under a sub-path, and browsers other than Chrome.
+
 ## 6. Working notes for a fresh session
 
 ### Building and running
@@ -4057,6 +4351,11 @@ build/emscripten --target guit3`) produces `guit3.js`/`.wasm` plus the test page
 (copied next to them by a `POST_BUILD` step) and a packaged `tests/ditch3.t3` (`em_package(ditch3game ...)` in
 `guit3/CMakeLists.txt` — a distinct name from `tests/CMakeLists.txt`'s own `em_package(ditch3 ...)` for classic
 `t3run`, since `em_package()`'s `add_custom_target()` name must be unique project-wide).
+
+- **Plain `guit3.html` starts no game** — it passes guit3 an empty argv, so it comes up without loading a game,
+  as the native build does when started without one (`w32_pre_start()`, `guitr.cpp`). Use `guit3.html?game=ditch3`
+  for the test game (the page then also loads `ditch3game.js`); `?game=webtest`/`mp3test`/`extra` work as before.
+  Older notes and test recipes that say plain `guit3.html` runs `ditch3.t3` predate this.
 
 - **This build needs `Cross-Origin-Opener-Policy: same-origin` / `Cross-Origin-Embedder-Policy: require-corp`
   response headers** (it uses `-pthread`, which needs `SharedArrayBuffer`, which browsers gate behind

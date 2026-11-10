@@ -153,6 +153,8 @@ CHtmlPreferences::CHtmlPreferences()
     proplist_->set_prop_name(HTML_PREF_ALT_MORE_STYLE, "Alt More Style");
     proplist_->set_prop_name(HTML_PREF_WINPOS, "Window Position");
     proplist_->set_prop_name(HTML_PREF_SUBWINPOS, "Child Window Position");
+    proplist_->set_prop_name(HTML_PREF_DARK_CHROME, "Dark Window Frame");
+    proplist_->set_prop_name(HTML_PREF_MAX_TEXT_WIDTH, "Maximum Text Width");
     proplist_->set_prop_name(HTML_PREF_DBGWINPOS, "Debug Window Position");
     proplist_->set_prop_name(HTML_PREF_DBGMAINPOS,
                              "Debug Main Window Position");
@@ -366,6 +368,10 @@ void CHtmlPreferences::set_theme_defaults(const textchar_t *theme)
     set_underline_links(TRUE);
     set_hover_hilite(FALSE);
 
+    /* the light window chrome, and the text as wide as the window */
+    set_dark_chrome(FALSE);
+    set_max_text_width(0);
+
     /* apply overrides for the Web Style theme */
     if (stricmp(theme, "Web Style") == 0)
     {
@@ -403,6 +409,32 @@ void CHtmlPreferences::set_theme_defaults(const textchar_t *theme)
         set_vlink_color(HTML_make_color(0xc0, 0xff, 0xff));
         set_alink_color(HTML_make_color(0xff, 0x00, 0xff));
         set_hlink_color(HTML_make_color(0xff, 0x00, 0x80));
+    }
+
+    /*
+     *   Apply overrides for the Dark theme: light text on a deep teal
+     *   background (the palette Thaumistry's own QTads-based front end
+     *   ships with), gold links that brighten on hover instead of being
+     *   underlined.  Choosing this theme also switches the ImGui chrome
+     *   (menu bar, toolbar, dialogs, status bar) to its dark style - see
+     *   CHtmlSys_mainwin::apply_chrome_style().
+     */
+    if (stricmp(theme, "Dark") == 0)
+    {
+        set_inpfont_color(HTML_make_color(0xbb, 0xd5, 0xd1));
+
+        set_use_win_colors(FALSE);
+        set_text_color(HTML_make_color(0xd7, 0xf6, 0xf2));
+        set_bg_color(HTML_make_color(0x06, 0x2b, 0x3d));
+        set_color_status_text(HTML_make_color(0xd8, 0xd8, 0xd8));
+        set_color_status_bg(HTML_make_color(0x03, 0x1c, 0x2a));
+        set_link_color(HTML_make_color(0xda, 0xc0, 0x60));
+        set_vlink_color(HTML_make_color(0xda, 0xc0, 0x60));
+        set_alink_color(HTML_make_color(0xff, 0xff, 0x96));
+        set_hlink_color(HTML_make_color(0xff, 0xe0, 0x70));
+        set_underline_links(FALSE);
+        set_hover_hilite(TRUE);
+        set_dark_chrome(TRUE);
     }
 }
 
@@ -529,6 +561,35 @@ void CHtmlPreferences::init_standard_profiles()
         /* save the settings */
         save_as("Plain Text");
     }
+
+    /* if the Dark theme doesn't exist, create it */
+    if (!profile_exists("Dark"))
+    {
+        set_theme_defaults("Dark");
+        save_as("Dark");
+    }
+    else
+    {
+        /*
+         *   A Dark theme from before the "Dark Window Frame" setting got its
+         *   dark chrome from its name: give it the setting, keeping the
+         *   player's changes to it
+         */
+        char key_name[256];
+        get_settings_key_for(key_name, sizeof(key_name), "Dark");
+        tads_settings_key_t key = CTadsSettings::open_key(key_name, FALSE);
+        bool has_setting = key != 0
+            && CTadsSettings::value_exists(
+                key, proplist_->get_prop(HTML_PREF_DARK_CHROME)->get_name());
+        if (key != 0)
+            CTadsSettings::close_key(key);
+        if (!has_setting)
+        {
+            restore_as("Dark", FALSE);
+            set_dark_chrome(TRUE);
+            save_as("Dark");
+        }
+    }
 }
 
 /*
@@ -547,6 +608,8 @@ void CHtmlPreferences::set_std_profile_desc(const textchar_t *profile)
         id = IDS_THEMEDESC_PLAIN_TEXT;
     else if (stricmp(profile, "Web Style") == 0)
         id = IDS_THEMEDESC_WEB_STYLE;
+    else if (stricmp(profile, "Dark") == 0)
+        id = IDS_THEMEDESC_DARK;
     else
         return;
 
@@ -1640,6 +1703,7 @@ void CHtmlPreferences::open_customize_theme_dialog(HWND owner,
     cust_stat_bg_color_ = get_color_status_bg();
     cust_use_win_colors_ = (get_use_win_colors() != 0);
     cust_override_colors_ = (get_override_colors() != 0);
+    cust_dark_chrome_ = (get_dark_chrome() != 0);
     cust_underline_links_ = (get_underline_links() != 0);
     cust_hover_hilite_ = (get_hover_hilite() != 0);
     cust_show_links_sel_ =
@@ -1647,6 +1711,7 @@ void CHtmlPreferences::open_customize_theme_dialog(HWND owner,
     cust_warned_link_change_ = false;
 
     cust_alt_more_style_ = (get_alt_more_style() ? 1 : 0);
+    cust_max_text_width_ = (int)get_max_text_width();
 
     cust_graphics_on_ = (get_graphics_on() != 0);
     cust_sounds_on_ = (get_sounds_on() != 0);
@@ -1945,6 +2010,10 @@ void CHtmlPreferences::cust_render_colors_tab()
         schedule_reformat(FALSE);
     }
     ImGui::EndDisabled();
+    /* takes effect on the next frame (CHtmlSys_mainwin::do_render()) */
+    if (ImGui::Checkbox("Dark window frame (menus, toolbar, dialogs)",
+                        &cust_dark_chrome_))
+        set_dark_chrome(cust_dark_chrome_);
 
     ImGui::Spacing();
     ImGui::SeparatorText("Status Line");
@@ -2079,6 +2148,27 @@ void CHtmlPreferences::cust_render_more_tab()
     ImGui::TextWrapped(
         "Shows all of the text without stopping to wait for a key press.");
     ImGui::Unindent();
+
+    /* the widest column of the main text (CHtmlSysWin_win32_Input::update_text_margins()) */
+    ImGui::Spacing();
+    ImGui::SeparatorText("Text Width");
+    bool limit = cust_max_text_width_ > 0;
+    if (ImGui::Checkbox("Limit the width of the text, centered in the window", &limit))
+    {
+        cust_max_text_width_ = limit ? 80 : 0;
+        set_max_text_width(cust_max_text_width_);
+        schedule_reformat(FALSE);
+    }
+    ImGui::BeginDisabled(!limit);
+    ImGui::SetNextItemWidth(ImGui::GetFontSize() * 8);
+    int chars = limit ? cust_max_text_width_ : 80;
+    if (ImGui::InputInt("characters##MaxTextWidth", &chars, 5, 10) && limit)
+    {
+        cust_max_text_width_ = chars < 20 ? 20 : chars > 400 ? 400 : chars;
+        set_max_text_width(cust_max_text_width_);
+        schedule_reformat(FALSE);
+    }
+    ImGui::EndDisabled();
 }
 
 /*
@@ -2252,6 +2342,15 @@ void CHtmlPreferences::restore_as(const char *profile, int synced_only)
 
     /* open the global key as well */
     global_key = CTadsSettings::open_key(w32_pref_key_name, TRUE);
+
+    /*
+     *   A setting a profile doesn't have keeps the value in memory, which is
+     *   the previous profile's.  The dark chrome and the text width came
+     *   after the profiles were saved: without them, a profile has the
+     *   light chrome and the text as wide as the window.
+     */
+    set_dark_chrome(FALSE);
+    set_max_text_width(0);
 
     /* save the properties */
     for (id = 0 ; id < HTML_PREF_LAST ; ++id)

@@ -226,7 +226,10 @@ namespace
         /*
          *   Collapse doubled separators, which realpath() keeps as they are
          *   (Emscripten's does, for one): "//tmp" is "/tmp".  On Windows a
-         *   leading pair starts a UNC name, so it stays.
+         *   leading pair starts a UNC name, so it stays.  Only '\' and '/'
+         *   count: OSPATHALT is "/:" on Windows, and with the drive letter's
+         *   ':' as a separator, "C:\games" lost its '\' and became the
+         *   drive-relative "C:games".
          */
         std::string &cur = s_dlg.cur_dir;
 #ifdef _WIN32
@@ -234,12 +237,11 @@ namespace
 #else
         size_t keep = 1;
 #endif
+        auto is_sep = [](char c) { return c == OSPATHCHAR || c == '/'; };
         for (size_t i = keep; i < cur.size(); )
         {
-            bool sep = cur[i] == OSPATHCHAR
-                       || strchr(OSPATHALT, cur[i]) != 0;
-            bool prev_sep = cur[i - 1] == OSPATHCHAR
-                            || strchr(OSPATHALT, cur[i - 1]) != 0;
+            bool sep = is_sep(cur[i]);
+            bool prev_sep = is_sep(cur[i - 1]);
             if (sep && prev_sep)
                 cur.erase(i, 1);
             else

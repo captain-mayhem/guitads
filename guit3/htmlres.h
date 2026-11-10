@@ -207,6 +207,7 @@ Modified
 #define IDS_THEMEDESC_MULTIMEDIA        85
 #define IDS_THEMEDESC_PLAIN_TEXT        86
 #define IDS_THEMEDESC_WEB_STYLE         87
+#define IDS_THEMEDESC_DARK              178
 #define IDS_LINKS_ALWAYS                88
 #define IDS_LINKS_CTRL                  89
 #define IDS_LINKS_NEVER                 90
@@ -1350,6 +1351,11 @@ Modified
 ///tads3
 #define ID_HELP_WWWTADSORG              40388
 //cmd Help.TadsWebSite Open the TADS Web site in a browser window
+
+/* guit3's web build: saved positions in and out of the browser (websaves.h) */
+#define ID_FILE_EXPORTSAVE              40389
+#define ID_FILE_IMPORTSAVE              40390
+#define ID_FILE_UPLOADGAME              40391
 
 /*
  *   File-open subcommands for the line sources.  The line sources are
