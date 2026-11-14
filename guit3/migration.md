@@ -4252,6 +4252,33 @@ frames at `/guitads/vm/cmdwin.htm` and `/statwin.htm`; `x chair` got the game's 
 The same run at the site root (no mount) still passes. **Not tested:** restore (the upload form's
 `submit()` path) under a sub-path, and browsers other than Chrome.
 
+### 5.39 Uploads and downloads by the engine's file transfer
+
+`websaves.cpp`'s file picker and download (5.35: `websaves_start_picker`, `websaves_poll_upload`,
+`websaves_download`, `Module.guit3Upload`) became the engine's `CGE::Platform::importFile(folder, accept,
+replace)`, `exportFile(path)` and `pollTransfer(&name)` (`platform/services.h`; the engine also has them on
+Windows and Android, made for jewelhunter's campaign sharing). guit3 now calls those; its EM_JS code is gone.
+What stays in `websaves.cpp`: the saves and games folders, the default name, the commit after a save, the
+three menu commands, the OK box when the user activation has run out, and the messages. `S_upload_kind` also
+tracks an export (`UPLOAD_EXPORT`), whose outcome `websaves_poll()` takes silently unless it failed.
+Differences from before: an import is reported done only after `FS.syncfs` committed it; control characters
+in the chosen name become `_` too; the replacing temporary file is `.import.tmp`. The engine version this
+needs is pinned in `dependencies.txt`.
+
+Found while testing: in headless Chrome a file chooser answered with nothing fires no `cancel` event, so the
+engine kept the import "running" and refused the next Export. Browsers without the input's `cancel` event
+(Chrome before 113, Safari before 16.4) would do the same. The engine now lets a picker still open give way to
+a new transfer (only an import already copying blocks one), as guit3's own code did.
+
+**Verified** in headless Chrome (`?game=ditch3`, `--isolate`, jewelhunter's `webtest.mjs` with its
+`chooseFile` step, which answers the page's next file picker): Import Saved Position adds `mysave.t3v` (5000
+bytes) with the message box, again as `mysave (2).t3v`; a picker answered with nothing changes nothing;
+Export Saved Position downloads `mysave.t3v` byte for byte; another import after it gives `mysave (3).t3v`;
+Open Game from Device (after Yes) puts `uploaded.t3` (2141661 bytes) into `/IDBFS/guit3/games` and the game
+starts over; uploading it again replaces it (still one file); after a reload the games, the three saves and
+the Recent Games entry are there. **Not tested:** a real browser's cancel, a failed download, Firefox and
+Safari; the desktop builds (they don't compile `websaves.cpp`).
+
 ## 6. Working notes for a fresh session
 
 ### Building and running
