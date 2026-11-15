@@ -36,9 +36,9 @@ const char *websaves_get_dir();
 
 /*
  *   Point an os_askfile() default name into the saves folder: a name
- *   outside /IDBFS (the game's own folder, /tmp, ...) would be lost on a
- *   reload, so only its file name is kept.  A name already in /IDBFS (the
- *   last save) stays as it is.
+ *   outside it (the game's own folder, /tmp, /IDBFS/guit3/games for an
+ *   uploaded game, ...) keeps only its file name.  A name already in the
+ *   saves folder (the last save) stays as it is.
  */
 void websaves_fix_default_name(char *fname_buf, size_t fname_buf_len);
 

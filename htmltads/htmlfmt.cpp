@@ -6307,6 +6307,9 @@ void CHtmlFormatterBannerExt::set_banner_size(int siz, int siz_units)
         /* top/bottom banner - set the height */
         get_win()->set_banner_size(0, HTML_BANNERWIN_UNITS_PIX, FALSE,
                                    siz, html_units, TRUE);
+
+        /* an explicit height, which a reformat keeps */
+        height_from_contents_ = FALSE;
         break;
 
     case HTML_BANNERWIN_POS_LEFT:
@@ -6340,6 +6343,35 @@ void CHtmlFormatterBannerExt::size_to_contents(int set_width, int set_height)
      */
     init_size(pos, 0, HTML_BANNERWIN_UNITS_PIX, FALSE, !set_width,
               0, HTML_BANNERWIN_UNITS_PIX, FALSE, !set_height);
+
+    /* a top/bottom banner's height now follows its contents */
+    if (set_height)
+        height_from_contents_ = TRUE;
+}
+
+/*
+ *   Size the height to the contents again, after a reformat at a new width
+ */
+void CHtmlFormatterBannerExt::refit_height_to_contents()
+{
+    HTML_BannerWin_Pos_t pos;
+    unsigned long style;
+
+    /* only a height that was sized to the contents follows them */
+    if (!height_from_contents_ || get_win() == 0)
+        return;
+
+    /*
+     *   only a top or bottom banner: its height doesn't change its width,
+     *   so this can't start another reformat at yet another width
+     */
+    get_win()->get_banner_info(&pos, &style);
+    if (pos != HTML_BANNERWIN_POS_TOP && pos != HTML_BANNERWIN_POS_BOTTOM)
+        return;
+
+    /* keep the width, size the height to the contents */
+    init_size(pos, 0, HTML_BANNERWIN_UNITS_PIX, FALSE, TRUE,
+              0, HTML_BANNERWIN_UNITS_PIX, FALSE, FALSE);
 }
 
 

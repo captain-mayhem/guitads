@@ -4,7 +4,7 @@ The whole project is licensed under GPLv3. This is possible thanks
 to Michael J. Roberts who gave his permission to publish this project
 completely under the GPL license.
 Therefore, the old, more restrictive license terms of the HTML TADS
-freeware license no longer apply to HTML TADS and this code.
+freeware license no longer apply to HTML TADS and GUI TADS.
 
 **Third-party libraries**: libmng and TinySoundFont (MIT license,
 `tinysoundfont/`) in this repository; zlib, libpng, IJG

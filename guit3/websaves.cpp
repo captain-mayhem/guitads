@@ -64,7 +64,14 @@ const char *websaves_get_games_dir()
 
 void websaves_fix_default_name(char *fname_buf, size_t fname_buf_len)
 {
-    if (strncmp(fname_buf, "/IDBFS/", 7) == 0)
+    /*
+     *   a name in the saves folder (the last save) stays; any other, even
+     *   one in /IDBFS (an uploaded game's own folder, /IDBFS/guit3/games),
+     *   keeps only its file name
+     */
+    std::string path = websaves_get_dir();
+    if (strncmp(fname_buf, path.c_str(), path.size()) == 0
+        && fname_buf[path.size()] == '/')
         return;
 
     /* keep the file name only */
@@ -72,7 +79,6 @@ void websaves_fix_default_name(char *fname_buf, size_t fname_buf_len)
     name = (name != 0 ? name + 1 : fname_buf);
 
     /* with no name, the dialog starts in the folder with the field blank */
-    std::string path = websaves_get_dir();
     if (name[0] != '\0')
         path += std::string("/") + name;
 

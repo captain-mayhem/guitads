@@ -5183,8 +5183,22 @@ void CHtmlSysWin_win32::do_resize(int mode, int x, int /*y*/)
     if (disp_height_ < old_height && started_reading_cmd_ && formatter_ != 0)
         fmt_adjust_vscroll();
 #else
+    long old_height = disp_height_;
     disp_height_ = rc.bottom - rc.top;
 #endif
+
+    /*
+     *   A taller window may now hold the text that MORE mode held back - as
+     *   when a banner (the status line) shrinks to its content after the
+     *   main window first laid out the game's opening text.  Nothing else
+     *   checks again until the next text arrives, so a game waiting at its
+     *   first prompt would stay in MORE mode, and with it the commands sent
+     *   through the command line (Save, Restore, ...) disabled.  A MORE
+     *   prompt the game asked for itself stays.
+     */
+    if (disp_height_ > old_height && more_mode_ && !game_more_request_
+        && formatter_ != 0)
+        fmt_adjust_vscroll();
 
     /* see what we're doing */
     switch(mode)
@@ -5276,6 +5290,19 @@ void CHtmlSysWin_win32::format_after_resize(long new_width)
 
         /* we're done with the resize pass */
         doing_resize_reformat_ = FALSE;
+
+        /*
+         *   A banner API text window whose height the game sized to its
+         *   contents (the status line): the contents just changed their
+         *   height with the width, so fit the height again.  The game sized
+         *   it right after writing it, before the window had its final
+         *   width - laid out narrower, the text took more lines, and the
+         *   banner stayed that tall until the game's next sizing (after the
+         *   next command).
+         */
+        if (banner_type_ == HTML_BANNERWIN_TEXT)
+            ((CHtmlFormatterBannerExt *)formatter_)
+                ->refit_height_to_contents();
     }
 
     /* adjust the caret and scrollbar settings */
@@ -14332,7 +14359,7 @@ int CHtmlSys_mainwin::do_querynewpalette()
 void CHtmlSys_mainwin::load_new_game(const textchar_t *fname)
 {
     char dir[OSFNMAX];
-    
+
     /* save the new open file dialog path to the new game's directory */
     CTadsApp::get_app()->set_openfile_dir(fname);
 

@@ -2427,6 +2427,14 @@ public:
     /* size the window to its current contents */
     virtual void size_to_contents(int set_width, int set_height);
 
+    /*
+     *   After the contents were laid out again at a new width (the window's
+     *   final width, known only after the size-to-contents call), size a
+     *   top or bottom banner's height to its contents again - if the last
+     *   sizing of its height was size_to_contents().
+     */
+    void refit_height_to_contents();
+
     /* flush the source text */
     virtual void flush_txtbuf(int fmt) = 0;
 
@@ -2483,6 +2491,9 @@ protected:
 
         /* remember the original requested style */
         orig_style_ = style;
+
+        /* the height wasn't sized to the contents yet */
+        height_from_contents_ = FALSE;
     }
 
     /* calculate the natural content height and width */
@@ -2511,11 +2522,14 @@ protected:
      *   requested.  
      */
     unsigned long orig_style_;
+
+    /* the last sizing of the height was size_to_contents() */
+    int height_from_contents_;
 };
 
 /* ------------------------------------------------------------------------ */
 /*
- *   External Banner Formatter subclass for ordinary text stream windows. 
+ *   External Banner Formatter subclass for ordinary text stream windows.
  */
 class CHtmlFormatterBannerExtText: public CHtmlFormatterBannerExt
 {
