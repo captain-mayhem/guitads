@@ -100,7 +100,7 @@ jobs:
         # GuiTads-<version>-<system>.zip (see tads-runner's CMakeLists.txt).
         working-directory: tads-runner/${{ matrix.build_dir }}
         run: cpack
-      - uses: actions/upload-artifact@v5
+      - uses: actions/upload-artifact@v7
         with:
           name: ${{ matrix.artifact }}
           path: tads-runner/${{ matrix.build_dir }}/*.zip
