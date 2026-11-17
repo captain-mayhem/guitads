@@ -68,6 +68,13 @@ const char *websaves_get_games_dir();
  */
 void websaves_upload_game(class CHtmlSys_mainwin *win);
 
+/*
+ *   Another transfer (Open Game from Web..., urlgame.h) took the engine's
+ *   transfer over: a file picker still open counts as closed, so that
+ *   websaves_poll() doesn't take the other transfer's outcome as its own
+ */
+void websaves_forget_transfer();
+
 #endif /* __EMSCRIPTEN__ */
 
 #endif /* WEBSAVES_H */

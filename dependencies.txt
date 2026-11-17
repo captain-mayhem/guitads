@@ -3,4 +3,4 @@
 # configuring checks the local checkouts against them. Update with
 # 'cmake -P guitads/cmake/deps.cmake update' - see cmake/GuitadsDeps.cmake.
 tads-runner=3ce37ff05ccbad506f7124f117f1458f908c7176
-captainsengine=2fde0bf4992ca80d019862ec0c9071cfa6c572f4
+captainsengine=9153071ff893dc54b51ed53d71492199e1396cdd

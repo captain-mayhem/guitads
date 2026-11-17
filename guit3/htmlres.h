@@ -1357,6 +1357,9 @@ Modified
 #define ID_FILE_IMPORTSAVE              40390
 #define ID_FILE_UPLOADGAME              40391
 
+/* guit3: File > Open Game from Web... (urlgame.h), every platform */
+#define ID_FILE_URLGAME                 40392
+
 /*
  *   File-open subcommands for the line sources.  The line sources are
  *   numbered consecutively starting at zero; for line source number n, we

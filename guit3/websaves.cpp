@@ -23,6 +23,7 @@
 #include "tadswin.h"
 #include "tadsfiledlg.h"
 #include "websaves.h"
+#include "urlgame.h"
 
 /* a saved position in /IDBFS waits for its commit (see websaves_poll()) */
 static bool S_commit_pending = false;
@@ -58,8 +59,8 @@ const char *websaves_get_dir()
 
 const char *websaves_get_games_dir()
 {
-    static std::string dir;
-    return user_subdir(dir, "games");
+    /* shared with Open Game from Web... (urlgame.h) */
+    return urlgame_get_dir();
 }
 
 void websaves_fix_default_name(char *fname_buf, size_t fname_buf_len)
@@ -163,6 +164,11 @@ void websaves_import(CHtmlSys_mainwin *win)
 void websaves_upload_game(CHtmlSys_mainwin *win)
 {
     start_upload(win, UPLOAD_GAME);
+}
+
+void websaves_forget_transfer()
+{
+    S_upload_kind = UPLOAD_NONE;
 }
 
 /* a message box that a file couldn't be exported */

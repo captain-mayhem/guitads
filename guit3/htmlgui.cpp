@@ -103,6 +103,7 @@ Modified
 #include "guios.h"
 #endif
 #include "websaves.h"
+#include "urlgame.h"
 #ifndef W32SND_H
 #include "guisnd.h"
 #endif
@@ -10725,6 +10726,7 @@ CHtmlSys_mainwin::CHtmlSys_mainwin(CHtmlFormatterInput *formatter,
     pending_new_game_confirm_ = FALSE;
     pending_new_game_is_recent_ = FALSE;
     pending_new_game_is_upload_ = FALSE;
+    pending_new_game_is_url_ = FALSE;
     pending_new_game_recent_idx_ = 0;
     new_game_confirm_opened_ = FALSE;
     pending_quit_confirm_ = FALSE;
@@ -11636,6 +11638,9 @@ int CHtmlSys_mainwin::do_render() {
     render_new_game_confirm();
     render_quit_confirm();
 
+    /* draw File > Open Game from Web...'s prompt or download (urlgame.h) */
+    urlgame_render(this);
+
     /* draw the file open/save dialog on top, if one is pending or open */
     CTadsFileDialog::render();
 
@@ -11750,6 +11755,8 @@ void CHtmlSys_mainwin::render_menu_bar()
         /* a game file from the device, uploaded (websaves.h) */
         item(ID_FILE_UPLOADGAME, "Open Game from Device...");
 #endif
+        /* a game file downloaded from a URL (urlgame.h) */
+        item(ID_FILE_URLGAME, "Open Game from Web...");
         ImGui::Separator();
         item(ID_FILE_SAVEGAME, "Save Position...", "Ctrl+S");
         item(ID_FILE_RESTOREGAME, "Restore Position...", "Ctrl+R");
@@ -12233,6 +12240,9 @@ void CHtmlSys_mainwin::render_new_game_confirm()
             websaves_upload_game(this);
         else
 #endif
+        if (pending_new_game_is_url_)
+            urlgame_open(this);
+        else
         if (pending_new_game_is_recent_)
             do_load_recent_game(pending_new_game_recent_idx_);
         else
@@ -12871,6 +12881,7 @@ void CHtmlSys_mainwin::load_recent_game(int idx)
         pending_new_game_confirm_ = TRUE;
         pending_new_game_is_recent_ = TRUE;
         pending_new_game_is_upload_ = FALSE;
+        pending_new_game_is_url_ = FALSE;
         pending_new_game_recent_idx_ = idx;
         return;
     }
@@ -14012,6 +14023,16 @@ int CHtmlSys_mainwin::do_command(int notify_code,
         return TRUE;
 #endif
 
+    case ID_FILE_URLGAME:
+        /* the same conditions as ID_FILE_LOADGAME */
+        if (!standalone_exe_
+            && !in_debugger_
+            && main_panel_ != 0
+            && !main_panel_->get_exit_pause()
+            && urlgame_available())
+            load_url_game();
+        return TRUE;
+
     case ID_FILE_RECENT_1:
     case ID_FILE_RECENT_2:
     case ID_FILE_RECENT_3:
@@ -14265,6 +14286,11 @@ TadsCmdStat_t CHtmlSys_mainwin::check_command(const check_cmd_info *info)
         /* this is just a placeholder, so it's always disabled */
         return TADSCMD_DISABLED;
 
+    case ID_FILE_URLGAME:
+        /* as below, and only where the engine can download */
+        if (!urlgame_available())
+            return TADSCMD_DISABLED;
+        /* fall through */
     case ID_FILE_LOADGAME:
 #ifdef __EMSCRIPTEN__
     case ID_FILE_UPLOADGAME:
@@ -14394,6 +14420,7 @@ void CHtmlSys_mainwin::load_new_game()
         pending_new_game_confirm_ = TRUE;
         pending_new_game_is_recent_ = FALSE;
         pending_new_game_is_upload_ = FALSE;
+        pending_new_game_is_url_ = FALSE;
         return;
     }
 
@@ -14408,12 +14435,27 @@ void CHtmlSys_mainwin::load_uploaded_game()
         pending_new_game_confirm_ = TRUE;
         pending_new_game_is_recent_ = FALSE;
         pending_new_game_is_upload_ = TRUE;
+        pending_new_game_is_url_ = FALSE;
         return;
     }
 
     websaves_upload_game(this);
 }
 #endif
+
+void CHtmlSys_mainwin::load_url_game()
+{
+    if (!main_panel_->get_eof_flag())
+    {
+        pending_new_game_confirm_ = TRUE;
+        pending_new_game_is_recent_ = FALSE;
+        pending_new_game_is_upload_ = FALSE;
+        pending_new_game_is_url_ = TRUE;
+        return;
+    }
+
+    urlgame_open(this);
+}
 
 /*
  *   Show the ImGui file-open dialog and load the chosen game.  Split out of

@@ -4279,6 +4279,55 @@ starts over; uploading it again replaces it (still one file); after a reload the
 the Recent Games entry are there. **Not tested:** a real browser's cancel, a failed download, Firefox and
 Safari; the desktop builds (they don't compile `websaves.cpp`).
 
+### 5.40 Open Game from Web... (every platform)
+
+**File > Open Game from Web...** (`ID_FILE_URLGAME` 40392, below Open New Game... and, on the web, Open Game
+from Device...) asks for a game file's URL, downloads it and plays it. `urlgame.cpp`/`.h` hold it and are
+compiled on every platform. `CHtmlSys_mainwin::load_url_game()` asks "end the current game?" first, like
+the upload does (the new `pending_new_game_is_url_` flag picks the branch in `render_new_game_confirm()`).
+`urlgame_render()` (called next to `render_quit_confirm()`, every frame) draws the URL prompt and then a
+"Downloading..." box with an indeterminate progress bar, and polls the download. The file goes to
+`UserDirs::getDataDir() + "/games"`, the same folder the web's uploads use (`websaves_get_games_dir()`
+now returns `urlgame_get_dir()`), so on the web it is in IndexedDB and survives a reload. A file of the same
+name is replaced. A URL without a scheme gets `https://`. After the download, the file's first bytes must
+be a T3 (`T3-image\r\n\x1a`) or TADS 2 (`TADS2 bin\n\r\x1a`) signature; otherwise it is deleted and a message
+says to give the game file's own address, not a web page's (an IFDB entry is the likely mistake). Then
+`load_new_game(path)` loads it and adds it to Recent Games, as the file dialog's callback does.
+
+The download is the engine's new `CGE::Platform::downloadFile(url, folder, replace)` (+
+`canDownloadFiles()`), one more kind of transfer reported by `pollTransfer()`. It follows redirects and
+names the file after the last path segment of the final URL (percent-decoded, cleaned by
+`importedName()`, `download` if empty). It writes `.download.tmp` (web: `.transfer.tmp`) and renames it.
+Only `http://` and `https://` are accepted. A non-2xx status means `TRANSFER_FAILED`.
+
+| Platform | How                                                                                         |
+|----------|---------------------------------------------------------------------------------------------|
+| Windows  | WinINet on a thread (system proxy and certificates); the engine now links `wininet`          |
+| Linux    | the `curl` program (`-fsSL --proto =http,https -w %{url_effective}`), `wget` if curl is missing |
+| Android  | `CgeActivity.downloadFile()`: HttpURLConnection on a thread, redirects followed by hand (it won't go http→https on its own); needs INTERNET (guit3's manifest has it) |
+| Web      | `fetch()`; the server must send CORS headers. The IF Archive does (`Access-Control-Allow-Origin: *`) |
+
+Why not TADS's own `OS_HttpClient`? On Android and the web it's the bundled libcurl, which is HTTP only, with
+no TLS, and on the web it would go through POSIX-socket emulation, not `fetch()`. Most game URLs are https.
+
+Engine changes that came with it: Windows' transfer state (and now Linux's) is behind a mutex, since a
+download finishes on another thread. On the web the import's file writing became `Module.cgeStoreFile`
+(installed by `cge_transfer_install()` in `PlatformInternal::init`), shared with the download, and its
+temporary name changed from `.import.tmp` to `.transfer.tmp`. The engine can't stop a download. Cancel in
+the "Downloading..." box only stops waiting: the download finishes in the background, its outcome is never
+read, and a new download is refused (with a message) while it still runs. On the web,
+`websaves_forget_transfer()` clears a pending upload when a download starts, so that `websaves_poll()` can't
+take the download's outcome for its own. The engine change is captainsengine `9153071f` ("Implemented file
+download"), pinned in `dependencies.txt`.
+
+**Verified:** Windows (`build/default`), Emscripten, Android (`gradlew assembleDebug`, which needs
+`ANDROID_HOME` set when there's no `local.properties`) and Linux (WSL `build/linux-wsl`) all build. A small
+test program linked against the built engine (Windows `CGE.dll` and Linux `libCGE.so`) checked
+`downloadFile()` + `pollTransfer()` against the IF Archive. `https://…/README` gave `README`. The `http://`
+URL, redirected to https, gave `README (2)` (without replace). A missing file (404) gave `TRANSFER_FAILED`
+with no temporary file left behind. `ftp://` doesn't start. **Not tested:** the menu/dialog flow in the
+running app on any platform, the web's `fetch()` path in a browser, and Android on a device.
+
 ## 6. Working notes for a fresh session
 
 ### Building and running

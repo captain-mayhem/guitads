@@ -2677,6 +2677,13 @@ public:
 #endif
 
     /*
+     *   File > Open Game from Web... (every platform): confirm ending the
+     *   current game like load_new_game(), then ask for the game file's URL
+     *   and download it (urlgame_open(), urlgame.h)
+     */
+    void load_url_game();
+
+    /*
      *   Set the game pause flag; when this flag is true, it means that
      *   the game is suspended in the debugger.  When the game is paused,
      *   we'll reject certain operations, such as menu commands that would
@@ -3776,6 +3783,12 @@ private:
      *   from Device... (the web's upload, load_uploaded_game())
      */
     unsigned int pending_new_game_is_upload_ : 1;
+
+    /*
+     *   Flag: the pending new-game confirmation is for File > Open Game
+     *   from Web... (load_url_game())
+     */
+    unsigned int pending_new_game_is_url_ : 1;
 
     /* which recent-game entry pending_new_game_is_recent_ refers to */
     int pending_new_game_recent_idx_;

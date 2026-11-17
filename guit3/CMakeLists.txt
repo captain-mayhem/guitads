@@ -115,6 +115,9 @@ cge_add_application(guit3
 	htmlpref.h
 	tadsfiledlg.h
 	tadsfiledlg.cpp
+	# File > Open Game from Web... (migration.md 5.40)
+	urlgame.h
+	urlgame.cpp
 	tadsfinddlg.h
 	tadsfinddlg.cpp
 	tadslicensedlg.h
