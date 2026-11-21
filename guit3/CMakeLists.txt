@@ -422,8 +422,11 @@ if (EMSCRIPTEN)
 	# same reason as ditch3game just above: a test-only asset, packaged
 	# separately (its own .data/.js pair, distinct em_package() target name)
 	# so it doesn't have to be baked into ditch3game's package or guit3
-	# itself doesn't have to depend on it.
-	em_package(webuitest ${CMAKE_SOURCE_DIR}/tests/Webtest.t3@Webtest.t3)
+	# itself doesn't have to depend on it. Webtest.t3 is only in the fork's
+	# tads-runner (its misc changes), not upstream, so it's optional here.
+	if (EXISTS ${CMAKE_SOURCE_DIR}/tests/Webtest.t3)
+		em_package(webuitest ${CMAKE_SOURCE_DIR}/tests/Webtest.t3@Webtest.t3)
+	endif()
 
 	# Packages tests/mp3test (an MP3 playback test game; see its mp3test.t)
 	# for guit3.html?game=mp3test, along with the brunch.mp3 it plays - both

@@ -4328,6 +4328,21 @@ URL, redirected to https, gave `README (2)` (without replace). A missing file (4
 with no temporary file left behind. `ftp://` doesn't start. **Not tested:** the menu/dialog flow in the
 running app on any platform, the web's `fetch()` path in a browser, and Android on a device.
 
+### 5.40 libcurl moved from tads-runner to guitads
+
+The bundled libcurl (static, HTTP only, no TLS) was in tads-runner's `curl/`, a fork-only change that
+upstream tads-runner doesn't take. It is now in guitads' `curl/`, unchanged: only guit3 needs it, for
+WebUI games on Emscripten and Android, where there's no system libcurl. tads-runner's `CMakeLists.txt`
+adds `../guitads/curl` (binary dir `curl`, as before) and sets `CURL_FOUND` for `tads3/CMakeLists.txt`
+when building for Emscripten or Android with the guitads checkout present. That has to happen in
+tads-runner, before `tads2`/`tads3`, because `t3core`/`t3htm` link `CURL::libcurl`, and guitads is added
+after them. Without guitads, `find_package(CURL)` finds nothing there and `VM_WITH_NETWORK` defaults to off,
+so upstream tads-runner builds on its own. tads-runner no longer caches `CURL_FOUND` (it used to, `FORCE`d),
+and drops an old cache entry, so a stale `TRUE` can't survive a configure without curl.
+
+`tests/Webtest.t3` stays in tads-runner (its fork-only `misc` changes), so `em_package(webuitest ...)` in
+`guit3/CMakeLists.txt` now only runs when that file exists.
+
 ## 6. Working notes for a fresh session
 
 ### Building and running

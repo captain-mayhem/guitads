@@ -61,7 +61,7 @@ jobs:
             pkg-config
       - if: matrix.preset == 'emscripten'
         name: Install Emscripten build dependencies
-        # The emscripten build brings its own curl (tads-runner/curl) and
+        # The emscripten build brings its own curl (guitads/curl) and
         # needs no system libraries - only ninja for the preset's generator.
         run: |
           sudo apt-get update
