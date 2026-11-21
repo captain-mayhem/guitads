@@ -2,5 +2,5 @@
 # Only guitads is tagged for a release; the workflows check these out, and
 # configuring checks the local checkouts against them. Update with
 # 'cmake -P guitads/cmake/deps.cmake update' - see cmake/GuitadsDeps.cmake.
-tads-runner=5cddeeed99343e26d874644efbe85f822fb1e496
+tads-runner=89b9f62b28a0444405b945ec5ad582e9669cf50b
 captainsengine=9153071ff893dc54b51ed53d71492199e1396cdd

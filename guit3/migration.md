@@ -4337,8 +4337,9 @@ adds `../guitads/curl` (binary dir `curl`, as before) and sets `CURL_FOUND` for 
 when building for Emscripten or Android with the guitads checkout present. That has to happen in
 tads-runner, before `tads2`/`tads3`, because `t3core`/`t3htm` link `CURL::libcurl`, and guitads is added
 after them. Without guitads, `find_package(CURL)` finds nothing there and `VM_WITH_NETWORK` defaults to off,
-so upstream tads-runner builds on its own. tads-runner no longer caches `CURL_FOUND` (it used to, `FORCE`d),
-and drops an old cache entry, so a stale `TRUE` can't survive a configure without curl.
+so upstream tads-runner builds on its own. `CURL_FOUND` is now a normal variable; it used to be a `FORCE`d
+cache entry. A build directory configured before this keeps that cached `TRUE` and `VM_WITH_NETWORK=ON`,
+so configure it fresh.
 
 `tests/Webtest.t3` stays in tads-runner (its fork-only `misc` changes), so `em_package(webuitest ...)` in
 `guit3/CMakeLists.txt` now only runs when that file exists.
